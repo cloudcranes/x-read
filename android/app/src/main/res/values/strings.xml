@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">拾页</string>
+    <string name="playback_channel">听书播放</string>
+    <string name="playback_channel_desc">后台播放真人音频时的控制条</string>
+    <string name="tts_channel">朗读</string>
+    <string name="tts_channel_desc">后台朗读正文时的控制条</string>
+    <string name="reminder_channel">阅读提醒</string>
+    <string name="update_channel">新章提醒</string>
+    <string name="update_channel_desc">书架里的书有新章节时提醒</string>
+</resources>

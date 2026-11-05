@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  上游一律 HTTPS，故这里关掉明文。
+  注意：内容核心走 Rust/rustls（webpki-roots），不读取本文件；
+  本文件只约束 Java 侧（封面图 Coil）以系统信任链校验。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

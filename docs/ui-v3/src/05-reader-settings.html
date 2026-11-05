@@ -1,0 +1,182 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+/* 本地子集字体（woff2，共 337KB），保证离线也能复现设计图。
+ * 换字/加字后需重新子集化，见 docs/ui-v3/README.md。
+ */
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-700.woff2') format('woff2'); font-weight:700; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-400.woff2')  format('woff2'); font-weight:400; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-500.woff2')  format('woff2'); font-weight:500; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-700.woff2')  format('woff2'); font-weight:700; }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+:root { --r-bg:#F3EBD9; --r-text:#2C2620; --r-title:#1A1611; --r-dim:#6B5F50;
+        --r-acc:#9C4A22; --r-rule:#E0D5BE; --r-hl:rgba(156,74,34,.18); }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+html,body { width:393px; height:873px; background:var(--r-bg); font-family:'SansSC',sans-serif;
+            color:var(--r-text); overflow:hidden; }
+.screen { position:relative; width:393px; height:873px; }
+.num { font-variant-numeric:tabular-nums; }
+
+/* 背景：被遮罩压暗的正文 */
+.reader-bg { position:absolute; inset:0; padding:32px 20px 0; }
+.ch-title { font-family:'SerifSC'; font-weight:700; font-size:23px; line-height:33px; color:var(--r-title); }
+.ch-rule { width:28px; height:2px; background:var(--r-rule); margin:14px 0 18px; }
+.p-text { font-family:'SerifSC'; font-size:19px; line-height:33px; color:var(--r-text); margin-bottom:15px; }
+
+.scrim { position:absolute; inset:0; background:rgba(22,21,15,.42); }
+
+/* ---------- 底部抽屉 ---------- */
+.sheet { position:absolute; left:0; right:0; bottom:0; background:#FBF8F0;
+         border-radius:20px 20px 0 0; box-shadow:0 -1px 0 var(--r-rule); padding:10px 0 18px; }
+.grab { width:34px; height:3px; border-radius:2px; background:#CFC3AC; margin:0 auto 10px; }
+.sh-head { display:flex; align-items:baseline; justify-content:space-between;
+           padding:0 20px 6px; }
+.sh-title { font-family:'SerifSC'; font-weight:700; font-size:17px; color:var(--r-title); }
+.sh-done { font-size:13px; color:var(--r-acc); font-weight:500; }
+
+.sec-t { font-size:10px; letter-spacing:.14em; color:var(--r-dim); padding:8px 20px 4px; }
+
+.row { display:flex; align-items:center; gap:12px; padding:6px 20px; min-height:48px; }
+.row-l { width:44px; font-size:13px; color:var(--r-dim); flex:none; }
+.row-v { font-size:12px; color:var(--r-text); width:34px; text-align:center;
+         font-variant-numeric:tabular-nums; flex:none; }
+
+/* A- / A+ 方按钮 44×36，热区靠外层 48 撑开 */
+.step { width:44px; height:36px; border:1px solid #CFC3AC; border-radius:2px;
+        display:grid; place-items:center; font-size:13px; color:var(--r-text);
+        background:transparent; flex:none; }
+
+/* 滑块 */
+.slider { flex:1; height:36px; position:relative; display:flex; align-items:center; }
+.trk { position:absolute; left:0; right:0; height:2px; background:#DDD2BC; }
+.fil { position:absolute; left:0; height:2px; background:var(--r-acc); }
+.knb { position:absolute; width:18px; height:18px; border-radius:9px; background:var(--r-acc);
+       box-shadow:0 0 0 4px rgba(156,74,34,.12); }
+
+/* 分段控制：2px 圆角，与外壳的 0 圆角一脉相承 */
+.seg { display:flex; flex:1; border:1px solid #CFC3AC; border-radius:2px; overflow:hidden; }
+.seg-i { flex:1; height:38px; display:grid; place-items:center; font-size:12.5px;
+         color:var(--r-dim); border-right:1px solid #CFC3AC; }
+.seg-i:last-child { border-right:none; }
+.seg-i.on { background:var(--r-acc); color:#FFF; font-weight:500; }
+
+/* 色板 */
+.sw-row { display:flex; gap:16px; padding:4px 20px 6px; }
+.sw { text-align:center; }
+.sw-dot { width:32px; height:32px; border-radius:16px; display:grid; place-items:center;
+          font-family:'SerifSC'; font-size:12px; border:1px solid #CFC3AC; }
+.sw-dot.on { box-shadow:inset 0 0 0 2px var(--r-acc); border-color:transparent; }
+.sw-n { font-size:10px; color:var(--r-dim); margin-top:4px; }
+.sw-n.on { color:var(--r-acc); font-weight:500; }
+
+/* 开关 */
+.sw2 { width:42px; height:24px; border-radius:12px; background:#CFC3AC; position:relative; flex:none; }
+.sw2.on { background:var(--r-acc); }
+.sw2::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px;
+              border-radius:10px; background:#FFF; }
+.sw2.on::after { left:20px; }
+
+.hint { font-size:11px; line-height:17px; color:var(--r-dim); padding:2px 20px 6px; }
+.divider { height:1px; background:#E7DFD0; margin:6px 20px; }
+</style></head><body><div class="screen">
+
+  <div class="reader-bg">
+    <div class="ch-title">第 2 章　说谎</div>
+    <div class="ch-rule"></div>
+    <div class="p-text">山羊头缓缓站起身，环顾着在场的九个人。他的脸上没有任何表情，只是淡淡地说道：「规则是绝对的。」</div>
+    <div class="p-text">这句话说完，密室里安静了下来。齐夏看了看桌上的卡牌，虽然用手扣住了那三个字，但他知道那里写的是「说谎者」。</div>
+    <div class="p-text">那么，会有多个说谎者吗？如果「规则是绝对的」，那山羊头刚刚所说的「有且只有一个说谎者」就是绝对的。</div>
+  </div>
+
+  <div class="scrim"></div>
+
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sh-head">
+      <span class="sh-title">阅读设置</span>
+      <span class="sh-done">完成</span>
+    </div>
+
+    <!-- 1 字号：14–30，步进 1 -->
+    <div class="row">
+      <span class="row-l">字号</span>
+      <div class="step">A−</div>
+      <div class="slider">
+        <div class="trk"></div>
+        <div class="fil" style="width:31%"></div>
+        <div class="knb" style="left:calc(31% - 9px)"></div>
+      </div>
+      <div class="step">A+</div>
+      <span class="row-v num">19</span>
+    </div>
+
+    <!-- 2 行距 -->
+    <div class="row">
+      <span class="row-l">行距</span>
+      <div class="seg">
+        <div class="seg-i">紧凑</div>
+        <div class="seg-i on">标准</div>
+        <div class="seg-i">宽松</div>
+      </div>
+    </div>
+
+    <!-- 3 背景：ReaderPalette 四方案 -->
+    <div class="sec-t num">BACKGROUND</div>
+    <div class="sw-row">
+      <div class="sw">
+        <div class="sw-dot on" style="background:#F3EBD9;color:#2C2620">文</div>
+        <div class="sw-n on">米黄</div>
+      </div>
+      <div class="sw">
+        <div class="sw-dot" style="background:#FFFFFF;color:#1F1D1A">文</div>
+        <div class="sw-n">白</div>
+      </div>
+      <div class="sw">
+        <div class="sw-dot" style="background:#E4EEDE;color:#1E2820">文</div>
+        <div class="sw-n">浅绿</div>
+      </div>
+      <div class="sw">
+        <div class="sw-dot" style="background:#171A1E;color:#C8C7C2">文</div>
+        <div class="sw-n">夜色</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 4 翻页：ReaderPrefs 只有 tapTurn / volumeTurn -->
+    <div class="sec-t num">GESTURES</div>
+    <div class="row">
+      <span class="row-l" style="width:auto;flex:1">点按左右翻页</span>
+      <div class="sw2 on"></div>
+    </div>
+    <div class="row">
+      <span class="row-l" style="width:auto;flex:1">音量键翻页</span>
+      <div class="sw2 on"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 5 听书 -->
+    <div class="sec-t num">TTS</div>
+    <div class="row">
+      <span class="row-l" style="width:auto;flex:1">朗读本章</span>
+      <div class="sw2"></div>
+    </div>
+    <div class="row">
+      <span class="row-l">倍速</span>
+      <div class="seg">
+        <div class="seg-i on">1x</div>
+        <div class="seg-i">1.5x</div>
+        <div class="seg-i">2x</div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="row-l">定时</span>
+      <div class="seg">
+        <div class="seg-i">15 分</div>
+        <div class="seg-i">30 分</div>
+        <div class="seg-i">取消</div>
+      </div>
+    </div>
+  </div>
+</div><script src="measure.js"></script></body></html>

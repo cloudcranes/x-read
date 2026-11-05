@@ -1,0 +1,207 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+/* 本地子集字体（woff2，共 337KB），保证离线也能复现设计图。
+ * 换字/加字后需重新子集化，见 docs/ui-v3/README.md。
+ */
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-700.woff2') format('woff2'); font-weight:700; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-400.woff2')  format('woff2'); font-weight:400; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-500.woff2')  format('woff2'); font-weight:500; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-700.woff2')  format('woff2'); font-weight:700; }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+  .head-t { font-family:'SerifSC'; font-weight:700; font-size:32px; line-height:40px; }
+  .head-kicker { font-size:10px; letter-spacing:.18em; color:var(--ink-3); margin-bottom:4px; }
+
+  .gender { display:flex; border-bottom:1px solid var(--rule); }
+  .gender-i { flex:1; text-align:center; padding:11px 0 9px; font-size:13px; color:var(--ink-3); position:relative; }
+  .gender-i.on { color:var(--ink); font-weight:700; }
+  .gender-i.on::after { content:''; position:absolute; left:50%; transform:translateX(-50%);
+                        bottom:-1px; width:28px; height:2px; background:var(--accent); }
+
+  .typebar { display:flex; gap:18px; padding:12px var(--gutter) 10px; }
+  .type-i { font-size:14px; color:var(--ink-3); padding-bottom:3px; border-bottom:2px solid transparent; }
+  .type-i.on { color:var(--ink); font-weight:700; border-bottom-color:var(--accent); }
+
+  .catwrap { padding:2px 0 12px; }
+  .stat-line { display:flex; align-items:center; justify-content:space-between;
+               padding:8px var(--gutter); background:#F4F2EC; }
+  .stat-line .k { font-size:10px; letter-spacing:.1em; color:var(--ink-3); }
+  .stat-line .v { font-size:11px; color:var(--ink-2); font-variant-numeric:tabular-nums; }
+
+  .rank-row2 { display:flex; align-items:center; gap:var(--s3); padding:11px var(--gutter); }
+  .rn { font-family:'SerifSC'; font-weight:700; font-size:19px; width:24px; text-align:right;
+        color:var(--ink-3); flex:none; font-variant-numeric:tabular-nums; line-height:1; }
+  .rn.top { color:var(--accent); }
+  .rcover { width:36px; height:48px; }
+  .rmain { flex:1; min-width:0; }
+  .rtitle { font-size:13.5px; font-weight:500; line-height:19px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .rmeta { font-size:10.5px; color:var(--ink-3); margin-top:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .rright { text-align:right; flex:none; width:56px; }
+  .rread { font-size:10px; color:var(--ink-3); font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .rdelta { font-size:10.5px; font-weight:500; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .d-up { color:var(--accent); } .d-dn { color:var(--down); } .d-fl { color:var(--flat); }
+  .rscore { font-family:'SerifSC'; font-weight:700; font-size:12px; color:var(--gold); font-variant-numeric:tabular-nums; }
+
+  .sticky-cta { flex:none; padding:10px var(--gutter) 14px; border-top:1px solid var(--rule); background:var(--bg); }
+</style></head><body><div class="screen">
+
+  <div class="statusbar"><span class="num">9:41</span><span class="num">5G · 82%</span></div>
+
+  <div class="page-head" style="padding-bottom:8px">
+    <div class="head-row">
+      <div>
+        <div class="head-kicker num">RANKINGS · 2026-10-29</div>
+        <div class="head-t">榜单</div>
+      </div>
+      <div class="icon-btn">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- 男频 / 女频：后端 genders 只有这两个 -->
+  <div class="gender">
+    <div class="gender-i on">男频</div>
+    <div class="gender-i">女频</div>
+  </div>
+
+  <!-- types 只有 reading / new -->
+  <div class="typebar">
+    <div class="type-i on">阅读榜</div>
+    <div class="type-i">新书榜</div>
+  </div>
+
+  <!-- 19 个分类 -->
+  <div class="catwrap">
+    <div class="chips">
+      <div class="chip on">西方奇幻</div>
+      <div class="chip">东方仙侠</div>
+      <div class="chip">科幻末世</div>
+      <div class="chip">都市日常</div>
+    </div>
+  </div>
+
+  <div class="stat-line">
+    <span class="k num">TOTAL 200 · PAGE 1/20</span>
+    <span class="v">统计于 09:12</span>
+  </div>
+
+  <div class="scroll">
+    <div class="rank-row2">
+      <div class="rn top num">1</div>
+      <div class="cover cover-blue rcover"><span class="cover-cn" style="font-size:8px">人在<br>诡异</span></div>
+      <div class="rmain">
+        <div class="rtitle">人在诡异，靠第四天灾登顶至高</div>
+        <div class="rmeta">我时糕手 · 连载 · 423 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">59.8 万在读</div>
+        <div class="rdelta d-fl num">— 持平</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn top num">2</div>
+      <div class="cover cover-warm rcover"><span class="cover-cn" style="font-size:8px">斩神</span></div>
+      <div class="rmain">
+        <div class="rtitle">我在精神病院学斩神</div>
+        <div class="rmeta">三九音域 · 连载 · 320 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">42.1 万在读</div>
+        <div class="rdelta d-up num">↑ 1</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn top num">3</div>
+      <div class="cover cover-gold rcover"><span class="cover-cn" style="font-size:8px">游戏<br>入侵</span></div>
+      <div class="rmain">
+        <div class="rtitle">游戏入侵：开局金刚明王功</div>
+        <div class="rmeta">道不易 · 连载 · 288 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">37.4 万在读</div>
+        <div class="rdelta d-dn num">↓ 1</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn num">4</div>
+      <div class="cover cover-green rcover"><span class="cover-cn" style="font-size:8px">甲子<br>荡魔</span></div>
+      <div class="rmain">
+        <div class="rtitle">甲子荡魔：这个道士杀怪就变强！</div>
+        <div class="rmeta">你有医保你先上啊 · 连载 · 156 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">31.2 万在读</div>
+        <div class="rdelta d-up num">↑ 2</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn num">5</div>
+      <div class="cover cover-fiction rcover"><span class="cover-cn" style="font-size:8px">大一<br>实习</span></div>
+      <div class="rmain">
+        <div class="rtitle">大一实习，你跑去 749 收容怪物</div>
+        <div class="rmeta">我爱罗的沙 · 连载 · 96 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">28.7 万在读</div>
+        <div class="rdelta d-fl num">— 持平</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn num">6</div>
+      <div class="cover cover-warm rcover"><span class="cover-cn" style="font-size:8px">美综</span></div>
+      <div class="rmain">
+        <div class="rtitle">美综：谁说美剧没有人情世故？</div>
+        <div class="rmeta">刀锋跳舞 · 连载 · 210 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">25.4 万在读</div>
+        <div class="rdelta d-dn num">↓ 3</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn num">7</div>
+      <div class="cover cover-blue rcover"><span class="cover-cn" style="font-size:8px">请活<br>到天明</span></div>
+      <div class="rmain">
+        <div class="rtitle">请活到天明时分</div>
+        <div class="rmeta">阿一不是阿二 · 连载 · 74 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">21.9 万在读</div>
+        <div class="rdelta d-up num">↑ 5</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row2">
+      <div class="rn num">8</div>
+      <div class="cover cover-gold rcover"><span class="cover-cn" style="font-size:8px">种族<br>大逃杀</span></div>
+      <div class="rmain">
+        <div class="rtitle">种族大逃杀，从获得 S 级技能开始</div>
+        <div class="rmeta">蓝色的风 · 连载 · 132 万字</div>
+      </div>
+      <div class="rright">
+        <div class="rread">20.1 万在读</div>
+        <div class="rdelta d-fl num">— 持平</div>
+      </div>
+    </div>
+    <div class="hair"></div>
+  </div>
+
+  <div class="sticky-cta">
+    <div class="btn-ghost num">加载下一页 · 1 / 20</div>
+  </div>
+</div><script src="measure.js"></script></body></html>

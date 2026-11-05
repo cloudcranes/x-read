@@ -1,0 +1,154 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+/* 本地子集字体（woff2，共 337KB），保证离线也能复现设计图。
+ * 换字/加字后需重新子集化，见 docs/ui-v3/README.md。
+ */
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-700.woff2') format('woff2'); font-weight:700; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-400.woff2')  format('woff2'); font-weight:400; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-500.woff2')  format('woff2'); font-weight:500; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-700.woff2')  format('woff2'); font-weight:700; }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+/* 阅读页独立样式表：与外壳解耦，只吃 ReaderPalette 的七槽 */
+:root {
+  --r-bg:    #F3EBD9;
+  --r-text:  #2C2620;
+  --r-title: #1A1611;
+  --r-dim:   #6B5F50;
+  --r-acc:   #9C4A22;
+  --r-rule:  #E0D5BE;
+  --r-hl:    rgba(156,74,34,.18);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+html,body { width:393px; height:873px; background:var(--r-bg); font-family:'SansSC',sans-serif;
+            color:var(--r-text); overflow:hidden; }
+.screen { position:relative; width:393px; height:873px; display:flex; flex-direction:column; }
+.num { font-variant-numeric:tabular-nums; }
+
+/* ---------- 正文：全出血 ---------- */
+.reader { flex:1; padding:0 20px; overflow:hidden; position:relative; }
+
+/* 页眉：居中一行，只在正文顶部出现一次 */
+.pg-head { text-align:center; font-size:11px; line-height:16px; letter-spacing:.08em;
+           color:var(--r-dim); padding:14px 0 20px; }
+
+.ch-title { font-family:'SerifSC'; font-weight:700; font-size:23px; line-height:33px;
+            color:var(--r-title); letter-spacing:.01em; }
+.ch-rule { width:28px; height:2px; background:var(--r-rule); margin:14px 0 18px; }
+
+/* 段落：衬线 19/33，段间空行（0.75 行 ≈ 25px，这里用 margin 15px + 行高留白） */
+.p { display:flex; align-items:flex-start; gap:6px; margin-bottom:15px; }
+.p-main { flex:1; min-width:0; }
+.p-text { font-family:'SerifSC'; font-size:19px; line-height:33px; color:var(--r-text);
+          text-align:justify; text-justify:inter-ideograph; }
+.p-text .hl { background:var(--r-hl); }
+.p-text .spoken { background:rgba(156,74,34,.16); }
+
+/* 段评轨道：整章固定 30px，保证正文右边界对齐 */
+.rail { width:30px; flex:none; padding-top:6px; }
+.bub { min-width:22px; height:22px; padding:0 5px; border-radius:11px;
+       display:grid; place-items:center; font-size:9px; line-height:1;
+       font-weight:500; font-variant-numeric:tabular-nums;
+       border:1px solid #C9BCA6; color:var(--r-dim); background:rgba(255,255,255,.35); }
+.bub.hot { border-color:var(--r-acc); color:var(--r-acc); background:rgba(156,74,34,.08); }
+
+/* 书签标记：段落左侧一个 2px 朱红细条 */
+.bookmarked { position:relative; }
+.bookmarked::before { content:''; position:absolute; left:-10px; top:6px; bottom:6px;
+                      width:2px; background:var(--r-acc); border-radius:1px; }
+
+/* ---------- 底栏（显隐态：这里画唤起后的样子） ---------- */
+.bottombar { flex:none; background:var(--r-bg); border-top:1px solid var(--r-rule);
+             display:flex; padding:8px 0 6px; }
+.bb { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.bb svg { width:22px; height:22px; stroke:var(--r-text); stroke-width:1.5; fill:none;
+          stroke-linecap:round; stroke-linejoin:round; }
+.bb-l { font-size:10px; line-height:14px; color:var(--r-dim); }
+.bb.on svg { stroke:var(--r-acc); }
+.bb.on .bb-l { color:var(--r-acc); font-weight:500; }
+
+/* ---------- 常显进度线 ---------- */
+.footer { flex:none; background:var(--r-bg); padding:6px 20px 12px;
+          display:flex; align-items:center; gap:8px; }
+.ft-bar { flex:1; height:2px; background:var(--r-rule); }
+.ft-fill { height:2px; background:var(--r-acc); }
+.ft-pct { font-size:11px; line-height:15px; color:var(--r-dim); font-variant-numeric:tabular-nums; }
+.ft-pos { font-size:11px; line-height:15px; color:var(--r-dim); font-variant-numeric:tabular-nums; }
+
+/* ---------- 顶栏 ---------- */
+.topbar { position:absolute; top:0; left:0; right:0; background:rgba(243,235,217,.97);
+          display:flex; align-items:center; padding:6px 6px; gap:2px;
+          border-bottom:1px solid var(--r-rule); }
+.tb-icon { width:40px; height:40px; display:grid; place-items:center; }
+.tb-icon svg { width:20px; height:20px; stroke:var(--r-text); stroke-width:1.5; fill:none;
+               stroke-linecap:round; stroke-linejoin:round; }
+.tb-title { flex:1; min-width:0; font-size:14px; font-weight:500; color:var(--r-title);
+            overflow:hidden; white-space:nowrap; text-overflow:ellipsis; padding:0 4px; }
+.statusbar { position:absolute; top:0; left:0; right:0; height:32px; display:flex;
+             align-items:center; justify-content:space-between; padding:6px 20px 0;
+             font-size:11px; color:var(--r-dim); background:var(--r-bg); z-index:5; }
+</style></head><body><div class="screen">
+
+  <!-- 正文（chrome 隐藏态） -->
+  <div class="reader" style="padding-top:32px">
+    <div class="pg-head">十日终焉 · 第 2 章 说谎</div>
+
+    <div class="ch-title">第 2 章　说谎</div>
+    <div class="ch-rule"></div>
+
+    <div class="p">
+      <div class="p-main">
+        <div class="p-text">山羊头缓缓站起身，环顾着在场的九个人。他的脸上没有任何表情，只是淡淡地说道：「规则是绝对的。」</div>
+      </div>
+      <div class="rail"><div class="bub hot num">2.6k</div></div>
+    </div>
+
+    <div class="p">
+      <div class="p-main">
+        <div class="p-text">这句话说完，密室里安静了下来。齐夏看了看桌上的卡牌，虽然用手扣住了那三个字，但他知道那里写的是「<span class="hl">说谎者</span>」。</div>
+      </div>
+      <div class="rail"><div class="bub num">412</div></div>
+    </div>
+
+    <div class="p bookmarked">
+      <div class="p-main">
+        <div class="p-text"><span class="spoken">那么，会有多个说谎者吗？如果「规则是绝对的」，那山羊头刚刚所说的「有且只有一个说谎者」就是绝对的。</span></div>
+      </div>
+      <div class="rail"></div>
+    </div>
+
+    <div class="p">
+      <div class="p-main">
+        <div class="p-text">自己既然抽到了「说谎者」，便证明其他人不可能是说谎者。他们说的都是真话。</div>
+      </div>
+      <div class="rail"></div>
+    </div>
+  </div>
+
+  <!-- 常显页脚：进度线 + 百分比 + 章位置 -->
+  <div class="footer">
+    <div class="ft-bar"><div class="ft-fill" style="width:66%"></div></div>
+    <span class="ft-pct num">66%</span>
+    <span class="ft-pos num">2 / 1496</span>
+  </div>
+
+  <!-- 底栏：目录 / 设置 / 听书 / 夜间 -->
+  <div class="bottombar">
+    <div class="bb">
+      <svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9"/></svg>
+      <span class="bb-l">目录</span>
+    </div>
+    <div class="bb">
+      <svg viewBox="0 0 24 24"><path d="M9 4h6M12 4v3"/><circle cx="12" cy="13" r="6"/><path d="M12 13v3"/></svg>
+      <span class="bb-l">设置</span>
+    </div>
+    <div class="bb">
+      <svg viewBox="0 0 24 24"><path d="M4 14v-4a2 2 0 0 1 2-2h2l4-3v14l-4-3H6a2 2 0 0 1-2-2z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>
+      <span class="bb-l">听书</span>
+    </div>
+    <div class="bb">
+      <svg viewBox="0 0 24 24"><path d="M20 14a8 8 0 1 0-16 0"/><path d="M12 6v6l4 2"/></svg>
+      <span class="bb-l">夜间</span>
+    </div>
+  </div>
+</div><script src="measure.js"></script></body></html>

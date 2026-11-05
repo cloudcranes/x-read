@@ -1,0 +1,28 @@
+[package]
+name = "xread-native"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[lib]
+name = "xread_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fqapi_core = { path = "vendor/fqapi-core" }
+jni = { version = "0.21", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+serde_json = "1"
+rand = "0.8"
+hex = "0.4"
+
+[features]
+# JNI 入口只在 Android 目标启用；host 测试不需要 libjvm。
+android = ["jni"]
+
+[profile.release]
+opt-level = "s"
+strip = true
+lto = "thin"
+
+[workspace]

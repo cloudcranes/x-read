@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 后台播放：前台服务 + 通知栏控制 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14 起前台服务必须声明类型对应的权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Android 13 起通知需要运行时授权；未授权时播放照常，只是不显示控制条 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 11+ 包可见性：不声明则无法绑定系统 TTS 引擎（MIUI 会记 AppsFilter BLOCKED）。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <!--
+      备份策略：内容核心的设备池密钥（pool.key）与解密后的音频缓存绝不能离开本机。
+      allowBackup=false 直接关掉 adb backup / 云备份，dataExtractionRules 再对
+      API 31+ 的 D2D 迁移做一次显式排除。
+    -->
+    <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <activity
+            android:name=".MainActivity"
+            android:enableOnBackInvokedCallback="false"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".data.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- 新章定时检查：AlarmManager 显式广播，不导出 -->
+        <receiver
+            android:name=".data.UpdateCheckReceiver"
+            android:exported="false" />
+
+        <!-- 每日阅读提醒：与上新检查各用一个闹钟，互不覆盖 -->
+        <receiver
+            android:name=".data.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- 朗读前台服务：锁屏/离开阅读页后继续读 -->
+        <service
+            android:name=".data.TtsService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- 书摘卡片：PNG 落在 cache/share，只按需授予读权限，不导出 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

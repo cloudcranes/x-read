@@ -1,0 +1,208 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+/* 本地子集字体（woff2，共 337KB），保证离线也能复现设计图。
+ * 换字/加字后需重新子集化，见 docs/ui-v3/README.md。
+ */
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-400.woff2') format('woff2'); font-weight:400; }
+@font-face { font-family:'SerifSC'; src:url('../fonts/Noto_Serif_SC-700.woff2') format('woff2'); font-weight:700; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-400.woff2')  format('woff2'); font-weight:400; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-500.woff2')  format('woff2'); font-weight:500; }
+@font-face { font-family:'SansSC';  src:url('../fonts/Noto_Sans_SC-700.woff2')  format('woff2'); font-weight:700; }
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+  .wel { padding: var(--s6) var(--gutter) 0; }
+  .date-line { font-size: 10px; letter-spacing: .18em; color: var(--ink-3); }
+  .wel-t { font-family: 'SerifSC'; font-weight: 700; font-size: 34px; line-height: 40px; margin-top: 6px; }
+  .wel-sub { font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+
+  .cont { margin: var(--s5) var(--gutter) 0; border: 1px solid var(--rule-2); background: var(--surface); }
+  .cont-top { display: flex; gap: var(--s3); padding: var(--s4); }
+  .cont-cover { width: 62px; height: 84px; }
+  .cont-main { flex: 1; min-width: 0; }
+  .cont-kicker { font-size: 10px; letter-spacing: .12em; color: var(--accent); font-weight: 500; }
+  .cont-title { font-family: 'SerifSC'; font-weight: 700; font-size: 18px; line-height: 25px; margin-top: 3px; }
+  .cont-ch { font-size: 12px; color: var(--ink-2); margin-top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .cont-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .bar-track { flex: 1; height: 2px; background: var(--rule); }
+  .bar-fill { height: 2px; background: var(--accent); }
+  .cont-pct { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .cont-foot { display: flex; border-top: 1px solid var(--rule); }
+  .cont-btn { flex: 1; height: 42px; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: var(--accent); }
+  .cont-btn + .cont-btn { border-left: 1px solid var(--rule); color: var(--ink-2); font-weight: 500; }
+
+  .shelf-item { display: flex; gap: var(--s3); padding: var(--s3) var(--gutter); align-items: center; }
+  .shelf-cover { width: 46px; height: 62px; }
+  .shelf-main { flex: 1; min-width: 0; }
+  .shelf-title { font-size: 14px; font-weight: 500; line-height: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .shelf-meta { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .shelf-state { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+  .mini-bar { width: 54px; height: 2px; background: var(--rule); }
+  .mini-fill { height: 2px; background: var(--ink-2); }
+
+  .hot-row { display: flex; gap: 0; padding: 0 var(--gutter); }
+  .hot-col { flex: 1; min-width: 0; padding-right: 10px; }
+  .hot-n { font-family: 'SerifSC'; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .hot-w { font-size: 12px; line-height: 17px; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .tabbar { flex: none; height: 58px; border-top: 1px solid var(--rule); background: var(--bg);
+            display: flex; align-items: center; }
+  .tab { flex: 1; display: grid; place-items: center; gap: 3px; }
+  .tab-l { font-size: 10px; color: var(--ink-3); }
+  .tab.on .tab-l { color: var(--accent); font-weight: 500; }
+  .tab.on .icon { stroke: var(--accent); }
+  .tab .icon { width: 20px; height: 20px; stroke: var(--ink-3); }
+</style></head><body><div class="screen">
+
+  <div class="statusbar"><span class="num">9:41</span><span class="num">5G · 82%</span></div>
+
+  <div class="scroll">
+    <!-- 页头 -->
+    <div class="wel">
+      <div class="date-line num">10 月 29 日 · 周三</div>
+      <div class="wel-t">书架</div>
+      <div class="wel-sub">在架 2 本 · 昨日读了 143 分钟</div>
+    </div>
+
+    <!-- 继续阅读：全页唯一带边框的重点卡 -->
+    <div class="cont">
+      <div class="cont-top">
+        <div class="cover cover-fiction cont-cover"><span class="cover-cn" style="font-size:13px">十日<br>终焉</span></div>
+        <div class="cont-main">
+          <div class="cont-kicker">继续阅读</div>
+          <div class="cont-title">十日终焉</div>
+          <div class="cont-ch">第 2 章 说谎 · 第 14 段</div>
+          <div class="cont-bar">
+            <div class="bar-track"><div class="bar-fill" style="width:66%"></div></div>
+            <span class="cont-pct">66%</span>
+          </div>
+        </div>
+      </div>
+      <div class="cont-foot">
+        <div class="cont-btn">接着读</div>
+        <div class="cont-btn">章节目录</div>
+      </div>
+    </div>
+
+    <!-- 我的书架 -->
+    <div class="sec-head">
+      <div><span class="idx num">01</span>&nbsp;&nbsp;<span class="t-h2">在架</span></div>
+      <span class="sec-more">整理</span>
+    </div>
+    <div class="hair"></div>
+
+    <div class="shelf-item">
+      <div class="cover cover-fiction shelf-cover"><span class="cover-cn" style="font-size:9px">十日<br>终焉</span></div>
+      <div class="shelf-main">
+        <div class="shelf-title">十日终焉</div>
+        <div class="shelf-meta">杀虫队队员 · 完本 · 1496 章</div>
+        <div class="shelf-state">
+          <div class="mini-bar"><div class="mini-fill" style="width:42%"></div></div>
+          <span class="t-micro num">第 2 章</span>
+        </div>
+      </div>
+      <span class="badge badge-accent">新 3</span>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="shelf-item">
+      <div class="cover cover-green shelf-cover"><span class="cover-cn" style="font-size:9px">序列<br>吃神者</span></div>
+      <div class="shelf-main">
+        <div class="shelf-title">序列：吃神者</div>
+        <div class="shelf-meta">不要大脑要小脑 · 连载 · 2007 章</div>
+        <div class="shelf-state">
+          <div class="mini-bar"><div class="mini-fill" style="width:78%"></div></div>
+          <span class="t-micro num">第 1560 章</span>
+        </div>
+      </div>
+      <span class="badge badge-ink">已读</span>
+    </div>
+    <div class="hair"></div>
+
+    <!-- 今日热榜：直接用 rank + reading_count -->
+    <div class="sec-head">
+      <div><span class="idx num">02</span>&nbsp;&nbsp;<span class="t-h2">男频阅读榜</span></div>
+      <span class="sec-more">完整榜单</span>
+    </div>
+    <div class="hair"></div>
+
+    <div class="rank-row">
+      <div class="rank-no top num">1</div>
+      <div class="cover cover-blue" style="width:34px;height:46px"><span class="cover-cn" style="font-size:8px">人在<br>诡异</span></div>
+      <div class="rank-main">
+        <div class="rank-title">人在诡异，靠第四天灾登顶至高</div>
+        <div class="rank-meta">我时糕手 · 西方奇幻</div>
+      </div>
+      <div class="rank-stat">
+        <div class="rank-read num">59.8 万</div>
+        <div class="rank-delta delta-flat num">— 持平</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row">
+      <div class="rank-no top num">2</div>
+      <div class="cover cover-warm" style="width:34px;height:46px"><span class="cover-cn" style="font-size:8px">斩神</span></div>
+      <div class="rank-main">
+        <div class="rank-title">我在精神病院学斩神</div>
+        <div class="rank-meta">三九音域 · 都市高武</div>
+      </div>
+      <div class="rank-stat">
+        <div class="rank-read num">42.1 万</div>
+        <div class="rank-delta delta-up num">↑ 1</div>
+      </div>
+    </div>
+    <div class="hair-inset"></div>
+
+    <div class="rank-row">
+      <div class="rank-no top num">3</div>
+      <div class="cover cover-gold" style="width:34px;height:46px"><span class="cover-cn" style="font-size:8px">游戏<br>入侵</span></div>
+      <div class="rank-main">
+        <div class="rank-title">游戏入侵：开局金刚明王功</div>
+        <div class="rank-meta">道不易 · 东方仙侠</div>
+      </div>
+      <div class="rank-stat">
+        <div class="rank-read num">37.4 万</div>
+        <div class="rank-delta delta-down num">↓ 1</div>
+      </div>
+    </div>
+    <div class="hair"></div>
+
+    <!-- 热搜：用 is_hot 字段 -->
+    <div class="sec-head">
+      <div><span class="idx num">03</span>&nbsp;&nbsp;<span class="t-h2">大家在搜</span></div>
+      <span class="sec-more">换一批</span>
+    </div>
+    <div class="hot-row">
+      <div class="hot-col">
+        <div class="hot-n num">01</div><div class="hot-w">天神改命</div>
+        <div class="hot-n num" style="margin-top:10px">03</div><div class="hot-w">十日终焉</div>
+        <div class="hot-n num" style="margin-top:10px">05</div><div class="hot-w">番茄好故事之夜</div>
+      </div>
+      <div class="hot-col">
+        <div class="hot-n num">02</div><div class="hot-w">音乐热榜100首</div>
+        <div class="hot-n num" style="margin-top:10px">04</div><div class="hot-w">神通者</div>
+        <div class="hot-n num" style="margin-top:10px">06</div><div class="hot-w">我不是戏神</div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab on">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 5h6v14H4zM14 5h6v14h-6z"/></svg>
+      <span class="tab-l">书架</span>
+    </div>
+    <div class="tab">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 18V9M9.3 18V5M14.6 18v-6M20 18v-9"/></svg>
+      <span class="tab-l">榜单</span>
+    </div>
+    <div class="tab">
+      <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M15.5 15.5 20 20"/></svg>
+      <span class="tab-l">搜索</span>
+    </div>
+    <div class="tab">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9"/></svg>
+      <span class="tab-l">离线</span>
+    </div>
+  </div>
+</div><script src="measure.js"></script></body></html>

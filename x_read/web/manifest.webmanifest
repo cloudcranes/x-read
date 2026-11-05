@@ -1,0 +1,25 @@
+{
+  "name": "x-read 小说阅读",
+  "short_name": "x-read",
+  "description": "个人小说阅读工作台",
+  "start_url": "/reader.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8F4EA",
+  "theme_color": "#F8F4EA",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
