@@ -282,11 +282,11 @@ private fun App(
         updater.hydrate()
         updater.autoCheckOnLaunch()
     }
+    // Toast 只负责「冒一下」，真正的结果留在设置面板里，别手动清掉。
     androidx.compose.runtime.LaunchedEffect(updateState.message) {
         val text = updateState.message
         if (text.isNotEmpty()) {
             android.widget.Toast.makeText(hostContext, text, android.widget.Toast.LENGTH_SHORT).show()
-            updater.clearMessage()
         }
     }
 

@@ -268,7 +268,6 @@ class AppUpdater(context: Context) {
         scope.launch { runCatching { repo.saveUpdateMirror(mirror) } }
     }
 
-    fun clearMessage() = _state.update { it.copy(message = "") }
 
     // ---------------- HTTP ----------------
 
