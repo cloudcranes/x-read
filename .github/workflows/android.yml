@@ -86,7 +86,12 @@ jobs:
       - name: 编译原生核心（arm64-v8a）
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/android/native-core/target
-        run: bash scripts/build_native_core.sh
+        run: |
+          # 脚本在本地会退回 /tmp 下的自有工具链目录；CI 必须指回宿主 rustup，
+          # 否则 RUSTUP_HOME 指向空目录，cargo 报 “no default is configured”。
+          export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+          bash scripts/build_native_core.sh
 
       # 没有 Secrets 时仍出 debug 包，保证 PR 与 fork 也能跑通；
       # release 只认 release.keystore，不回退 debug 签名。
