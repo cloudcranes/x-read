@@ -73,6 +73,11 @@ jobs:
         with:
           targets: aarch64-linux-android
 
+      # 运行镜像上的 rustup 没有默认工具链，脚本里的裸 cargo 会报
+      # "rustup could not choose version of cargo run"，这里显式指定。
+      - name: 设为默认工具链
+        run: rustup default stable && rustc --version && cargo --version
+
       - name: 缓存 Cargo
         uses: Swatinem/rust-cache@v2
         with:
