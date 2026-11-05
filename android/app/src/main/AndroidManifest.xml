@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Android 13 起通知需要运行时授权；未授权时播放照常，只是不显示控制条 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 热更新：把下载到 cache 的安装包交给系统安装器（Android 8+ 还要用户授权「安装未知应用」） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android 11+ 包可见性：不声明则无法绑定系统 TTS 引擎（MIUI 会记 AppsFilter BLOCKED）。 -->
     <queries>
         <intent>

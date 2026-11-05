@@ -2,4 +2,6 @@
 <paths>
     <!-- 只暴露书摘卡片所在的 cache/share 子目录 -->
     <cache-path name="share" path="share/" />
+    <!-- 热更新下载的安装包：只暴露 cache/update 子目录，装完即删 -->
+    <cache-path name="update" path="update/" />
 </paths>

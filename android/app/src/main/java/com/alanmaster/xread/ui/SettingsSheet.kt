@@ -14,19 +14,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alanmaster.xread.BuildConfig
+import com.alanmaster.xread.data.AppUpdate
 import com.alanmaster.xread.data.OfflineRepo
 import com.alanmaster.xread.data.ReaderPrefs
+import com.alanmaster.xread.data.UpdateUi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -51,6 +63,13 @@ fun SettingsSheet(
     onPrefs: (ReaderPrefs) -> Unit,
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
+    update: UpdateUi = UpdateUi(),
+    onCheckUpdate: () -> Unit = {},
+    onDownloadUpdate: () -> Unit = {},
+    onInstallUpdate: () -> Unit = {},
+    onHotUpdate: (Boolean) -> Unit = {},
+    onUpdateSource: (String, String) -> Unit = { _, _ -> },
+    onUpdateMirror: (String) -> Unit = {},
 ) {
     val local = rememberLocalStorage()
 
@@ -159,12 +178,271 @@ fun SettingsSheet(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = Space.sm, bottom = Space.sm),
                                 )
+                                UpdatePanel(
+                                    update = update,
+                                    onCheck = onCheckUpdate,
+                                    onDownload = onDownloadUpdate,
+                                    onInstall = onInstallUpdate,
+                                    onToggle = onHotUpdate,
+                                    onSource = onUpdateSource,
+                                    onMirror = onUpdateMirror,
+                                )
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * 热更新面板：开关 + 更新源 + 检查/下载/安装。
+ *
+ * 做的是整包更新：下载完的 APK 交给系统安装器覆盖安装，applicationId 不变，
+ * 书架、进度、离线正文都在私有目录里，装完不用重新导入。
+ */
+@Composable
+private fun UpdatePanel(
+    update: UpdateUi,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onToggle: (Boolean) -> Unit,
+    onSource: (String, String) -> Unit,
+    onMirror: (String) -> Unit,
+) {
+    var editing by remember { mutableStateOf(false) }
+    var pickingMirror by remember { mutableStateOf(false) }
+
+    DividerLine()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = Space.md),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "热更新",
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = if (update.hotUpdate) "启动时自动检查新版本，每天最多一次" else "已关掉自动检查，仍可手动检查",
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Space.xxs),
+            )
+        }
+        Switch(checked = update.hotUpdate, onCheckedChange = onToggle)
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = Space.xs),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "更新源",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = update.source.removePrefix("https://"),
+            fontSize = 11.sp,
+            color = ink3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1.8f),
+        )
+        TextButton(onClick = { editing = true }) { Text("编辑", fontSize = 12.sp) }
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = Space.xs),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "下载加速",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = AppUpdate.mirrorOf(update.mirror).label,
+            fontSize = 11.sp,
+            color = ink3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1.8f),
+        )
+        TextButton(onClick = { pickingMirror = true }) { Text("更换", fontSize = 12.sp) }
+    }
+
+    Text(
+        text = when {
+            update.checking -> "正在检查更新…"
+            update.downloading -> "正在下载 ${(update.progress * 100).toInt()}%"
+            update.file != null -> "安装包已就绪，点安装完成更新"
+            update.newer && update.release != null -> "发现新版本 ${update.release.versionName}"
+            update.checkedVersion.isNotBlank() -> "已是最新 ${update.checkedVersion}"
+            else -> "尚未检查"
+        },
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        color = if (update.newer) MaterialTheme.colorScheme.primary else ink3,
+    )
+
+    if (update.downloading) {
+        LinearProgressIndicator(
+            progress = { update.progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Space.xs),
+        )
+    }
+
+    if (update.message.isNotBlank()) {
+        Text(
+            text = update.message,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            color = ink3,
+            modifier = Modifier.padding(top = Space.xs),
+        )
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Space.sm, bottom = Space.sm),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        when {
+            update.file != null -> {
+                SecondaryButton("重新下载", onDownload, enabled = !update.downloading)
+                Spacer(Modifier.width(Space.sm))
+                PrimaryButton("安装", onInstall)
+            }
+            update.newer -> {
+                SecondaryButton("检查更新", onCheck, enabled = !update.checking && !update.downloading)
+                Spacer(Modifier.width(Space.sm))
+                PrimaryButton(
+                    text = if (update.downloading) "下载中…" else "下载安装包",
+                    onClick = onDownload,
+                    enabled = !update.downloading,
+                )
+            }
+            else -> SecondaryButton(
+                text = if (update.checking) "检查中…" else "检查更新",
+                onClick = onCheck,
+                enabled = !update.checking,
+            )
+        }
+    }
+
+    if (editing) {
+        var draftSource by remember(update.source) { mutableStateOf(update.source) }
+        var draftToken by remember(update.token) { mutableStateOf(update.token) }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("更新源", fontSize = 16.sp) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = draftSource,
+                        onValueChange = { draftSource = it },
+                        label = { Text("Release 或清单地址") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = draftToken,
+                        onValueChange = { draftToken = it },
+                        label = { Text("GitHub 令牌（公开源可留空）") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.sm),
+                    )
+                    Text(
+                        text = "仓库是私有的，不带令牌拉最新 Release 会 404。" +
+                                "填一个只有 contents:read 的只读令牌即可，令牌只存在本机。",
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp,
+                        color = ink3,
+                        modifier = Modifier.padding(top = Space.xs),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onSource(draftSource, draftToken)
+                        editing = false
+                    },
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editing = false }) { Text("取消") }
+            },
+        )
+    }
+
+    if (pickingMirror) {
+        AlertDialog(
+            onDismissRequest = { pickingMirror = false },
+            title = { Text("下载加速", fontSize = 16.sp) },
+            text = {
+                Column {
+                    AppUpdate.MIRRORS.forEach { m ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onMirror(m.key)
+                                    pickingMirror = false
+                                }
+                                .padding(vertical = Space.xxs),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = m.key == update.mirror,
+                                onClick = {
+                                    onMirror(m.key)
+                                    pickingMirror = false
+                                },
+                            )
+                            Text(
+                                text = m.label,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(start = Space.xs),
+                            )
+                        }
+                    }
+                    Text(
+                        text = "加速通道是第三方反向代理，只代理 APK 下载；更新源和令牌仍然直连 GitHub，" +
+                            "令牌不会发给代理。通道不通时会自动退回直连。",
+                        fontSize = 11.sp,
+                        lineHeight = 17.sp,
+                        color = ink3,
+                        modifier = Modifier.padding(top = Space.xs),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { pickingMirror = false }) { Text("关闭") }
+            },
+        )
     }
 }
 

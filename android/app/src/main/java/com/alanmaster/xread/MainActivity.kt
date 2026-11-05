@@ -274,6 +274,22 @@ private fun App(
         else com.alanmaster.xread.data.UpdateScheduler.cancel(hostContext)
     }
 
+    // 热更新：进界面先读一次偏好，再过节流自动查一次（一天最多一次）。
+    // 检查/下载都是 IO，状态由 updater 自己的 StateFlow 推送，不占主线程。
+    val updater = remember { com.alanmaster.xread.data.AppUpdater(hostContext) }
+    val updateState by updater.state.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        updater.hydrate()
+        updater.autoCheckOnLaunch()
+    }
+    androidx.compose.runtime.LaunchedEffect(updateState.message) {
+        val text = updateState.message
+        if (text.isNotEmpty()) {
+            android.widget.Toast.makeText(hostContext, text, android.widget.Toast.LENGTH_SHORT).show()
+            updater.clearMessage()
+        }
+    }
+
     // 开始朗读就拉前台上服务：锁屏后仍可读，并从通知栏暂停/停止
     androidx.compose.runtime.LaunchedEffect(ttsSpeaking) {
         if (ttsSpeaking) {
@@ -1303,6 +1319,13 @@ private fun App(
             onPrefs = { vm.setReaderPrefs(it) },
             onDismiss = { showSettings = false },
             onRetry = { showSettings = false; vm.refreshAll() },
+            update = updateState,
+            onCheckUpdate = { updater.check() },
+            onDownloadUpdate = { updater.download() },
+            onInstallUpdate = { updater.install() },
+            onHotUpdate = { updater.setHotUpdate(it) },
+            onUpdateSource = { source, token -> updater.saveSource(source, token) },
+            onUpdateMirror = { updater.setMirror(it) },
         )
     }
     // 阅读时长按「前台停留」结算：进后台立即结算并暂停计时，

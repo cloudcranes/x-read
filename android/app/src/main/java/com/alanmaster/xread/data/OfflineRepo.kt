@@ -583,6 +583,70 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         s.put("newChapterNotify", enabled)
     }
 
+    /* ---------- 热更新 ---------- */
+
+    /**
+     * 热更新总开关，默认开。
+     *
+     * 关了之后启动不自动检查，但设置里的「检查更新」仍可手动用——用户多半只是
+     * 不想被后台流量打扰，而不是永远不升级。
+     */
+    fun hotUpdateEnabled(): Boolean = runCatching {
+        loadObject(settingsFile).optBoolean("hotUpdate", true)
+    }.getOrDefault(true)
+
+    fun saveHotUpdateEnabled(enabled: Boolean) = mutate(settingsFile) { s ->
+        s.put("hotUpdate", enabled)
+    }
+
+    fun updateSource(): String = runCatching {
+        loadObject(settingsFile).optString("updateSource").ifBlank { AppUpdate.DEFAULT_SOURCE }
+    }.getOrDefault(AppUpdate.DEFAULT_SOURCE)
+
+    fun saveUpdateSource(source: String) = mutate(settingsFile) { s ->
+        s.put("updateSource", source.trim())
+    }
+
+    /** GitHub 只读令牌；仓库私有，不带令牌拉 releases/latest 会 404。 */
+    fun updateToken(): String = runCatching {
+        loadObject(settingsFile).optString("updateToken")
+    }.getOrDefault("")
+
+    fun saveUpdateToken(token: String) = mutate(settingsFile) { s ->
+        s.put("updateToken", token.trim())
+    }
+
+    /**
+     * 下载加速通道的 key，见 [AppUpdate.MIRRORS]；空串表示直连。
+     *
+     * 读的时候也过一遍 [AppUpdate.mirrorOf]：手改过的 settings.json 里可能是
+     * 已经下线的通道名，这时按直连处理，别让下载卡在一个拼不出来的 URL 上。
+     */
+    fun updateMirror(): String = runCatching {
+        AppUpdate.mirrorOf(loadObject(settingsFile).optString("updateMirror")).key
+    }.getOrDefault("")
+
+    fun saveUpdateMirror(key: String) = mutate(settingsFile) { s ->
+        s.put("updateMirror", AppUpdate.mirrorOf(key).key)
+    }
+
+    fun lastUpdateCheckAt(): Long = runCatching {
+        loadObject(settingsFile).optLong("lastUpdateCheckAt", 0L)
+    }.getOrDefault(0L)
+
+    fun saveLastUpdateCheckAt(at: Long) = mutate(settingsFile) { s ->
+        s.put("lastUpdateCheckAt", at)
+    }
+
+    /** 已下好、等用户点安装的包路径；装完或校验失败就清空。 */
+    fun pendingUpdate(): String = runCatching {
+        loadObject(settingsFile).optString("pendingUpdate")
+    }.getOrDefault("")
+
+    fun savePendingUpdate(path: String) = mutate(settingsFile) { s ->
+        s.put("pendingUpdate", path)
+    }
+
     /* ---------- 首启引导 ---------- */
 
     fun onboarded(): Boolean = runCatching {

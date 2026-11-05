@@ -26,11 +26,12 @@
 
 安卓客户端已改为**单 APK 独立版**：内置 Rust 内容核心（JNI 进程内调用）、不依赖本服务、无需服务器地址或令牌。
 
-- **规格**：`com.alanmaster.xread.standalone`，versionName `3.7.0-standalone`，minSdk 24（Android 7.0）/ targetSdk 34，仅 arm64-v8a；release 包约 10 MB（R8 + 资源压缩后）。
+- **规格**：`com.alanmaster.xread.standalone`，versionName `3.8.0-standalone`，minSdk 24（Android 7.0）/ targetSdk 34，仅 arm64-v8a；release 包约 10 MB（R8 + 资源压缩后）。
 - **不再由本服务分发安装包**：`web/x-read.apk` 已删除（那份是 16.6 MB 的服务端依赖旧版）。需要提供下载时设置 `X_READ_APK_PATH` 指向 `artifacts/x-read-standalone.apk`，否则 `/x-read.apk` 明确返回 404。
 - **客户端特性**：原生 Compose（无 WebView）、离线阅读与批量下载（仅 Wi-Fi / 只下未读 / 容量上限）、阅读外观与翻页手势、书签与书摘（可导出 Markdown）、存储管理、替换规则（阅读页渲染时套用）、备份恢复、听书（系统 TTS，后台朗读 + 段落跟随）、官方有声书榜与真人音频播放（进度/倍速/定时）、短剧（刷剧、追剧记录与收藏）、新章提醒、书评广场（评分口径 + 内嵌作者回复）、分类浏览（可按名字筛选）、搜索历史（综合/小说/漫画/听书/短剧）、书籍与书摘卡片分享、整本导出 TXT、段评、作者主页、相关推荐、每日阅读目标与连续打卡、目录章节缓存标记与单章/范围下载、阅读器自动滚动与屏幕常亮、书架多选批量管理（分组/移出可撤销/批量缓存/标记读完）、首次启动引导、统一的触感反馈、书摘笔记与标签、已下载正文的跨书全文搜索、书籍状态/评分/标签、每日阅读提醒、阅读时自动预取后续章节、缓存窗口自动清理、下载队列当前书优先、书架下拉查新章与目录下拉重拉、书架按连载状态自动分组（连载中 / 已完结）。
 - **源码与重编**：工程位于 `android/` 目录；运行 `bash scripts/build_apk.sh` 构建 release 包（需要 `SSH_PASS` 与 `XREAD_KEYSTORE_PASS` 环境变量）。
 - **交给 GitHub 打包**：`.github/workflows/android.yml` 在 Actions 里直接出包——推 `main` 出 debug 包，打 `v*` 标签出签名 release 包并自动附到 Release，无需本机 SSH/Docker；签名材料放仓库 Secrets，配置步骤见 [安卓独立版说明](docs/ANDROID-STANDALONE.md#用-github-actions-打包)。
+- **热更新**：设置 → 03 关于 → 热更新，启动时每天最多检查一次 GitHub Release，发现新版本可下载安装包并直接调起系统安装器；拉包慢可在同一面板切「下载加速」（ghfast.top / gh-proxy.com / ghproxy.net，只代理 APK，令牌不随之外发）；私有仓库需要在「更新源」里填一个只读 GitHub 令牌，细节见 [安卓独立版说明](docs/ANDROID-STANDALONE.md#热更新380)。
 - **PWA 支持**：手机端浏览器访问时支持直接「添加到桌面/安装为独立应用」。
 
 本机NAS的桥接端口转发实测超时，实际运行使用Host网络覆盖文件：
@@ -203,7 +204,7 @@ curl http://127.0.0.1:8080/health
 
 离线测试无需访问番茄；在线冒烟不在默认测试集合中。上游可能改接口、字体或权限，离线测试通过不代表实时可用。验证证据见 [验证记录](docs/VERIFICATION.md)。
 
-安卓侧另有 Kotlin 单测 384 项（`cd android && ./gradlew :app:testDebugUnitTest`）。Python 173 项与 Kotlin 384 项在 `android` 工作流里每次推送都会跑。
+安卓侧另有 Kotlin 单测 403 项（`cd android && ./gradlew :app:testDebugUnitTest`）。Python 173 项与 Kotlin 403 项在 `android` 工作流里每次推送都会跑。
 
 ## 结构
 

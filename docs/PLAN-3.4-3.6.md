@@ -1,7 +1,7 @@
 # x-read 功能增强计划书（v3.4 → v3.6）
 
 > 基线：`3.3.1-standalone`（versionCode 7，minSdk 24 / targetSdk 34，仅 arm64-v8a）
-> 现状：**v3.4 已实现**（`3.4.0-standalone` / versionCode 8，2026-11-05），F1–F6 全部落地；**v3.5 已实现**（`3.5.0-standalone` / versionCode 9，2026-11-05），F7–F10 落地、F11 未做；**v3.6 已实现**（`3.6.0-standalone` / versionCode 10，2026-11-05），F16–F19 全部落地，394 个单测通过；旧的「流动」四项（F12–F15）搁置。**后续追加 v3.7**（`3.7.0-standalone` / versionCode 12，2026-11-05）：书架按连载状态自动分组，384 个单测通过。
+> 现状：**v3.4 已实现**（`3.4.0-standalone` / versionCode 8，2026-11-05），F1–F6 全部落地；**v3.5 已实现**（`3.5.0-standalone` / versionCode 9，2026-11-05），F7–F10 落地、F11 未做；**v3.6 已实现**（`3.6.0-standalone` / versionCode 10，2026-11-05），F16–F19 全部落地，394 个单测通过；旧的「流动」四项（F12–F15）搁置。**后续追加 v3.7**（`3.7.0-standalone` / versionCode 12，2026-11-05）：书架按连载状态自动分组，384 个单测通过；**v3.8**（`3.8.0-standalone` / versionCode 13，2026-11-05）：整包热更新（应用内自更新）+ 下载加速通道，403 个单测通过。
 > 范围：Android 独立版（`android/app/src/main/java/com/alanmaster/xread/`）。
 > 服务端 `x_read/` 本期不动：客户端已内嵌 Rust 内容核心，不依赖自建 API。
 
@@ -405,6 +405,25 @@ F12（WebDAV 同步）、F13（Glance 小组件）、F14（分享卡与月报）
 - 单测 `ShelfGroupingTest`（10 项）：未知状态算连载、完本判定、空组不进菜单、内置组与手工组并存、
   `ShelfSort` 分组与状态过滤叠加。
 - 有意不做：不落盘分组、不做「连载中 → 已完结」的历史归档、不在书架上加常驻分组标题行。
+
+### 追加：整包热更新（2026-11-05，`3.8.0-standalone`）
+
+v3.7 之后改一行 UI 也得让用户自己去 Release 页找包重装——应用自己不知道「我是不是旧版」。
+
+- 新增 `data/AppUpdate.kt`（纯逻辑）：`parse()` 同时吃 GitHub Release JSON 与自建 `update.json`；
+  `assetScore` 挑 standalone / arm64 并惩罚 debug、unsigned；`compareVersions` + `isNewer`（两边都有 versionCode 时以它为准）；
+  `sha256`；`dueForCheck`（每天一次，时钟回拨按到期处理）。
+- 新增 `data/AppUpdater.kt`：`StateFlow` 状态机（检查中 / 下载中带进度 / 包已就绪），下载落 `cacheDir/update/` 先写 `.part` 再改名，
+  清单带 sha256 时校验不过就删包；安装走 `FileProvider` + `ACTION_VIEW`，Android 8+ 未授权先跳「安装未知应用」。
+- `ui/SettingsSheet.kt` 的「03 关于」加 `UpdatePanel`（开关、更新源与令牌编辑、状态行、进度条、检查/下载/安装按钮）；
+  `MainActivity` 启动时 `hydrate()` + `autoCheckOnLaunch()`；`OfflineRepo` 增 10 个偏好
+  （`hotUpdateEnabled` / `updateSource` / `updateToken` / `lastUpdateCheckAt` / `pendingUpdate`）。
+- CI：`v*` 标签且产物是签名包时才生成 `update.json`（versionName / versionCode / url / size / sha256）并随 APK 附到 Release，debug 包不产清单。
+- 下载加速：`AppUpdate.MIRRORS` 给四条通道（直连 / ghfast.top / gh-proxy.com / ghproxy.net），前缀只拼在 APK 直链上；
+  `AppUpdater` 先试加速、失败自动退回直连，`isGitHubHost` 保证令牌不会发给第三方代理。
+- 单测 `AppUpdateTest`（19 项）：两种清单来源、坏载荷返回 null、版本清洗与逐段比较、versionCode 优先、资产打分、每日节流、文件名去目录穿越、sha256 校验，
+  以及加速前缀、重复前缀、http 源不代理、未知通道回退直连。
+- 有意不做：不做 dex 补丁 / 插件化（没有补丁分发通道，签名托管成本高于收益）；不做静默安装（需要系统签名）；不在后台偷偷下包。
 
 ## 七、横向 UX 优化（随版本搭车，不单独立项）
 

@@ -132,10 +132,42 @@ jobs:
           echo "file=$OUT" >> "$GITHUB_OUTPUT"
           ls -l "$OUT"
 
+      # 只在「签名包 + 打标签」的组合下生成：debug 包不能当热更新源，
+      # 也不该让开发机构建产生更新清单。
+      - name: 生成热更新清单
+        if: startsWith(github.ref, 'refs/tags/v') && steps.apk.outputs.file == 'x-read-standalone.apk'
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re
+
+          gradle = pathlib.Path("android/app/build.gradle").read_text(encoding="utf-8")
+          version = re.search(r'versionName\s+"([^"]+)"', gradle).group(1)
+          code = int(re.search(r'versionCode\s+(\d+)', gradle).group(1))
+          apk = pathlib.Path(os.environ["APK_FILE"])
+          tag, repo = os.environ["GITHUB_REF_NAME"], os.environ["GITHUB_REPOSITORY"]
+          display = version.removesuffix("-standalone")
+          manifest = {
+              "versionName": display,
+              "versionCode": code,
+              "url": f"https://github.com/{repo}/releases/download/{tag}/{apk.name}",
+              "size": apk.stat().st_size,
+              "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+              "notes": f"拾页 {display}",
+          }
+          pathlib.Path("update.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+          )
+          print(json.dumps(manifest, ensure_ascii=False))
+          PY
+        env:
+          APK_FILE: ${{ steps.apk.outputs.file }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: x-read-apk
-          path: ${{ steps.apk.outputs.file }}
+          path: |
+            ${{ steps.apk.outputs.file }}
+            update.json
           if-no-files-found: error
           retention-days: 30
 
@@ -143,5 +175,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.apk.outputs.file }}
+          files: |
+            ${{ steps.apk.outputs.file }}
+            update.json
+          fail_on_unmatched_files: false
           generate_release_notes: true

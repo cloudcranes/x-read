@@ -317,6 +317,27 @@ AlarmManager 而非 WorkManager：构建环境的 Gradle 缓存中没有 `androi
 - `ShelfSort.apply()` 的 `status` 过滤与内置分组叠加：既按连载状态分组，又只看「想读/在读/读完」时顺序是
   先过滤状态、再过滤分组。
 
+## 热更新（3.8.0）
+
+- 形态：**整包热更新**（应用内自更新），不是 Tinker 式补丁。业务逻辑全编译进 APK、没有插件进程与补丁通道；
+  书架、进度、下载都在私有目录里，同 `applicationId` 覆盖安装后原样还在，装完不用重新登录或重扫。
+- 入口：设置 → 03 关于 → 热更新。开关默认开，启动时检查，但**每天最多一次**（`AppUpdate.CHECK_INTERVAL_MS`）；
+  手动点「检查更新」不看节流。上次检查时间存在 `settings.json` 的 `lastUpdateCheckAt`。
+- 默认更新源 `https://api.github.com/repos/cloudcranes/x-read/releases/latest`。仓库是私有的，**必须先点「更新源」右侧的「编辑」填一个
+  只读 fine-grained token**（Repository permissions → Contents: Read），否则 GitHub 回 404，面板会直接说
+  「私有仓库要在「更新源」里填 GitHub 令牌，或换成公开清单地址」。令牌只写在本机 `settings.json`，不外发。
+- 清单两种都认：GitHub Release 的 JSON（从 `assets` 里挑：`standalone` +4、`arm64` +2、`.apk` +1，`debug` −10、`unsigned` −5，
+  取分最高者），或 CI 生成的 `update.json`：
+  `{"versionName":"3.8.0","versionCode":13,"url":"…/x-read-standalone.apk","size":160…,"sha256":"…","notes":"拾页 3.8.0"}`。
+- 版本比较：两边都有 `versionCode` 就以它为准，否则按 `versionName` 逐段比（缺段补 0，`v` 前缀与 `-standalone` 后缀自动剥掉）。
+- 下载落在 `cacheDir/update/`，先写 `.part` 再改名；清单里有 `sha256` 时下完必校验，不符就删包并提示「校验和不一致，包可能下载损坏或被替换」。
+  安装走 `FileProvider`（`res/xml/file_paths.xml` 里 `update/`）+ `ACTION_VIEW`，Android 8+ 还要一次性授权「安装未知应用」（面板会引导到系统页）。
+- 下载加速：03 关于 →「下载加速 · 更换」可在直连 / `ghfast.top` / `gh-proxy.com` / `ghproxy.net` 之间切换
+（列表在 `AppUpdate.MIRRORS`，加一条就是加一个通道，key 存在 `settings.json` 的 `updateMirror`）。
+前缀只拼在 APK 直链上：**更新源与令牌始终直连 GitHub**，`AppUpdater.isGitHubHost` 保证令牌不会被递给第三方代理；
+加速通道报错会自动退回直连再下一次，面板会写明「加速通道没通，已改用直连」。
+- 只有签名包才可能成为更新源：CI 只在 `v*` 标签且产物是 `x-read-standalone.apk` 时生成 `update.json`，debug 包既不上清单也不该被装。
+
 ## 用 GitHub Actions 打包
 
 本机打 release 包依赖 SSH + Docker（`scripts/build_apk.sh`）；不想开那套环境时，仓库自带的工作流可以直接出包。
@@ -336,7 +357,8 @@ AlarmManager 而非 WorkManager：构建环境的 Gradle 缓存中没有 `androi
   | `XREAD_KEY_PASS` | 可选 | 默认与 keystore 口令相同 |
 
 - 没有 `XREAD_KEYSTORE_BASE64` 时工作流只出 debug 包：PR 与 fork 也能跑通，且绝不回退 debug 签名冒充 release。
-- 打 `v3.7.0` 这类标签时，APK 会附到同名 GitHub Release；其余情况在 Actions 页面的 `x-read-apk` artifact 里取。
+- 打 `v3.8.0` 这类标签时，APK 会附到同名 GitHub Release；带签名的构建还会多出一个 `update.json`（版本号、`versionCode`、
+  下载地址、字节数、sha256），客户端的热更新直接读它。其余情况在 Actions 页面的 `x-read-apk` artifact 里取。
 - 交付自检与本地发布共用 `scripts/verify_apk.sh`（非 debug 签名、清单不可 debuggable/allowBackup、包内含原生核心与 GPL 文本、`.so` 的 `PT_LOAD` 对齐 ≥ 16 KB），CI 通过就意味着手工流程也会通过。
 
 ## 测试
@@ -346,7 +368,7 @@ AlarmManager 而非 WorkManager：构建环境的 Gradle 缓存中没有 `androi
 bash scripts/build_apk.sh              # 内含 :app:testDebugUnitTest，产出 release 包
 ```
 
-Kotlin JVM 单测 **384 项**（`android/app/src/test/java/...`）：
+Kotlin JVM 单测 **403 项**（`android/app/src/test/java/...`）：
 解析（搜索分 tab 去重、长编号、205 章全量、榜单目录嵌套、热词）、本地书架（重开保留、一次性迁移、损坏文件不覆盖）、
 统计累计与按日、替换规则顺序、备份往返（含恢复到空仓库、**同一份备份连导两次统计不翻倍**、`days`/`since` 一并恢复）、自适应并发 9 项、
 数据安全回归 34 项（损坏文件另存不清空、并发写入不丢键、任务计数往返、章节计数忽略临时文件、旧格式章节被挑出重下、
@@ -359,7 +381,9 @@ Kotlin JVM 单测 **384 项**（`android/app/src/test/java/...`）：
 跟随系统与搜索历史 6 项（auto 主题不被归一化、auto 按系统深浅取色、搜索历史去重限量清空、分类过滤中文子串）、
 榜单分类折叠 5 项（收起只留一行且保留当前选中、选中不在行内时顶掉最后一个、展开全铺、分类本来就少时折叠、未知选中回落到普通前 5 个）、
 书架自动分组 10 项（未知连载状态归连载、只按上游完本判定、空组不进菜单、菜单顺序、内置组与手工组并存、
-分组叠加状态过滤）。
+分组叠加状态过滤）、
+热更新 19 项（GitHub Release 清单挑 `standalone`、自建清单版同样解析、坏载荷返回 null、版本号清洗与逐段比较、
+`versionCode` 优先、资产打分 `debug` 为负、每日节流与时钟回拨、文件名去目录穿越、`sha256` 校验与空校验放行）。
 
 Python 侧 173 项：其中 Android 契约只断言**结构性事实**（核心内置且无监听器、GPL 许可随包、
 arm64 + release 签名、原子写内核在位），不再用源码字符串冒充行为测试。
