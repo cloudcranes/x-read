@@ -109,9 +109,9 @@ jobs:
           XREAD_KEY_PASS: ${{ secrets.XREAD_KEY_PASS }}
         run: |
           if [ -f android/signing/release.keystore ]; then
-            ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleRelease
+            android/gradlew -p android --no-daemon :app:testDebugUnitTest :app:assembleRelease
           else
-            ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug
+            android/gradlew -p android --no-daemon :app:testDebugUnitTest :app:assembleDebug
           fi
 
       - name: 交付自检
