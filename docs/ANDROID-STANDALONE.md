@@ -1,6 +1,6 @@
 # x-read 独立版（单 APK，无需服务器）
 
-`versionName 3.8.2-standalone`（versionCode 15），包名 `com.alanmaster.xread.standalone`，仅 arm64-v8a，minSdk 24 / targetSdk 34。
+`versionName 3.9.1-standalone`（versionCode 17），包名 `com.alanmaster.xread.standalone`，仅 arm64-v8a，minSdk 24 / targetSdk 34。
 内容核心（fqapp / fanqie-lite 的 Rust 业务层）内置在 APK 里，经 JNI 进程内直连上游内容提供方；
 **不开本地端口，不需要 NAS、服务端地址或访问令牌**。
 
@@ -139,6 +139,7 @@ debug 与 release 签名不同，`adb install -r` 会报
 | 正文替换 | 「正文替换」里的规则在**阅读页渲染时**套用（不是只在朗读时生效）；先切段再逐段替换，保证段落数不变，段评/书签/进度下标不错位；磁盘上存的仍是上游原文，删掉规则后正文能恢复 | `OfflineRepo.applyRules`、`LibraryViewModel.renderable` |
 | 新章通知权限 | Android 13+ 打开「每天检查新章并通知」时先申请通知权限，没授权会明确提示，而不是开关打开却收不到 | `MainActivity.requestNotificationPermissionIfNeeded` |
 | 阅读页收书 | 阅读页顶栏「更多」里可直接加入/移出书架，不必退回详情页 | `ReaderScreen.ReaderTopBar`、`MainActivity.onToggleShelf` |
+| 阅读页进详情 | 阅读页顶栏右上角「书籍详情」图标直接打开本书详情；顶栏返回或系统返回都回到正文原位（从书架直达阅读时详情页没有别的入口） | `ReaderScreen.ReaderTopBar`、`MainActivity.detailFromReader` |
 | 弹幕反馈 | 发弹幕成功会提示「弹幕已发送」；失败会撤掉刚插入的那条并说明原因 | `LibraryViewModel.sendDanmaku` |
 
 短剧页原来显示的点赞数（写死的「1.3 万」）已删除：上游没有短剧点赞数（`digg_cnt` 恒为 0，也没有点赞写接口），双击只剩红心动效；同理删掉了点不动的「追剧」加号。短剧弹幕的上游要求番茄登录态，没登录时发不出去，应用会撤掉自己那条并说明原因，而不是假装发出去了。
@@ -316,6 +317,27 @@ AlarmManager 而非 WorkManager：构建环境的 Gradle 缓存中没有 `androi
   选中内置分组时排序退回「最近」（`maxOf(lastReadAt, addedAt)` 倒序）——组内再按手工分组名排没有意义。
 - `ShelfSort.apply()` 的 `status` 过滤与内置分组叠加：既按连载状态分组，又只看「想读/在读/读完」时顺序是
   先过滤状态、再过滤分组。
+
+## 3.9 阅读手感（`3.9.0-standalone`）
+
+| 功能 | 说明 | 落点 |
+|---|---|---|
+| 页边距与字距 | 设置面板新增「边距」窄/标准/宽（16/20/26dp）与「字距」默认/微松/加宽（0/0.02/0.05em）。同一档字号下行宽决定每行几个字，宋体默认偏紧，加一点气口长文更耐读 | `ReaderPrefs.margin/letterSpacing`、`ReaderScreen` 的 `contentPadding` 与正文 `letterSpacing` |
+| 屏内亮度 | 「跟随/暗/中/亮」四档，只压阅读页窗口的 `screenBrightness`，离开阅读页立刻还原系统亮度——夜里关灯读书不必再拉状态栏 | `ReaderScreen` 的 `DisposableEffect(prefs.brightness)`、`Context.findActivity()` |
+| 翻页触感 | 点按左右、滑动翻页、音量键翻页三种入口统一走 `turnHaptic()`，可在设置里关掉；长按加书签仍用中强度反馈 | `ReaderPrefs.hapticTurn`、`ReaderScreen.turnHaptic` |
+| 跨章章名浮现 | 正文连续滚动时翻过章节边界，顶部浮一条「第 N 章 · 标题」两秒，省掉退出去看目录；首次进入不提示，顶栏展开时不叠层 | `ReaderScreen` 的 `chapterToast` |
+| 朗读与自动滚动互斥 | 朗读跟随会把当前段滚入视野，两套滚动同开就会互拽跳字；朗读期间自动滚动一律不启动，停读后按原档位恢复 | `ReaderScreen` 的 `ttsRunning` |
+
+## 3.9.1 发现页排版（`3.9.1-standalone`）
+
+| 功能 | 说明 | 落点 |
+|---|---|---|
+| 首屏收敛 | 段落标题 28/20sp → 24/17sp，选中下划线 2.5→3dp；删掉「精选好书 · 热门榜单」副标题，信息并进搜索框占位「搜索书名、作者 · 精选好书与榜单」；标题区上下留白 12/4dp → 16/12dp | `DiscoverScreen` 的 `DiscoverHeader` |
+| 搜索与三宫格 | 搜索框上下 8→12dp、直角改 `Radius.sm` 圆角；三宫格与搜索框间距 4→12dp，tile 内边距 12→14dp、图标 20→22dp、副标 11→12sp | `SearchBarEntry`、`DiscoverTile` |
+| 区块节奏统一 | 区块标题上 28→32dp、下 8→12dp，标题 19→18sp，序号与提示 11→10sp；榜单行上下 8→10dp、封面 36→42dp、书名 14→15sp。改动在共享组件里，榜单页/听书页/详情页/分类页同步生效 | `Components.kt` 的 `SectionHeader`、`RankRow` |
+| 去噪 | 榜单板块原本每行后一条发丝线（3 行 3 条），改为 3 行之后只留一条再接横滑书带；书带卡片 100→108dp、间距 12→14dp | `DiscoverScreen` 的热榜与各 board 分支、`BookStrip` |
+| 修推荐网格裁切 | 旧代码列数交给 `GridCells.Adaptive(104.dp)`（手机上实际排 3 列），高度却按 4 列算，网格少算 25%、最后一行被裁；改为 `BoxWithConstraints` 取真实可用宽，三个纯函数算列数与行高，行距 12→20dp | `DiscoverScreen` 的 `recommendationColumns` / `recommendationRowHeight` / `recommendationGridHeight`、`RecommendationGridTest`（9 项） |
+| 榜单折叠 | `boards` 默认只展开前 2 个，其余收成一行「更多榜单 · 还有 N 个 ›」，点开后展开全部并隐藏入口（真机 5 个榜：推荐/完本默认展开，巅峰/漫剧/短剧收在入口里） | `DiscoverScreen` 的 `BoardsPreviewCount`、`MoreBoardsEntry` |
 
 ## 热更新（3.8.0）
 

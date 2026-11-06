@@ -30,6 +30,18 @@ data class ReaderPrefs(
     val keepAwake: Boolean = true,
     /** 自动滚动速度：off | slow | normal | fast，单位见 AUTO_SPEEDS */
     val autoScroll: String = "off",
+    /** 正文左右留白，单位 dp，见 MARGINS。窄屏一行字太少、大屏一行太长，都靠它调。 */
+    val margin: Float = 20f,
+    /** 正文额外字距，单位 em，见 TRACKINGS。0 表示按字体自带间距。 */
+    val letterSpacing: Float = 0f,
+    /** 翻页时轻震一下。系统关掉触感或开着 TalkBack 时不生效。 */
+    val hapticTurn: Boolean = true,
+    /**
+     * 阅读页屏内亮度：-1 跟随系统，其余 0.1–1.0。
+     *
+     * 只改本页窗口的亮度，退出阅读页即还原；写系统设置需要权限，也不该动全局。
+     */
+    val brightness: Float = -1f,
 ) {
     fun normalized(): ReaderPrefs = copy(
         fontSize = fontSize.coerceIn(MIN_FONT, MAX_FONT),
@@ -45,6 +57,10 @@ data class ReaderPrefs(
         paragraphGap = paragraphGap.coerceIn(MIN_GAP, MAX_GAP),
         turnMode = if (turnMode in TURN_MODES) turnMode else "slide",
         autoScroll = if (autoScroll in AUTO_SCROLLS) autoScroll else "off",
+        margin = margin.coerceIn(MIN_MARGIN, MAX_MARGIN),
+        letterSpacing = letterSpacing.coerceIn(MIN_TRACKING, MAX_TRACKING),
+        // 负值一律当「跟随系统」，免得残缺数据把屏幕压成黑的
+        brightness = if (brightness < 0f) -1f else brightness.coerceIn(MIN_BRIGHT, MAX_BRIGHT),
     )
 
     companion object {
@@ -54,6 +70,12 @@ data class ReaderPrefs(
         const val MAX_LINE = 2.4f
         const val MIN_GAP = 0.2f
         const val MAX_GAP = 1.4f
+        const val MIN_MARGIN = 16f
+        const val MAX_MARGIN = 26f
+        const val MIN_TRACKING = 0f
+        const val MAX_TRACKING = 0.06f
+        const val MIN_BRIGHT = 0.1f
+        const val MAX_BRIGHT = 1f
         val THEMES = setOf("auto", "paper", "white", "mint", "dark")
         val MANGA_MODES = setOf("vertical", "paged")
         val FONTS = setOf("default", "serif", "sans", "kai", "mono")
@@ -102,5 +124,22 @@ data class ReaderPrefs(
             "mint" to "浅绿",
             "dark" to "夜色",
         )
+
+        /**
+         * 页边距三档，单位 dp。
+         *
+         * 20dp 是旧版写死的值：19sp 正文在 6.1 寸屏上每行 18 字左右，
+         * 窄一档给 6.7 寸以上的大屏多挤几个字，宽一档给单手握持留出拇指区。
+         */
+        val MARGINS = listOf(16f, 20f, 26f)
+        val MARGIN_LABELS = listOf("窄", "标准", "宽")
+
+        /** 字距三档，单位 em。中文宋体默认偏紧，加 0.02em 就有明显气口。 */
+        val TRACKINGS = listOf(0f, 0.02f, 0.05f)
+        val TRACKING_LABELS = listOf("默认", "微松", "加宽")
+
+        /** 屏内亮度四档：-1 跟随系统，其余为窗口亮度。 */
+        val BRIGHTNESSES = listOf(-1f, 0.25f, 0.55f, 1f)
+        val BRIGHTNESS_LABELS = listOf("跟随", "暗", "中", "亮")
     }
 }

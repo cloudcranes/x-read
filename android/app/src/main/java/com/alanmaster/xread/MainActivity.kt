@@ -207,6 +207,9 @@ private fun App(
     var screen by remember { mutableStateOf<Screen>(Screen.Shelf) }
     var mainTab by remember { mutableStateOf<Screen>(Screen.Shelf) }
     var readerFromShelf by remember { mutableStateOf(false) }
+    /** 详情页是从阅读页点右上角进来的：返回时回正文，而不是把读者丢回书架。 */
+    var detailFromReader by remember { mutableStateOf(false) }
+
     var dramaSwipePage by rememberSaveable { mutableIntStateOf(0) }
     var dramaBackToSwipe by rememberSaveable { mutableStateOf(false) }
     // 通知权限只在进入界面时读一次，授权回来后再刷新；不必每次重组都查系统
@@ -493,7 +496,15 @@ private fun App(
                     }
                     screen = Screen.Discover
                 }
-                screen is Screen.Detail -> { screen = mainTab; vm.loadShelf() }
+                screen is Screen.Detail -> {
+                    if (detailFromReader) {
+                        detailFromReader = false
+                        screen = Screen.Reader
+                    } else {
+                        screen = mainTab
+                        vm.loadShelf()
+                    }
+                }
                 screen is Screen.Category -> screen = Screen.Discover
                 screen is Screen.Rank -> screen = Screen.Discover
                 screen is Screen.Search -> screen = mainTab
@@ -839,8 +850,16 @@ private fun App(
             onSetTags = { t -> (state.book ?: s.book).let { vm.setBookTags(it.bookId, t) } },
             resumeChapterId = state.resumeChapterId,
             resumeParagraph = state.resumeParagraph,
-            onBack = { screen = mainTab; vm.loadShelf() },
-            onRead = { c -> readerFromShelf = false; vm.loadChapter(c.id); screen = Screen.Reader },
+            onBack = {
+                if (detailFromReader) {
+                    detailFromReader = false
+                    screen = Screen.Reader
+                } else {
+                    screen = mainTab
+                    vm.loadShelf()
+                }
+            },
+            onRead = { c -> readerFromShelf = false; detailFromReader = false; vm.loadChapter(c.id); screen = Screen.Reader },
             onShelf = {
                 val b = state.book ?: s.book
                 if (state.shelfAll.any { it.book.bookId == b.bookId }) vm.removeFromShelf(b) else vm.addToShelf(b)
@@ -1007,6 +1026,11 @@ private fun App(
                 if (b != null) {
                     if (state.shelfAll.any { it.book.bookId == b.bookId }) vm.removeFromShelf(b) else vm.addToShelf(b)
                 }
+            },
+            onOpenDetail = {
+                // 离开阅读页先把这一段的阅读时长结掉，跟按返回键时一致。
+                vm.flushStats(force = true)
+                state.book?.let { b -> detailFromReader = true; screen = Screen.Detail(b) }
             },
             scrollRequest = state.scrollRequest,
             scrollChapterId = state.scrollChapterId,

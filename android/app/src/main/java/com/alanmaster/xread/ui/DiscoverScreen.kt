@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -55,12 +56,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.alanmaster.xread.data.Book
 import com.alanmaster.xread.data.DramaSeries
 import com.alanmaster.xread.data.HomeBoard
+
+/** 榜单板块首屏默认展开的数量，其余收进「更多榜单」入口。 */
+private const val BoardsPreviewCount = 2
 
 /**
  * 发现页：小说、漫画、短剧三大板块。
@@ -108,6 +113,9 @@ fun DiscoverScreen(
     onOpenDramaDouyin: (DramaSeries?) -> Unit = {},
 ) {
     var moreRequested by remember { mutableStateOf(-1) }
+    // 榜单板块默认只展开前 2 个，其余收进「更多榜单」。首屏先看到热榜和一本榜单，
+    // 剩下的一排标题对读者没有区分度，只是把滚动距离拉长。
+    var boardsExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -130,7 +138,7 @@ fun DiscoverScreen(
                 val placeholder = when (section) {
                     1 -> "搜索精彩漫画、条漫、同名改编…"
                     2 -> "搜索短剧、漫剧、爆款爽剧…"
-                    else -> "搜索书名、作者、主角…"
+                    else -> "搜索书名、作者 · 精选好书与榜单"
                 }
                 SearchBarEntry(placeholder = placeholder, onClick = onSearch)
             }
@@ -142,8 +150,8 @@ fun DiscoverScreen(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = Space.gutter, vertical = Space.xs),
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                                .padding(horizontal = Space.gutter, vertical = Space.md),
+                            horizontalArrangement = Arrangement.spacedBy(Space.md),
                         ) {
                             DiscoverTile(
                                 title = "排行榜",
@@ -191,8 +199,8 @@ fun DiscoverScreen(
                                 readCount = b.readCount,
                                 onClick = { onOpen(b) },
                             )
-                            DividerLine()
                         }
+                        item { DividerLine() }
                         item { BookStrip(ranked.drop(3).take(17), onOpen) }
                     }
 
@@ -208,7 +216,9 @@ fun DiscoverScreen(
                         item { BookStrip(newBooks.take(20), onOpen) }
                     }
 
-                    boards.filter { it.name != "新书榜" }.forEach { board ->
+                    val boardList = boards.filter { it.name != "新书榜" }
+                    val shownBoards = if (boardsExpanded) boardList else boardList.take(BoardsPreviewCount)
+                    shownBoards.forEach { board ->
                         item {
                             SectionHeader(
                                 title = board.name,
@@ -227,9 +237,17 @@ fun DiscoverScreen(
                                 readCount = b.readCount,
                                 onClick = { onOpen(b) },
                             )
-                            DividerLine()
                         }
+                        item { DividerLine() }
                         item { BookStrip(board.books.drop(3).take(17), onOpen) }
+                    }
+                    if (!boardsExpanded && boardList.size > BoardsPreviewCount) {
+                        item {
+                            MoreBoardsEntry(
+                                remaining = boardList.size - BoardsPreviewCount,
+                                onClick = { boardsExpanded = true },
+                            )
+                        }
                     }
 
                     if (recommended.isNotEmpty()) {
@@ -485,17 +503,12 @@ private fun DiscoverHeader(
     onRefresh: () -> Unit,
 ) {
     val sections = listOf("小说", "漫画", "短剧")
-    val subtitle = when (section) {
-        1 -> "条漫展陈 · 精彩连载 · 翻页阅读"
-        2 -> "热播剧场 · 动态漫剧 · 弹幕互动"
-        else -> "精选好书 · 热门榜单 · 离线听书"
-    }
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(start = Space.gutter, end = Space.xs, top = Space.md, bottom = Space.xs)
+                .padding(start = Space.gutter, end = Space.xs, top = Space.lg, bottom = Space.md)
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -515,8 +528,8 @@ private fun DiscoverHeader(
                             Text(
                                 text = title,
                                 fontFamily = Serif,
-                                fontSize = if (selected) 28.sp else 20.sp,
-                                lineHeight = 36.sp,
+                                fontSize = if (selected) 24.sp else 17.sp,
+                                lineHeight = 32.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selected) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             )
@@ -525,11 +538,11 @@ private fun DiscoverHeader(
                                     Modifier
                                         .padding(top = 4.dp)
                                         .width(20.dp)
-                                        .height(2.5.dp)
+                                        .height(3.dp)
                                         .background(MaterialTheme.colorScheme.primary)
                                 )
                             } else {
-                                Spacer(Modifier.height(6.5.dp))
+                                Spacer(Modifier.height(7.dp))
                             }
                         }
                     }
@@ -541,13 +554,6 @@ private fun DiscoverHeader(
                     Icon(Icons.Filled.Refresh, "刷新", Modifier.size(22.dp))
                 }
             }
-            Text(
-                text = subtitle,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
-            )
         }
     }
 }
@@ -559,9 +565,9 @@ private fun SearchBarEntry(placeholder: String, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Space.gutter, vertical = Space.sm)
+            .padding(horizontal = Space.gutter, vertical = Space.md)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(Radius.none),
+        shape = RoundedCornerShape(Radius.sm),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
@@ -601,11 +607,11 @@ private fun DiscoverTile(
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(Modifier.padding(vertical = Space.md, horizontal = Space.md)) {
+        Column(Modifier.padding(14.dp)) {
             Icon(
                 icon,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(22.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
             Text(
@@ -618,8 +624,8 @@ private fun DiscoverTile(
             )
             Text(
                 text = hint,
-                fontSize = 11.sp,
-                lineHeight = 15.sp,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -700,10 +706,10 @@ private fun MotionComicCard(
 private fun BookStrip(books: List<Book>, onOpen: (Book) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = Space.gutter),
-        horizontalArrangement = Arrangement.spacedBy(Space.md),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         itemsIndexed(books, key = { _, b -> b.bookId }) { _, book ->
-            Box(Modifier.width(100.dp)) {
+            Box(Modifier.width(108.dp)) {
                 BookCard(book, onClick = { onOpen(book) })
             }
         }
@@ -752,20 +758,104 @@ private fun FeedMoreFooter(
     }
 }
 
+/** 卡片最小宽度：再窄书名会折成三行，读不出书名。 */
+private val CardMinWidth = 104.dp
+
+/** 卡片之间的横向间距。 */
+private val CardSpacing = Space.md
+
+/** 网格行间距。 */
+private val CardRowSpacing = Space.xl
+
+/** 封面之外的高度：书名两行 + 元信息一行 + 与封面的间隙。 */
+private val CardTextHeight = 66.dp
+
+/**
+ * 按可用宽度算网格列数。
+ *
+ * LazyVerticalGrid 自己会按 Adaptive 决定列数，但外层是 LazyColumn，
+ * 必须给出确定高度，所以这里得用同一套规则先算出来——两边算法不一致
+ * 就会少算一行，最后一行直接被裁掉。
+ */
+internal fun recommendationColumns(
+    availableWidth: Dp,
+    minCardWidth: Dp = CardMinWidth,
+    spacing: Dp = CardSpacing,
+): Int = ((availableWidth + spacing) / (minCardWidth + spacing)).toInt().coerceAtLeast(2)
+
+/** 单行高度：封面（按 0.70 的宽高比）+ 书名与元信息。 */
+internal fun recommendationRowHeight(cardWidth: Dp): Dp = cardWidth / 0.70f + CardTextHeight
+
+/** 网格总高度：行数 × 行高 + 行间空隙。 */
+internal fun recommendationGridHeight(
+    bookCount: Int,
+    availableWidth: Dp,
+    rowSpacing: Dp = CardRowSpacing,
+): Dp {
+    if (bookCount <= 0) return 0.dp
+    val columns = recommendationColumns(availableWidth)
+    val cardWidth = (availableWidth - CardSpacing * (columns - 1)) / columns
+    val rows = (bookCount + columns - 1) / columns
+    return recommendationRowHeight(cardWidth) * rows + rowSpacing * (rows - 1)
+}
+
 @Composable
 private fun RecommendationGrid(books: List<Book>, onOpen: (Book) -> Unit) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(104.dp),
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val available = maxWidth - Space.gutter * 2
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(recommendationColumns(available)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(recommendationGridHeight(books.size, available)),
+            contentPadding = PaddingValues(horizontal = Space.gutter),
+            horizontalArrangement = Arrangement.spacedBy(CardSpacing),
+            verticalArrangement = Arrangement.spacedBy(CardRowSpacing),
+            userScrollEnabled = false,
+        ) {
+            gridItems(books, key = { it.bookId }) { book ->
+                BookCard(book, onClick = { onOpen(book) })
+            }
+        }
+    }
+}
+
+/**
+ * 「更多榜单」入口：把首屏之外的榜单收一行。
+ *
+ * 榜单板块每个都带三行排名加一条书带，三四个叠在一起读者根本滑不到
+ * 「猜你喜欢」；这里默认只展开前两个，剩下的按需翻开。
+ */
+@Composable
+private fun MoreBoardsEntry(remaining: Int, onClick: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(((books.size + 3) / 4 * 210).dp),
-        contentPadding = PaddingValues(horizontal = Space.gutter),
-        horizontalArrangement = Arrangement.spacedBy(Space.md),
-        verticalArrangement = Arrangement.spacedBy(Space.lg),
-        userScrollEnabled = false,
+            .clickable(onClick = onClick)
+            .padding(horizontal = Space.gutter, vertical = Space.xl),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        gridItems(books, key = { it.bookId }) { book ->
-            BookCard(book, onClick = { onOpen(book) })
-        }
+        Text(
+            text = "更多榜单",
+            fontFamily = Serif,
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.width(Space.sm))
+        Text(
+            text = "还有 $remaining 个",
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            color = ink3,
+        )
+        Spacer(Modifier.weight(1f))
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = ink3,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }

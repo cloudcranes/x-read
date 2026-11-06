@@ -46,6 +46,31 @@ class ReaderPrefsTest {
         assertEquals(0.45f, ReaderPrefs(paragraphGap = 0.45f).normalized().paragraphGap, 0.001f)
     }
 
+    @Test fun clampsMarginAndTracking() {
+        assertEquals(ReaderPrefs.MAX_MARGIN, ReaderPrefs(margin = 99f).normalized().margin, 0.001f)
+        assertEquals(ReaderPrefs.MIN_MARGIN, ReaderPrefs(margin = 0f).normalized().margin, 0.001f)
+        assertEquals(ReaderPrefs.MAX_TRACKING, ReaderPrefs(letterSpacing = 1f).normalized().letterSpacing, 0.001f)
+        assertEquals(ReaderPrefs.MIN_TRACKING, ReaderPrefs(letterSpacing = -1f).normalized().letterSpacing, 0.001f)
+    }
+
+    @Test fun keepsFollowSystemBrightness() {
+        // -1 是「跟随系统」的哨兵值，不能被夹到 0.1 去
+        assertEquals(-1f, ReaderPrefs(brightness = -1f).normalized().brightness, 0.001f)
+        assertEquals(ReaderPrefs.MAX_BRIGHT, ReaderPrefs(brightness = 3f).normalized().brightness, 0.001f)
+        assertEquals(ReaderPrefs.MIN_BRIGHT, ReaderPrefs(brightness = 0.01f).normalized().brightness, 0.001f)
+    }
+
+    @Test fun keepsMarginTrackingAndHapticAcrossDisk() {
+        val root = File(temp.newFolder(), "offline-feel")
+        val repo = OfflineRepo(root, temp.newFolder())
+        assertTrue(repo.saveReaderPrefs(ReaderPrefs(margin = 26f, letterSpacing = 0.05f, hapticTurn = false)))
+
+        val back = OfflineRepo(root, temp.newFolder()).readerPrefs()
+        assertEquals(26f, back.margin, 0.001f)
+        assertEquals(0.05f, back.letterSpacing, 0.001f)
+        assertFalse(back.hapticTurn)
+    }
+
     @Test fun keepsIndentAndGapAcrossDisk() {
         val root = File(temp.newFolder(), "offline-gap")
         val repo = OfflineRepo(root, temp.newFolder())

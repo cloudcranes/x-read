@@ -1,7 +1,7 @@
 # x-read 功能增强计划书（v3.4 → v3.6）
 
 > 基线：`3.3.1-standalone`（versionCode 7，minSdk 24 / targetSdk 34，仅 arm64-v8a）
-> 现状：**v3.4 已实现**（`3.4.0-standalone` / versionCode 8，2026-11-05），F1–F6 全部落地；**v3.5 已实现**（`3.5.0-standalone` / versionCode 9，2026-11-05），F7–F10 落地、F11 未做；**v3.6 已实现**（`3.6.0-standalone` / versionCode 10，2026-11-05），F16–F19 全部落地，394 个单测通过；旧的「流动」四项（F12–F15）搁置。**后续追加 v3.7**（`3.7.0-standalone` / versionCode 12，2026-11-05）：书架按连载状态自动分组，384 个单测通过；**v3.8**（`3.8.0-standalone` / versionCode 13，2026-11-05）：整包热更新（应用内自更新）+ 下载加速通道，403 个单测通过；**v3.8.1**（`3.8.1-standalone` / versionCode 14，2026-11-06）：仓库与 Release 公开、更新源免令牌，跳过 debug/unsigned 资源，404 个单测通过；**v3.8.2**（`3.8.2-standalone` / versionCode 15，2026-11-06）：装完更新后清掉残留的待安装包，405 个单测通过。
+> 现状：**v3.4 已实现**（`3.4.0-standalone` / versionCode 8，2026-11-05），F1–F6 全部落地；**v3.5 已实现**（`3.5.0-standalone` / versionCode 9，2026-11-05），F7–F10 落地、F11 未做；**v3.6 已实现**（`3.6.0-standalone` / versionCode 10，2026-11-05），F16–F19 全部落地，394 个单测通过；旧的「流动」四项（F12–F15）搁置。**后续追加 v3.7**（`3.7.0-standalone` / versionCode 12，2026-11-05）：书架按连载状态自动分组，384 个单测通过；**v3.8**（`3.8.0-standalone` / versionCode 13，2026-11-05）：整包热更新（应用内自更新）+ 下载加速通道，403 个单测通过；**v3.8.1**（`3.8.1-standalone` / versionCode 14，2026-11-06）：仓库与 Release 公开、更新源免令牌，跳过 debug/unsigned 资源，404 个单测通过；**v3.8.2**（`3.8.2-standalone` / versionCode 15，2026-11-06）：装完更新后清掉残留的待安装包，405 个单测通过；**v3.9**（`3.9.0-standalone` / versionCode 16，2026-11-06）：阅读手感（页边距与字距、屏内亮度、翻页触感、跨章章名浮现、朗读与自动滚动互斥），408 个单测通过；**v3.9.1**（`3.9.1-standalone` / versionCode 17，2026-11-06）：发现页排版重排（首屏收敛、区块节奏统一、推荐网格末行裁切修复、榜单默认只展开前两个），423 个单测通过。
 > 范围：Android 独立版（`android/app/src/main/java/com/alanmaster/xread/`）。
 > 服务端 `x_read/` 本期不动：客户端已内嵌 Rust 内容核心，不依赖自建 API。
 

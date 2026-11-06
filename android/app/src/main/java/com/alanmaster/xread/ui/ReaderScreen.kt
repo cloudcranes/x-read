@@ -1,5 +1,9 @@
 package com.alanmaster.xread.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,6 +41,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -68,6 +73,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
@@ -238,6 +244,8 @@ fun ReaderScreen(
     inShelf: Boolean = false,
     /** 加入书架 / 移出书架。阅读页也能收书，不必退回详情页。 */
     onToggleShelf: () -> Unit = {},
+    /** 右上角进书籍详情；从书架直接开读时，详情页没有别的入口。 */
+    onOpenDetail: () -> Unit = {},
     /* ---------- 段评面板（点段末气泡打开） ---------- */
     /** 段评面板是否打开。 */
     paragraphCommentOpen: Boolean = false,
@@ -273,6 +281,29 @@ fun ReaderScreen(
     DisposableEffect(prefs.keepAwake) {
         readerView.keepScreenOn = prefs.keepAwake
         onDispose { readerView.keepScreenOn = false }
+    }
+
+    // 屏内亮度：只改本页窗口，退出即交还系统。系统那档亮度过半是给白天用的，
+    // 夜里关灯读书还得手动拉状态栏，读完再拉回来——这里省掉那一趟。
+    val context = LocalContext.current
+    DisposableEffect(prefs.brightness) {
+        val window = context.findActivity()?.window
+        if (window != null) {
+            window.attributes = window.attributes.apply {
+                screenBrightness = if (prefs.brightness > 0f) {
+                    prefs.brightness
+                } else {
+                    WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                }
+            }
+        }
+        onDispose {
+            window?.let {
+                it.attributes = it.attributes.apply {
+                    screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                }
+            }
+        }
     }
 
     var findOpen by remember { mutableStateOf(false) }
@@ -323,6 +354,26 @@ fun ReaderScreen(
     val visibleChapter = flow.getOrNull(visibleChapIdx)
     val activeChapterId = visibleChapter?.id ?: currentChapterId
     val activeChapter = visibleChapter ?: flow.firstOrNull { it.id == currentChapterId } ?: flow.firstOrNull()
+
+    /**
+     * 跨章章名浮现。
+     *
+     * 正文是连续滚动的，翻过章节边界时读者很难察觉「已经换章」；
+     * 顶部浮一条章名两秒，比退出去看目录省事。首次进入不提示——那是自己点进来的那章。
+     */
+    var chapterToast by remember { mutableStateOf<String?>(null) }
+    var toastChapterId by remember { mutableStateOf("") }
+    LaunchedEffect(activeChapterId, activeChapter?.title) {
+        if (activeChapterId.isEmpty()) return@LaunchedEffect
+        if (toastChapterId == activeChapterId) return@LaunchedEffect
+        val first = toastChapterId.isEmpty()
+        toastChapterId = activeChapterId
+        if (first) return@LaunchedEffect
+        val no = chapters.indexOfFirst { it.id == activeChapterId }
+        chapterToast = chapterToastText(no, activeChapter?.title.orEmpty())
+        delay(1600)
+        chapterToast = null
+    }
 
     /**
      * 切章时先复位到上次位置，**再**开始上报进度。
@@ -381,15 +432,19 @@ fun ReaderScreen(
      * 「慢」档 14px/s 在 90Hz 上每帧才 0.15px，直接取整会一直是 0，等于不动。
      *
      * 任何触摸、翻页、浮层都会把它置成暂停：读者一旦动手，就是不想被动滚。
+     *
+     * 朗读期间一律不自动滚：朗读跟随自己会把该段滚到视野里，
+     * 两套滚动同时开就是每帧互相拽，字会跳。
      */
     val autoSpeed = ReaderPrefs.AUTO_SPEEDS[prefs.autoScroll] ?: 0f
+    val ttsRunning = ttsParagraph >= 0 && ttsChapterId.isNotEmpty()
     var autoPaused by remember { mutableStateOf(false) }
     LaunchedEffect(prefs.autoScroll) {
         // 关掉再打开时要能立刻滚，不能沿用上次的暂停态
         if (prefs.autoScroll == "off") autoPaused = false
     }
-    LaunchedEffect(autoSpeed, autoPaused, flow) {
-        if (autoSpeed <= 0f || autoPaused) return@LaunchedEffect
+    LaunchedEffect(autoSpeed, autoPaused, flow, ttsRunning) {
+        if (autoSpeed <= 0f || autoPaused || ttsRunning) return@LaunchedEffect
         var carry = 0f
         var last = 0L
         while (isActive) {
@@ -584,6 +639,33 @@ fun ReaderScreen(
                 )
             }
 
+            // ---------- 顶部：跨章章名 ----------
+            // 只在沉浸态出现：顶栏一出，章名已经在标题栏里了，再浮一层就是重复。
+            AnimatedVisibility(
+                visible = chapterToast != null && !chromeVisible && !settingsVisible,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = Space.md),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(Radius.sm),
+                    color = palette.background,
+                    border = BorderStroke(1.dp, palette.rule),
+                ) {
+                    Text(
+                        text = chapterToast.orEmpty(),
+                        fontSize = 11.sp,
+                        color = palette.accent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = Space.md, vertical = 3.dp),
+                    )
+                }
+            }
+
             // ---------- 右下角：常显百分比 ----------
             // 进度线撤了，只在右下角留一个百分比小字：位置最不碍事的地方。
             // 底栏/设置/段评浮层展开时收起，免得叠在一起。
@@ -694,6 +776,7 @@ fun ReaderScreen(
                         },
                         inShelf = inShelf,
                         onToggleShelf = onToggleShelf,
+                        onOpenDetail = onOpenDetail,
                         onToggleFind = { toggleFind() },
                     )
                 }
@@ -1069,6 +1152,12 @@ private fun ReaderBody(
         }
     }
 
+    val haptic = rememberHaptic()
+    /** 翻页触感：可在设置里关掉；点按、滑动、音量键三种入口共用。 */
+    fun turnHaptic() {
+        if (prefs.hapticTurn) haptic.light()
+    }
+
 /**
      * 滑动松手：越过阈值翻一页，没过就弹回原位。
      *
@@ -1077,15 +1166,22 @@ private fun ReaderBody(
     fun onSwipeRelease(offset: Float, width: Float) {
         val dir = if (offset < 0f) 1 else -1
         pageScope.launch {
-            if (kotlin.math.abs(offset) > width * 0.18f) turnPage(dir)
-            else animateSlide(offset, 0f, 180)
+            if (kotlin.math.abs(offset) > width * 0.18f) {
+                turnHaptic()
+                turnPage(dir)
+            } else {
+                animateSlide(offset, 0f, 180)
+            }
         }
     }
 
     // 音量键翻页：Activity 捕获按键后经 ReaderPager 转发过来
     LaunchedEffect(prefs.volumeTurn, prefs.turnMode) {
         if (!prefs.volumeTurn) return@LaunchedEffect
-        ReaderPager.commands.collect { dir -> turnPage(dir) }
+        ReaderPager.commands.collect { dir ->
+            turnHaptic()
+            turnPage(dir)
+        }
     }
 
     /**
@@ -1098,7 +1194,6 @@ private fun ReaderBody(
      * 「滑动」模式下额外识别横向拖拽：跟手位移用 [slideShift] 表示，
      * 越过阈值松手才翻页，否则回弹——点按仍走 x 分三段的旧逻辑。
      */
-    val haptic = rememberHaptic()
     val gestures = Modifier.pointerInput(prefs.tapTurn, prefs.turnMode, flow) {
         detectTapGestures(
             onTap = { offset ->
@@ -1110,7 +1205,7 @@ private fun ReaderBody(
                         !prefs.tapTurn -> onTapCenter()
                         else -> {
                             onUserInteraction()
-                            haptic.light()
+                            turnHaptic()
                             pageScope.launch { turnPage(-1) }
                         }
                     }
@@ -1119,7 +1214,7 @@ private fun ReaderBody(
                         !prefs.tapTurn -> onTapCenter()
                         else -> {
                             onUserInteraction()
-                            haptic.light()
+                            turnHaptic()
                             pageScope.launch { turnPage(1) }
                         }
                     }
@@ -1221,8 +1316,9 @@ private fun ReaderBody(
             .then(gestures)
             .then(swipeModifier),
         contentPadding = PaddingValues(
-            start = ReaderMetrics.textGutter,
-            end = ReaderMetrics.textGutter,
+            // 页边距可在设置里调窄/加宽：同一档字号，6.7 寸屏每行能多挤两三个字
+            start = prefs.margin.dp,
+            end = prefs.margin.dp,
             top = Space.sm,
             // 底部只留导航栏那一档：右下角那个百分比小字浮在导航栏之上的角上，
             // 正文末行留出的余量已经够它站。
@@ -1326,6 +1422,7 @@ private fun ReaderBody(
                                 fontFamily = bodyFont,
                                 fontSize = prefs.fontSize.sp,
                                 lineHeight = (prefs.fontSize * prefs.lineHeight).sp,
+                                letterSpacing = prefs.letterSpacing.em,
                                 style = bodyStyle,
                                 color = palette.text,
                             )
@@ -1347,6 +1444,7 @@ private fun ReaderBody(
                                 fontFamily = bodyFont,
                                 fontSize = prefs.fontSize.sp,
                                 lineHeight = (prefs.fontSize * prefs.lineHeight).sp,
+                                letterSpacing = prefs.letterSpacing.em,
                                 style = bodyStyle,
                                 color = palette.text,
                                 inlineContent = mapOf(
@@ -2038,6 +2136,7 @@ private fun ReaderTopBar(
     onToggleBookmark: () -> Unit,
     inShelf: Boolean = false,
     onToggleShelf: () -> Unit = {},
+    onOpenDetail: () -> Unit = {},
     onToggleFind: () -> Unit,
 ) {
     Row(
@@ -2079,6 +2178,14 @@ private fun ReaderTopBar(
                     color = palette.accent,
                 )
             }
+        }
+        IconButton(onClick = onOpenDetail) {
+            Icon(
+                Icons.Outlined.Info,
+                contentDescription = "书籍详情",
+                tint = palette.dim,
+                modifier = Modifier.size(20.dp),
+            )
         }
         IconButton(onClick = onToggleBookmark) {
             Icon(
@@ -2618,6 +2725,38 @@ private fun ReaderSettingsSheet(
             )
         }
 
+        // 3c. 页边距：同一档字号下，行宽决定了每行几个字
+        ReaderSheetRow(label = "边距", palette = palette) {
+            val idx = ReaderPrefs.MARGINS.indices
+                .minByOrNull { abs(ReaderPrefs.MARGINS[it] - prefs.margin) } ?: 1
+            ReaderSegmented(
+                options = ReaderPrefs.MARGIN_LABELS,
+                selected = ReaderPrefs.MARGIN_LABELS[idx],
+                palette = palette,
+                modifier = Modifier.weight(1f),
+                onSelect = { label ->
+                    val i = ReaderPrefs.MARGIN_LABELS.indexOf(label)
+                    if (i >= 0) onPrefs(prefs.copy(margin = ReaderPrefs.MARGINS[i]))
+                },
+            )
+        }
+
+        // 3d. 字距：宋体默认偏紧，加一点气口长文更好读
+        ReaderSheetRow(label = "字距", palette = palette) {
+            val idx = ReaderPrefs.TRACKINGS.indices
+                .minByOrNull { abs(ReaderPrefs.TRACKINGS[it] - prefs.letterSpacing) } ?: 0
+            ReaderSegmented(
+                options = ReaderPrefs.TRACKING_LABELS,
+                selected = ReaderPrefs.TRACKING_LABELS[idx],
+                palette = palette,
+                modifier = Modifier.weight(1f),
+                onSelect = { label ->
+                    val i = ReaderPrefs.TRACKING_LABELS.indexOf(label)
+                    if (i >= 0) onPrefs(prefs.copy(letterSpacing = ReaderPrefs.TRACKINGS[i]))
+                },
+            )
+        }
+
         // 4. 背景：用户显式挑选，色板用各方案自己的底色与正文色
         ReaderSheetRow(label = "背景", palette = palette) {
             Row(
@@ -2636,6 +2775,22 @@ private fun ReaderSettingsSheet(
                     )
                 }
             }
+        }
+
+        // 4b. 屏内亮度：只压本页窗口，退出阅读页还原系统亮度
+        ReaderSheetRow(label = "亮度", palette = palette) {
+            val idx = ReaderPrefs.BRIGHTNESSES.indices
+                .minByOrNull { abs(ReaderPrefs.BRIGHTNESSES[it] - prefs.brightness) } ?: 0
+            ReaderSegmented(
+                options = ReaderPrefs.BRIGHTNESS_LABELS,
+                selected = ReaderPrefs.BRIGHTNESS_LABELS[idx],
+                palette = palette,
+                modifier = Modifier.weight(1f),
+                onSelect = { label ->
+                    val i = ReaderPrefs.BRIGHTNESS_LABELS.indexOf(label)
+                    if (i >= 0) onPrefs(prefs.copy(brightness = ReaderPrefs.BRIGHTNESSES[i]))
+                },
+            )
         }
 
         // 5. 翻页：先选「怎么动」，再管「哪些手势能动」
@@ -2662,6 +2817,11 @@ private fun ReaderSettingsSheet(
             checked = prefs.volumeTurn,
             palette = palette,
         ) { onPrefs(prefs.copy(volumeTurn = it)) }
+        ReaderToggleRow(
+            label = "翻页触感",
+            checked = prefs.hapticTurn,
+            palette = palette,
+        ) { onPrefs(prefs.copy(hapticTurn = it)) }
         ReaderToggleRow(
             label = "段首缩进",
             checked = prefs.indent,
@@ -2895,6 +3055,36 @@ private fun ReaderChip(
 /** 控件条吃掉落在自身上的点击，避免穿透到正文的「点按切 chrome / 翻页」手势。 */
 private fun Modifier.consumeTaps(): Modifier = pointerInput(Unit) {
     detectTapGestures { }
+}
+
+/** 从包装 Context 中取出宿主 Activity，用于改本页窗口亮度。 */
+/**
+ * 跨章浮现的章名。上游标题自带「第3章」前缀，剥掉再拼，
+ * 否则就成了「第 3 章 · 第3章 写日记的人」。
+ */
+internal fun chapterToastText(chapterIndex: Int, title: String): String? {
+    val prefix = chapterHeadingPattern.find(title.trim())
+    val name = if (prefix == null) {
+        title.trim()
+    } else {
+        title.trim().substring(prefix.range.last + 1).trimStart('：', ':', '·', '、', '，', ' ', '　').trim()
+    }
+    return when {
+        name.isEmpty() -> if (chapterIndex >= 0) "第 ${chapterIndex + 1} 章" else null
+        chapterIndex >= 0 -> "第 ${chapterIndex + 1} 章 · $name"
+        else -> name
+    }
+}
+
+private val chapterHeadingPattern = Regex("^第\\s*[0-9零一二三四五六七八九十百千]+\\s*章")
+
+private fun Context.findActivity(): Activity? {
+    var ctx: Context = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }
 
 /** 一屏高度即「一页」，留 15% 重叠避免段首被切掉。 */

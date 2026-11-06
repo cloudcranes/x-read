@@ -454,7 +454,7 @@ fun MetaStatDivider(modifier: Modifier = Modifier) {
 /**
  * 榜单行：序号 + 封面 + 书名/元信息 + 右侧标记。
  *
- * 前三名序号用强调色衬线，其余用次要色；封面 44×62dp。
+ * 前三名序号用强调色衬线，其余用次要色；封面 42×56dp。
  * 行间只放发丝线，不给卡片底色——榜单是长列表，卡片会让页面碎掉。
  */
 @Composable
@@ -477,7 +477,7 @@ fun RankRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = Space.gutter, vertical = Space.sm),
+            .padding(horizontal = Space.gutter, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 序号：前三名朱红衬线，其余三级灰。宽度固定，让所有行左边界对齐。
@@ -496,7 +496,7 @@ fun RankRow(
             title = title,
             coverUrl = coverUrl,
             modifier = Modifier
-                .width(36.dp)
+                .width(42.dp)
                 .aspectRatio(0.75f),
         )
         Column(
@@ -507,8 +507,8 @@ fun RankRow(
         ) {
             Text(
                 text = title,
-                fontSize = 14.sp,
-                lineHeight = 19.sp,
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -763,15 +763,15 @@ fun SectionHeader(
             .fillMaxWidth()
             .padding(
                 start = Space.gutter, end = Space.sm,
-                top = Space.section, bottom = Space.sm,
+                top = Space.huge, bottom = Space.md,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (index.isNotBlank()) {
             Text(
                 text = index,
-                fontSize = 11.sp,
-                lineHeight = 15.sp,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
                 letterSpacing = 1.2.sp,
                 color = ink3,
             )
@@ -780,8 +780,8 @@ fun SectionHeader(
         Text(
             text = title,
             fontFamily = Serif,
-            fontSize = 19.sp,
-            lineHeight = 26.sp,
+            fontSize = 18.sp,
+            lineHeight = 25.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f, fill = false),
@@ -797,7 +797,7 @@ fun SectionHeader(
         } else if (hint.isNotBlank()) {
             Text(
                 text = hint,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 color = ink3,
             )
         }

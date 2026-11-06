@@ -544,6 +544,10 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             turnMode = o.optString("turnMode", "slide"),
             keepAwake = o.optBoolean("keepAwake", true),
             autoScroll = o.optString("autoScroll", "off"),
+            margin = o.optDouble("margin", 20.0).toFloat(),
+            letterSpacing = o.optDouble("letterSpacing", 0.0).toFloat(),
+            hapticTurn = o.optBoolean("hapticTurn", true),
+            brightness = o.optDouble("brightness", -1.0).toFloat(),
         ).normalized()
     }.getOrDefault(ReaderPrefs())
 
@@ -562,7 +566,11 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             .put("paragraphGap", v.paragraphGap.toDouble())
             .put("turnMode", v.turnMode)
             .put("keepAwake", v.keepAwake)
-            .put("autoScroll", v.autoScroll))
+            .put("autoScroll", v.autoScroll)
+            .put("margin", v.margin.toDouble())
+            .put("letterSpacing", v.letterSpacing.toDouble())
+            .put("hapticTurn", v.hapticTurn)
+            .put("brightness", v.brightness.toDouble()))
     }
 
     /* ---------- 新章提醒 ---------- */
