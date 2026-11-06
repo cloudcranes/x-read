@@ -199,7 +199,8 @@ fun DramaSwipeScreen(
                 }
                 if (!handedOff && durationMs > 0L && positionMs >= durationMs - 800L) {
                     val series = feed.getOrNull(pagerState.currentPage)
-                    if (series != null && series.seriesId == drama?.seriesId) {
+                    // drama 在上面 :195 的判空里已被收窄为非空，这里不必再写 ?.
+                    if (series != null && series.seriesId == drama.seriesId) {
                         handedOff = true
                         onOpenDetailNextEpisode(series)
                     }

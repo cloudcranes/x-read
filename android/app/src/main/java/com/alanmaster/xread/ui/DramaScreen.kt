@@ -33,12 +33,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Tv
@@ -124,7 +124,7 @@ fun DramaScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                         }
                     },
                     actions = {
@@ -190,8 +190,11 @@ fun DramaScreen(
         }
     } else {
         // ------------------ 剧集播放与选集详情模式 ------------------
+        // else 分支里 currentDrama 已被收窄为非空，这里再取一份局部值，
+        // 后面就不用写 ?. 了。
+        val drama = currentDrama
         DramaPlayerScreen(
-            drama = currentDrama,
+            drama = drama,
             episode = currentEpisode,
             source = currentVideoSource,
             loading = videoLoading,
@@ -201,8 +204,8 @@ fun DramaScreen(
             onSelectEpisode = onSelectEpisode,
             onSendDanmaku = onSendDanmaku,
             onSwitchToDouyin = onSwitchToDouyin,
-            isFavorited = currentDrama?.let { d -> favorites.any { it.seriesId == d.seriesId } } == true,
-            onToggleFavorite = { currentDrama?.let(onToggleFavorite) },
+            isFavorited = favorites.any { it.seriesId == drama.seriesId },
+            onToggleFavorite = { onToggleFavorite(drama) },
         )
     }
 }
@@ -353,7 +356,7 @@ private fun DramaPlayerScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -596,7 +599,7 @@ private fun DramaPlayerScreen(
                     },
                     modifier = Modifier.size(36.dp),
                 ) {
-                    Icon(Icons.Filled.Send, contentDescription = "发送", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
             }
 

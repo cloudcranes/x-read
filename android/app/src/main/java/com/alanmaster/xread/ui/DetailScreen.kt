@@ -25,7 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -541,7 +541,7 @@ private fun DetailMenu(
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
             text = { Text("目录") },
-            leadingIcon = { Icon(Icons.Filled.List, null, Modifier.size(20.dp)) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null, Modifier.size(20.dp)) },
             onClick = onToc,
         )
         DropdownMenuItem(

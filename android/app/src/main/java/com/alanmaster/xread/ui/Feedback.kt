@@ -1,7 +1,6 @@
 package com.alanmaster.xread.ui
 
 import android.content.Context
-import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -52,10 +51,8 @@ fun rememberHaptic(): Haptic {
 }
 
 private fun hapticsAllowed(context: Context): Boolean {
-    val systemOn = runCatching {
-        Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED) != 0
-    }.getOrDefault(true)
-    if (!systemOn) return false
+    // 不再自己读 Settings.System.HAPTIC_FEEDBACK_ENABLED：AOSP 已把它标成弃用，
+    // 理由是用户设置由系统服务在振动时自动生效，应用再读一遍只是多一次读盘。
     val talkBack = runCatching {
         val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
         manager?.isTouchExplorationEnabled == true
