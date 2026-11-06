@@ -364,8 +364,7 @@ AlarmManager 而非 WorkManager：构建环境的 Gradle 缓存中没有 `androi
 
 本机打 release 包依赖 SSH + Docker（`scripts/build_apk.sh`）；不想开那套环境时，仓库自带的工作流可以直接出包。
 
-- 工作流：`.github/workflows/android.yml`，两个 job 并行。
-  - `python-tests`：`pip install -e '.[test]'` + `pytest -q`（173 项，不需要 `.env`）。
+- 工作流：`.github/workflows/android.yml`，`android-apk` 单 job。
   - `android-apk`：JDK 21 → Gradle（`./gradlew`，wrapper 已随仓库提交）→ NDK r27c → Rust `aarch64-linux-android` →
     `scripts/build_native_core.sh` → `:app:testDebugUnitTest` + `assembleRelease` → `scripts/verify_apk.sh` → 上传 artifact。
 - 触发：推 `main`、PR 到 `main`、打 `v*` 标签、手动 `workflow_dispatch`。

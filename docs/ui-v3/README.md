@@ -342,8 +342,8 @@ GET /api/v1/search/hot
 
 ```
 docs/ui-v3/
-  00-overview.png / .webp     7 屏总览
-  01..07-*.png / .webp        分屏设计图（@2x）
+  00-overview.png             7 屏总览
+  01..07-*.png                分屏设计图（@2x）
   design-tokens.css           CSS 变量形式的令牌（等同 §3）
   fonts/                      子集字体（woff2，483 字，共 337KB）
   src/                        可复现的 HTML 源码 + render.sh

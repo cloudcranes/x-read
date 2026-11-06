@@ -34,13 +34,7 @@
 - **热更新**：设置 → 03 关于 → 热更新，启动时每天最多检查一次 GitHub Release，发现新版本可下载安装包并直接调起系统安装器；拉包慢可在同一面板切「下载加速」（ghfast.top / gh-proxy.com / ghproxy.net，只代理 APK，令牌不随之外发）；私有仓库需要在「更新源」里填一个只读 GitHub 令牌，细节见 [安卓独立版说明](docs/ANDROID-STANDALONE.md#热更新380)。
 - **PWA 支持**：手机端浏览器访问时支持直接「添加到桌面/安装为独立应用」。
 
-本机NAS的桥接端口转发实测超时，实际运行使用Host网络覆盖文件：
-
-```bash
-docker compose -f compose.yaml -f compose.host.yaml up -d --build
-```
-
-改完代码必须带 `--build` 重新构建：只用 `restart` 会继续跑旧镜像。曾出现运行中的容器
+本机NAS的桥接端口转发实测超时，实际运行改用 host 网络直接跑容器，命令见 [Docker](#docker)。改完代码必须重新构建镜像：`docker restart` 会继续跑旧镜像，曾出现运行中的容器
 比仓库落后 194 行（缺路径参数二次校验、缺 WAL 初始化重试）。核对方式：
 
 ```bash
@@ -48,8 +42,7 @@ docker exec x-read-x-read-1 sh -c 'cd /app && find x_read -name "*.py" -o -name 
   | while read h f; do [ "$h" = "$(md5sum "$f" | cut -d' ' -f1)" ] || echo "DIFFERS: $f"; done
 ```
 
-
-当前配置 `X_READ_BIND_ADDRESS=0.0.0.0`、`X_READ_PORT=18081`、`X_READ_ALLOW_ANONYMOUS=true`、`X_READ_API_TOKEN=`。监听全部IPv4接口以兼容本机EasyTier的`--no-tun`模式，健康检查使用回环地址且不经过代理。EasyTier节点应从同虚拟网的另一台设备访问 `http://10.0.0.5:18081/`；本机没有TUN接口时，自访问虚拟地址不作为连通性验收依据。此模式覆盖所有IPv4接口，保持当前用户要求的免令牌访问。默认启动配置仍保留非回环无令牌保护，只有显式开启匿名模式才放行。不要只用基础Compose重启本机部署，否则会回到桥接模式。
+当前配置 `X_READ_BIND_ADDRESS=0.0.0.0`、`X_READ_PORT=18081`、`X_READ_ALLOW_ANONYMOUS=true`、`X_READ_API_TOKEN=`。监听全部IPv4接口以兼容本机EasyTier的`--no-tun`模式，健康检查使用回环地址且不经过代理。EasyTier节点应从同虚拟网的另一台设备访问 `http://10.0.0.5:18081/`；本机没有TUN接口时，自访问虚拟地址不作为连通性验收依据。此模式覆盖所有IPv4接口，保持当前用户要求的免令牌访问。默认启动配置仍保留非回环无令牌保护，只有显式开启匿名模式才放行。
 
 ## 启动
 
@@ -62,7 +55,7 @@ python3 -m venv .venv
 
 默认 `http://127.0.0.1:8080`。健康检查 `/health`，交互文档 `/docs`，机器可读文档 `/openapi.json`。静态快照见 [OpenAPI](docs/openapi.json)。
 
-`.env.example` 是配置示例，本地 Python **不自动读取 .env**；通过 shell 导出变量，或在进程管理器中配置。Docker Compose 会读取 `.env`。
+`.env.example` 是配置示例，本地 Python **不自动读取 .env**；通过 shell 导出变量，或在进程管理器中配置；容器运行时用 `docker run --env-file .env` 注入同样变量。
 
 ### 访问令牌
 
@@ -165,7 +158,7 @@ note 上限5000字符，quote上限2000字符；文本仅按数据保存，不�
 
 | 环境变量 | 默认值 | 说明 |
 |---|---|---|
-| `X_READ_HOST` | `127.0.0.1` | 监听地址；未设置时回退读取 `X_READ_BIND_ADDRESS`（裸机 `python -m x_read` 与 Compose 行为一致）。非回环地址要求令牌 |
+| `X_READ_HOST` | `127.0.0.1` | 监听地址；未设置时回退读取 `X_READ_BIND_ADDRESS`（裸机 `python -m x_read` 与容器内同语义）。非回环地址要求令牌 |
 | `X_READ_PORT` | `8080` | 服务端口 |
 | `X_READ_DB` | `data/x-read.sqlite3` | SQLite，含书架、进度、缓存 |
 | `X_READ_API_TOKEN` | 空 | API Bearer 令牌 |
@@ -183,17 +176,21 @@ note 上限5000字符，quote上限2000字符；文本仅按数据保存，不�
 ```bash
 cp .env.example .env
 # 编辑 .env，至少填写随机生成的 X_READ_API_TOKEN
-docker compose up -d --build
+docker build -t x-read:local .
+docker run -d --name x-read --network host --env-file .env \
+  -v reader-data:/data x-read:local
 curl http://127.0.0.1:8080/health
 ```
 
-默认主机只映射到 127.0.0.1；镜像内监听 0.0.0.0 并以 uid 10001 运行。数据保存在 `reader-data` 命名卷，升级时保留该卷。
+镜像内监听 `0.0.0.0` 并以 uid 10001 运行；`--network host` 直接占用宿主机端口，端口取 `X_READ_PORT`（本机 NAS 的桥接发布端口实测超时，才改用 host 网络）。数据保存在 `reader-data` 命名卷，升级时保留该卷：`docker rm -f x-read` 后重新 `docker run` 即可换新镜像。
 
-备份数据库建议停止服务后复制整个数据卷；或使用 SQLite backup API 创建一致快照，不要在运行时只拷贝主数据库而遗漏 WAL。`docker compose down -v` 会删除数据，勿作为日常停机命令。
+备份数据库建议停止服务后复制整个数据卷；或使用 SQLite backup API 创建一致快照，不要在运行时只拷贝主数据库而遗漏 WAL。`docker volume rm reader-data` 会删除数据，勿作为日常停机命令。
 
-当前已通过管理员SSH完成镜像构建和容器运行验收，实际本机使用上文Host网络覆盖；详见 [验证记录](docs/VERIFICATION.md)。
+当前已通过管理员SSH完成镜像构建和容器运行验收；详见 [验证记录](docs/VERIFICATION.md)。
 
 ## 测试
+
+`tests/` 已 gitignore，只在开发机上保留；克隆本仓库后该目录为空，下面两条命令需要在有测试文件的机器上跑。
 
 ```bash
 .venv/bin/pip install -e '.[test]'
@@ -217,8 +214,6 @@ x_read/
   storage.py          SQLite 书架、进度与有界缓存
   sources/            官方网页书源适配器
   data/font_dnmr.json 固定字体映射
-reader.html           阅读页模板（服务端渲染后下发）
- tests/               离线测试
  scripts/             smoke.py、原生核心交叉编译、APK 构建与交付自检
  android/             独立版客户端（Kotlin/Compose + native-core Rust）
    app/src/main/      业务代码与资源

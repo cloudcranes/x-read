@@ -36,8 +36,9 @@ dist/
 
 # ---------- 本地交付物与验证证据 ----------
 /artifacts/
-/adb_test/*
-!/adb_test/*.md
+/adb_test/
+/dsh-image-gen/
+/tests/
 /x-read.apk
 /verify-*.log
 

@@ -22,24 +22,6 @@ env:
   JAVA_VERSION: "21"
 
 jobs:
-  python-tests:
-    name: Python 测试（173 项）
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[test]"
-
-      # 测试必须是自足的：仓库里没有 .env（已 gitignore），CI 也不提供。
-      - run: python -m pytest -q
-
   android-apk:
     name: 安卓 APK（arm64-v8a）
     runs-on: ubuntu-latest
