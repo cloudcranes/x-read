@@ -116,7 +116,7 @@ scripts/                build_native_core.sh / build_apk.sh / verify_apk.sh
 
 ## 已舍弃的形态
 
-早期版本还有一套「Python 服务端 + Web 阅读页」的形态，现已不再维护。为免误用，相关代码保留在仓库仅作参考，**不随本次发布迭代**：`x_read/`（服务端）、`Dockerfile`、`scripts/smoke.py`。现在只需要 APK。
+早期版本还有一套「Python 服务端 + Web 阅读页」的形态，现已不再维护。为免误用，相关代码保留在仓库仅作参考，**不随本次发布迭代**：`x_read/`（服务端）、`scripts/smoke.py`。现在只需要 APK。
 
 ## 许可
 
