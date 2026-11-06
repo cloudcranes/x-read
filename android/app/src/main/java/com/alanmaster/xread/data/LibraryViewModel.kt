@@ -608,6 +608,11 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(searchHistory = list) }
     }
 
+    fun removeSearchHistory(query: String) = viewModelScope.launch {
+        val list = withContext(Dispatchers.IO) { offline.removeSearchHistory(query) }
+        update { it.copy(searchHistory = list) }
+    }
+
     fun clearSearchHistory() = viewModelScope.launch {
         withContext(Dispatchers.IO) { offline.clearSearchHistory() }
         update { it.copy(searchHistory = emptyList()) }
@@ -688,6 +693,24 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     it.copy(tocRefreshDone = it.tocRefreshDone + 1, message = e.message ?: "刷新目录失败")
                 }
             }
+    }
+
+    /**
+     * 只补详情页需要、阅读流程不需要的数据。
+     *
+     * 从阅读页点「书籍详情」时不能走 [openBook]：那会把 flow、当前章一起清掉，
+     * 返回阅读页就得从头加载。这里只刷新书籍字段与相关推荐，正文进度原样保留。
+     */
+    fun refreshDetail(book: Book) = viewModelScope.launch {
+        runCatching {
+            val fresh = book.mergeFrom(api.book(book.source, book.bookId))
+            fresh to runCatching { api.related(book.source, book.bookId) }.getOrDefault(emptyList())
+        }.onSuccess { (fresh, related) ->
+            update { st ->
+                if (st.book?.bookId != book.bookId) st
+                else st.copy(book = fresh, related = related)
+            }
+        }
     }
 
     fun openBook(book: Book) = viewModelScope.launch {
@@ -1506,12 +1529,40 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             .onFailure { e -> update { it.copy(loading = false, message = e.message ?: "作者信息加载失败") } }
     }
 
+    /**
+     * 阅读状态自动推进：进正文把「想读」变「在读」，读到末章最后一段变「读完」。
+     *
+     * 手标「读完」的书重读不降级（规则见 [autoShelfStatus]）；不在书架上的书直接跳过，
+     * 免得为了读一本试读本先把它塞进书架。
+     */
+    private fun advanceShelfStatus(bookId: String, atEnd: Boolean) {
+        val st = _state.value
+        val item = st.shelfAll.firstOrNull { it.book.bookId == bookId } ?: return
+        val next = autoShelfStatus(item.status, atEnd) ?: return
+        if (!api.setBookStatusNow(bookId, next)) return
+        val items = st.shelfAll.map { if (it.book.bookId == bookId) it.copy(status = next) else it }
+        update { s ->
+            s.copy(
+                shelfAll = items,
+                shelf = ShelfSort.apply(items, s.shelfSort, s.shelfGroupFilter, s.shelfMediaType, s.shelfStatusFilter),
+            )
+        }
+    }
+
     /** 阅读位置：记录章节与段落；跨章立刻落盘，同章内按间隔节流落盘。 */
     fun setParagraph(chapterId: String, index: Int) {
         val s = _state.value
+        val chIndex = s.chapters.indexOfFirst { it.id == chapterId }.takeIf { it >= 0 } ?: s.chapterIndex
+        // 书架标记要先算：刚进正文时报的就是已保存的段落，会走下面的提前返回。
+        // 也放在节流判断之前——同一章里一路读到底同样要能触发。
+        s.book?.let { b ->
+            val lastParagraph = s.flow.lastOrNull { it.id == chapterId }?.paragraphs?.lastIndex ?: -1
+            val atEnd = s.chapters.isNotEmpty() && chIndex >= s.chapters.size - 1 &&
+                lastParagraph >= 0 && index >= lastParagraph
+            advanceShelfStatus(b.bookId, atEnd)
+        }
         if (s.currentChapterId == chapterId && s.currentParagraph == index) return
         val chapterChanged = s.currentChapterId.isNotEmpty() && s.currentChapterId != chapterId
-        val chIndex = s.chapters.indexOfFirst { it.id == chapterId }.takeIf { it >= 0 } ?: s.chapterIndex
         val fIndex = s.flow.indexOfFirst { it.id == chapterId }.takeIf { it >= 0 } ?: s.flowIndex
         update {
             it.copy(
@@ -1884,6 +1935,8 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         var marked = 0
         withContext(Dispatchers.IO) {
             for (b in books) {
+                // 批量「读完」只推进度的话，筛选「读完」抓不到这批书——状态一起落。
+                api.setBookStatusNow(b.bookId, ShelfItem.STATUS_DONE)
                 val total = b.chapterCount
                 if (total <= 0) continue
                 val current = offline.progress(b.bookId)

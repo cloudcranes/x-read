@@ -120,9 +120,9 @@ pub async fn init(
         Some(mock_upstream_origin)
     };
     let mode = if lan_share {
-        crate::server::ListenMode::Lan
+        crate::listen::ListenMode::Lan
     } else {
-        crate::server::ListenMode::Loopback
+        crate::listen::ListenMode::Loopback
     };
     init_core(
         config_path,
@@ -143,7 +143,7 @@ pub async fn init(
 /// override). A server publishes the dispatcher itself and must not also open
 /// the loopback adapter - its read routes answer any local client without a
 /// capability - so it calls this directly with
-/// [`ListenMode::Disabled`](crate::server::ListenMode::Disabled). The origin
+/// [`ListenMode::Disabled`](crate::listen::ListenMode::Disabled). The origin
 /// override is the offline test seam: it redirects every upstream call to a
 /// local mock server.
 pub async fn init_core(
@@ -152,7 +152,7 @@ pub async fn init_core(
     filter_path: String,
     runtime_dir: String,
     port: u16,
-    mode: crate::server::ListenMode,
+    mode: crate::listen::ListenMode,
     mock_origin: Option<String>,
 ) -> Result<String, String> {
     let _guard = INIT_LOCK.lock().await;
@@ -211,11 +211,14 @@ pub async fn init_core(
     // gets no listener at all.
     let _ = cfg.port;
     let (actual_port, token, task) = match mode {
-        crate::server::ListenMode::Disabled => (0u16, String::new(), None),
+        crate::listen::ListenMode::Disabled => (0u16, String::new(), None),
+        #[cfg(feature = "server")]
         mode => match crate::server::serve(server.clone(), port, mode).await {
             Ok(handle) => (handle.port, handle.token, Some(handle.task)),
             Err(e) => return Err(e),
         },
+        #[cfg(not(feature = "server"))]
+        _ => return Err("loopback HTTP adapter is not compiled into this build".to_string()),
     };
 
     // The generation is read after the resource is fully built, so a stale
@@ -552,7 +555,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::server::ListenMode;
+    use crate::listen::ListenMode;
     use std::sync::atomic::AtomicBool;
 
     fn dummy_response() -> Response {

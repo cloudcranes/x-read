@@ -4,10 +4,10 @@
 
 | | |
 |---|---|
-| 版本 | `3.9.1-standalone`（versionCode 17，应用内名称「拾页」） |
+| 版本 | `4.0.0-standalone`（versionCode 18，应用内名称「拾页」） |
 | 包名 | `com.alanmaster.xread.standalone` |
 | 适配 | minSdk 24 / targetSdk 34，仅 arm64-v8a |
-| 体积 | release 约 16 MB（15.3 MiB）：原生 `.so` 7.8 MB 未压缩、三套阅读字体压缩后 5.3 MB、DEX 1.9 MB |
+| 体积 | release 约 11 MB（10.5 MiB）：原生 `.so` 5.7 MB（APK 内不再压缩）、三套阅读字体压缩后 2.7 MB、DEX 2.0 MB |
 | 界面 | Kotlin + Jetpack Compose，无 WebView |
 
 ## 安装

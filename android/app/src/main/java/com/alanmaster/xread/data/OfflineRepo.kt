@@ -1031,6 +1031,15 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         merged
     }.getOrDefault(emptyList())
 
+    /** 删掉一条搜索历史并返回新列表：只动这一条，其余顺序不变。 */
+    fun removeSearchHistory(query: String): List<String> = runCatching {
+        val merged = searchHistory().filter { it != query.trim() }
+        val arr = JSONArray()
+        merged.forEach { arr.put(it) }
+        if (!write(searchFile, JSONObject().put("items", arr).toString())) return searchHistory()
+        merged
+    }.getOrDefault(searchHistory())
+
     fun clearSearchHistory(): Boolean =
         write(searchFile, JSONObject().put("items", JSONArray()).toString())
 
@@ -1145,6 +1154,19 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     /* ---------- 备份 ---------- */
 
     fun exportBackup(): File? = runCatching {
+        val target = File(exportDir, "x-read-backup.json")
+        val body = backupJson() ?: return null
+        if (!write(target, body)) return null
+        target
+    }.getOrNull()
+
+    /**
+     * 备份内容本身，不落盘。
+     *
+     * 自动备份要写进用户选的 SAF 目录、WebDAV 要直接 PUT，
+     * 都不该先往应用外部目录写一份中间文件。
+     */
+    fun backupJson(): String? = runCatching {
         // version 3：marks 里带上了批注（n）与标签（g）。导入不校验版本，
         // 老备份缺这两个键时读出即空，所以向下兼容不需要迁移代码。
         val all = JSONObject().put("app", "x-read").put("version", 3)
@@ -1173,9 +1195,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         // 换机恢复之后书架「短剧」页会干干净净，用户以为记录丢了。
         all.put("dramaRecent", loadObject(dramaRecentFile))
         all.put("dramaFavorites", loadObject(dramaFavFile))
-        val target = File(exportDir, "x-read-backup.json")
-        if (!write(target, all.toString())) return null
-        target
+        all.toString()
     }.getOrNull()
 
     /**

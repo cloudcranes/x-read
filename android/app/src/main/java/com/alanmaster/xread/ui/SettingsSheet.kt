@@ -30,12 +30,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alanmaster.xread.BuildConfig
 import com.alanmaster.xread.data.AppUpdate
+import com.alanmaster.xread.data.NotificationChannels
 import com.alanmaster.xread.data.OfflineRepo
 import com.alanmaster.xread.data.ReaderPrefs
 import com.alanmaster.xread.data.UpdateUi
@@ -166,9 +168,23 @@ fun SettingsSheet(
                             }
                         }
 
+                        /* ---------------- 通知 ---------------- */
+                        item {
+                            SettingsSection(index = "03", title = "通知") {
+                                Text(
+                                    text = "四类通知各自独立，关掉一类不影响其他。",
+                                    fontSize = 12.sp,
+                                    lineHeight = 19.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = Space.sm),
+                                )
+                                NotificationChannelRows()
+                            }
+                        }
+
                         /* ---------------- 关于 ---------------- */
                         item {
-                            SettingsSection(index = "03", title = "关于") {
+                            SettingsSection(index = "04", title = "关于") {
                                 SettingsRow("版本", "拾页 ${BuildConfig.VERSION_NAME}")
                                 Text(
                                     text = "单文件安装即可使用，不采集、不上传任何阅读数据。" +
@@ -192,6 +208,77 @@ fun SettingsSheet(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 通知渠道开关。
+ *
+ * 每个渠道一行：名称 + 一句说明 + 开关。关掉的是这个渠道本身，
+ * 后台播放 / 朗读不会因此停止，只是不再显示控制条。
+ * 开关状态取自系统，而不是本地偏好：用户在系统设置里改过之后，
+ * 回到这里看到的必须是系统的真实状态。
+ */
+@Composable
+private fun NotificationChannelRows() {
+    val ctx = LocalContext.current
+    val entries = remember { NotificationChannels.entries(ctx) }
+    androidx.compose.runtime.LaunchedEffect(entries) {
+        withContext(Dispatchers.IO) { NotificationChannels.ensure(ctx.applicationContext) }
+    }
+    Column(Modifier.fillMaxWidth()) {
+        entries.forEach { entry ->
+            var enabled by remember(entry.id) {
+                mutableStateOf(NotificationChannels.isEnabled(ctx, entry.id))
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Space.md),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = entry.title,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = entry.description,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Space.xxs),
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { want ->
+                        enabled = NotificationChannels.setEnabled(ctx, entry.id, want)
+                    },
+                )
+            }
+            DividerLine()
+        }
+        Text(
+            text = "部分机型在系统设置里手动关闭过渠道后，应用内的开关会回弹到关闭状态。",
+            fontSize = 11.sp,
+            lineHeight = 17.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Space.sm),
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = Space.sm),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            SecondaryButton(
+                text = "打开系统通知设置",
+                onClick = { NotificationChannels.openSystemSettings(ctx, "") },
+            )
         }
     }
 }

@@ -45,6 +45,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -65,7 +71,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -120,6 +126,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -272,7 +279,7 @@ fun ReaderScreen(
 ) {
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val listState = rememberLazyGridState()
     val density = LocalDensity.current
 
     // 常亮：直接改窗口 View 的标志位，比往 Window 里塞 FLAG_KEEP_SCREEN_ON 少一层。
@@ -614,6 +621,7 @@ fun ReaderScreen(
 
                 else -> ReaderBody(
                     flow = flow,
+                    chapters = chapters,
                     bookTitle = bookTitle,
                     prefs = prefs,
                     palette = palette,
@@ -632,6 +640,7 @@ fun ReaderScreen(
         onCacheNext = onCacheNext,
                     onPrev = onPrev,
                     onNext = onNext,
+                    onSelect = onSelect,
                     onTapCenter = { toggleChrome() },
                     onLongPress = { chapId, index, text -> markTarget = Triple(chapId, index, text) },
                     onOpenParagraphComments = onOpenParagraphComments,
@@ -1015,10 +1024,11 @@ private fun AnnotatedString.Builder.appendHighlighted(
 @Composable
 private fun ReaderBody(
     flow: List<ChapterContent>,
+    chapters: List<Chapter>,
     bookTitle: String,
     prefs: ReaderPrefs,
     palette: ReaderPalette,
-    listState: LazyListState,
+    listState: LazyGridState,
     findQuery: String,
     findActiveChapterId: String,
     findActiveParagraph: Int,
@@ -1032,6 +1042,7 @@ private fun ReaderBody(
     onCacheNext: () -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    onSelect: (String) -> Unit,
     onTapCenter: () -> Unit,
     onLongPress: (chapterId: String, paragraphIndex: Int, text: String) -> Unit,
     /** 点段末气泡：打开该段的段评面板。 */
@@ -1128,7 +1139,7 @@ private fun ReaderBody(
      */
     suspend fun turnPage(dir: Int) {
         val info = listState.layoutInfo
-        val visible = info.visibleItemsInfo.map { TurnItem(it.index, it.offset, it.size) }
+        val visible = info.visibleItemsInfo.map { TurnItem(it.index, it.offset.y, it.size.height) }
         if (dir > 0) {
             val plan = ReaderTurn.forward(
                 visible = visible,
@@ -1224,7 +1235,7 @@ private fun ReaderBody(
             },
             onLongPress = { offset ->
                 val item = listState.layoutInfo.visibleItemsInfo.firstOrNull {
-                    offset.y >= it.offset && offset.y < it.offset + it.size
+                    offset.y >= it.offset.y && offset.y < it.offset.y + it.size.height
                 }
                 val index = item?.index ?: listState.firstVisibleItemIndex
                 val (k, p) = ReaderFlow.locate(flow, index)
@@ -1280,8 +1291,16 @@ private fun ReaderBody(
 
     val bodyFont = remember(prefs.font) { readerFontFamily(prefs.font) }
 
-    LazyColumn(
+    // 宽屏双栏：平板/横屏下把一屏切成两列，段落按行优先顺序流下去。
+    // 不用分页器：按高度切割必然切断段落，而这段文字的排版是「一段一块」，
+    // 用两列网格既能双栏又保证每段完整落在同一格子里。
+    // 条漫逐图铺满，不分栏。
+    val wide = LocalConfiguration.current.screenWidthDp >= 720 && flow.none { it.isManga }
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(if (wide) 2 else 1),
         state = listState,
+        horizontalArrangement = Arrangement.spacedBy(if (wide) prefs.margin.dp * 1.6f else 0.dp),
         modifier = Modifier
             .fillMaxSize()
             // 仿真翻页时整页横向让开一点，再回弹；其余模式恒为 0
@@ -1335,7 +1354,7 @@ private fun ReaderBody(
                 chapter.title.takeIf { it.isNotBlank() },
             ).joinToString(" · ")
 
-            item(key = "chapter-header-${chapter.id}") {
+            item(key = "chapter-header-${chapter.id}", span = { GridItemSpan(maxLineSpan) }) {
                 // 页眉画在标题项内部：不进索引，滚走即隐藏
                 Text(
                     text = header,
@@ -1467,11 +1486,30 @@ private fun ReaderBody(
                 Spacer(Modifier.height(paragraphGap))
             }
             }
+
+            // 章末卡片：连续流里两章之间唯一的分界标记。
+            // 之前章与章直接首尾相接，滚过去只看到下一章标题，没有「读完了」的停顿。
+            val chapterIndex = chapters.indexOfFirst { it.id == chapter.id }
+            val nextInList = chapters.getOrNull(chapterIndex + 1)
+            val nextInFlow = flow.getOrNull(k + 1)
+            item(key = "chapter-end-${chapter.id}", span = { GridItemSpan(maxLineSpan) }) {
+                ChapterEndCard(
+                    nextTitle = nextInList?.title ?: nextInFlow?.title.orEmpty(),
+                    palette = palette,
+                    onNext = {
+                        when {
+                            nextInFlow != null -> onSelect(nextInFlow.id)
+                            nextInList != null -> onSelect(nextInList.id)
+                            else -> onRetryAppend()
+                        }
+                    },
+                )
+            }
         }
 
         // 底部：加载中提示、失败重试、或手动上一章/下一章
         if (flowLoading) {
-            item(key = "flow-loading") {
+            item(key = "flow-loading", span = { GridItemSpan(maxLineSpan) }) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -1490,7 +1528,7 @@ private fun ReaderBody(
                 }
             }
         } else if (flowError.isNotBlank()) {
-            item(key = "flow-error") {
+            item(key = "flow-error", span = { GridItemSpan(maxLineSpan) }) {
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -1512,7 +1550,7 @@ private fun ReaderBody(
             }
         }
 
-        item(key = "flow-footer") {
+        item(key = "flow-footer", span = { GridItemSpan(maxLineSpan) }) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1526,6 +1564,59 @@ private fun ReaderBody(
                     Text("下一章", fontSize = 13.sp, color = palette.text)
                 }
             }
+        }
+    }
+}
+
+/**
+ * 章末卡片：`本章完` + 下一章标题 + 一个「下一章」按钮。
+ *
+ * 连续阅读把多章接成一条流，章末没有任何停顿，读者分不清「这章读完了」
+ * 还是「作者断更了」；这张卡就是那条分界线，同时给一个不依赖手势的跳章入口。
+ */
+@Composable
+private fun ChapterEndCard(
+    nextTitle: String,
+    palette: ReaderPalette,
+    onNext: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Space.xxl, bottom = Space.md),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .width(28.dp)
+                .height(1.dp)
+                .background(palette.rule),
+        )
+        Text(
+            text = "本章完",
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            letterSpacing = 0.32.em,
+            color = palette.dim,
+            modifier = Modifier.padding(top = Space.md),
+        )
+        if (nextTitle.isNotBlank()) {
+            Text(
+                text = nextTitle,
+                fontFamily = Serif,
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                color = palette.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Space.xs, start = Space.lg, end = Space.lg),
+                textAlign = TextAlign.Center,
+            )
+        }
+        TextButton(onClick = onNext) {
+            Text("下一章", fontSize = 13.sp, color = palette.accent)
         }
     }
 }
@@ -2246,7 +2337,7 @@ private fun ReaderTopBar(
                         },
                         leadingIcon = {
                             Icon(
-                                Icons.Filled.LibraryBooks,
+                                Icons.AutoMirrored.Filled.LibraryBooks,
                                 contentDescription = null,
                                 tint = palette.dim,
                                 modifier = Modifier.size(18.dp),
@@ -3088,7 +3179,7 @@ private fun Context.findActivity(): Activity? {
 }
 
 /** 一屏高度即「一页」，留 15% 重叠避免段首被切掉。 */
-private fun LazyListState.pagePx(): Float =
+private fun LazyGridState.pagePx(): Float =
     (layoutInfo.viewportSize.height * 0.85f).coerceAtLeast(200f)
 
 /**

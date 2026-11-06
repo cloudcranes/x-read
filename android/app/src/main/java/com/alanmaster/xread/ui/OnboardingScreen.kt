@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +92,7 @@ fun OnboardingScreen(
                 when (step) {
                     0 -> AppearanceStep(prefs = prefs, onPrefs = onPrefs, palette = palette)
                     1 -> RestoreStep(onImport = onImport)
-                    else -> ReadyStep(onDone = onDone)
+                    else -> ReadyStep()
                 }
             }
 
@@ -156,7 +158,11 @@ private fun AppearanceStep(
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(Radius.sm))
-                        .clickable { onPrefs(prefs.copy(theme = key)) }
+                        .selectable(
+                            selected = active,
+                            role = Role.RadioButton,
+                            onClick = { onPrefs(prefs.copy(theme = key)) },
+                        )
                         .padding(vertical = Space.xs),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -245,7 +251,7 @@ private fun RestoreStep(onImport: () -> Unit) {
 /* --------------------------- 第三步：完成 --------------------------- */
 
 @Composable
-private fun ReadyStep(onDone: () -> Unit) {
+private fun ReadyStep() {
     Column(Modifier.fillMaxSize()) {
         StepTitle(index = "03", title = "三条最近的路", hint = "剩下的边读边发现就好。")
         listOf(

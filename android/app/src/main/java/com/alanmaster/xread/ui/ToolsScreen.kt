@@ -1,5 +1,7 @@
 package com.alanmaster.xread.ui
 
+import com.alanmaster.xread.data.BackupUiState
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -40,6 +42,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -49,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -129,6 +134,12 @@ fun ToolsScreen(
     onSaveRules: (List<ReplaceRule>) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
+    backup: BackupUiState = BackupUiState(),
+    onPickBackupDir: () -> Unit = {},
+    onBackupInterval: (Int) -> Unit = {},
+    onBackupNow: () -> Unit = {},
+    onDavSave: (String, String, String, Boolean) -> Unit = { _, _, _, _ -> },
+    onDavUpload: () -> Unit = {},
     onSpeak: () -> Unit,
     onStopSpeak: () -> Unit,
 ) {
@@ -705,6 +716,18 @@ fun ToolsScreen(
                 }
             }
 
+            /* -------------------- 月度/年度回顾 -------------------- */
+            // 统计区块只画「今天」和「近 7 天」，跨月的感受没人接住。
+            // 这里按 stats.days 的日期前缀归月/归年，再做一张可以发出去的卡片。
+            if (hasStats) {
+                item {
+                    SectionHeader("阅读回顾", index = sectionIndex.getValue("阅读统计"))
+                    ToolCard {
+                        ReviewBlock(stats.optJSONObject("days"))
+                    }
+                }
+            }
+
             /* -------------------- 每日提醒 -------------------- */
             item {
                 SectionHeader("每日提醒", index = sectionIndex.getValue("每日提醒"))
@@ -903,6 +926,125 @@ fun ToolsScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
+
+                    /* --- 自动备份：选目录 + 间隔 --- */
+                    Text(
+                        text = "自动备份",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = Space.lg),
+                    )
+                    Text(
+                        text = if (backup.dirLabel.isEmpty()) {
+                            "还没选目录。选一个文件夹后，应用启动时会按间隔覆盖写入 x-read-backup.json。"
+                        } else {
+                            val last = if (backup.lastLabel.isEmpty()) "" else "，上次 ${backup.lastLabel}"
+                            "写入 ${backup.dirLabel} / x-read-backup.json$last"
+                        },
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Space.xs),
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.md),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                    ) {
+                        SecondaryButton(
+                            text = "选择目录",
+                            onClick = onPickBackupDir,
+                            modifier = Modifier.weight(1f),
+                        )
+                        PrimaryButton(
+                            text = "立即备份",
+                            onClick = onBackupNow,
+                            enabled = backup.dirLabel.isNotEmpty(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                    ) {
+                        listOf(0 to "关闭", 24 to "每天", 72 to "每 3 天", 168 to "每周").forEach { (hours, label) ->
+                            BackupChip(
+                                label = label,
+                                active = backup.intervalHours == hours,
+                                onClick = { onBackupInterval(hours) },
+                            )
+                        }
+                    }
+
+                    /* --- WebDAV：可选第二份 --- */
+                    Text(
+                        text = "WebDAV（可选）",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = Space.lg),
+                    )
+                    OutlinedTextField(
+                        value = backup.davUrl,
+                        onValueChange = { onDavSave(it, backup.davUser, backup.davPass, backup.davEnabled) },
+                        label = { Text("目录地址") },
+                        placeholder = { Text("https://dav.example.com/xread/") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.sm),
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.sm),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                    ) {
+                        OutlinedTextField(
+                            value = backup.davUser,
+                            onValueChange = { onDavSave(backup.davUrl, it, backup.davPass, backup.davEnabled) },
+                            label = { Text("账号") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = backup.davPass,
+                            onValueChange = { onDavSave(backup.davUrl, backup.davUser, it, backup.davEnabled) },
+                            label = { Text("密码") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "每次自动备份后同步一份",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = backup.davEnabled,
+                            onCheckedChange = { onDavSave(backup.davUrl, backup.davUser, backup.davPass, it) },
+                        )
+                    }
+                    SecondaryButton(
+                        text = "上传到 WebDAV",
+                        onClick = onDavUpload,
+                        enabled = backup.davUrl.isNotBlank(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.sm),
+                    )
                 }
             }
 
@@ -1249,4 +1391,125 @@ private fun ReminderTimeDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
+}
+
+/**
+ * 一段时期（本月 / 今年）的阅读回顾。
+ *
+ * 数据只有 `stats.days` 里按天累加的秒数，所以这里能诚实给出的就是
+ * 「读了几天 / 累计多久 / 最长一天多久」；章节数与字数在别处只有总量，
+ * 拆不到单月，宁可不写也不估算。
+ */
+@Composable
+private fun ReviewBlock(days: JSONObject?) {
+    val context = LocalContext.current
+    var yearly by remember { mutableStateOf(false) }
+    val calendar = remember { java.util.Calendar.getInstance() }
+    val year = calendar.get(java.util.Calendar.YEAR)
+    val month = calendar.get(java.util.Calendar.MONTH) + 1
+    val prefix = if (yearly) String.format(java.util.Locale.US, "%04d", year)
+    else String.format(java.util.Locale.US, "%04d-%02d", year, month)
+    val label = if (yearly) "${year} 年" else "${month} 月"
+
+    val entries = remember(days, prefix) {
+        days?.keys()?.asSequence()
+            ?.filter { it.startsWith(prefix) }
+            ?.map { it to days.optLong(it) }
+            ?.filter { (_, v) -> v > 0 }
+            ?.toList()
+            .orEmpty()
+    }
+    val totalSeconds = entries.sumOf { it.second }
+    val activeDays = entries.size
+    val bestDay = entries.maxOfOrNull { it.second } ?: 0L
+    val hours = totalSeconds / 3600.0
+
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "回顾",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.weight(1f))
+        listOf(false to "本月", true to "今年").forEach { (y, text) ->
+            Text(
+                text = text,
+                fontSize = 11.sp,
+                fontWeight = if (yearly == y) FontWeight.Bold else FontWeight.Normal,
+                color = if (yearly == y) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = Space.md)
+                    .clickable { yearly = y },
+            )
+        }
+    }
+
+    if (activeDays == 0) {
+        Text(
+            text = "${label}还没有读完的十分钟。",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Space.sm),
+        )
+        return
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MetaStat(value = "$activeDays", label = "天在读", modifier = Modifier.weight(1f), emphasized = true)
+        MetaStatDivider()
+        MetaStat(
+            value = String.format(java.util.Locale.US, "%.1f", hours),
+            label = "小时",
+            modifier = Modifier.weight(1f),
+        )
+        MetaStatDivider()
+        MetaStat(value = "${bestDay / 60}", label = "最长一天/分", modifier = Modifier.weight(1f))
+    }
+
+    SecondaryButton(
+        text = "分享${label}",
+        modifier = Modifier.padding(top = Space.md),
+        onClick = {
+            val summary = "${label}读了 $activeDays 天，累计 " +
+                String.format(java.util.Locale.US, "%.1f", hours) + " 小时，" +
+                "最长的一天 ${bestDay / 60} 分钟。"
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, "拾页 · $summary")
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "分享阅读回顾"))
+        },
+    )
+}
+
+/** 自动备份间隔的小圆角标签，和搜索页的历史词样式区分开：这里始终带选中态。 */
+@Composable
+private fun BackupChip(label: String, active: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(999.dp)
+    Surface(
+        shape = shape,
+        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        else Color.Transparent,
+        border = BorderStroke(
+            1.dp,
+            if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            else MaterialTheme.colorScheme.outlineVariant,
+        ),
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = if (active) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
 }

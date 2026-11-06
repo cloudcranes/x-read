@@ -204,6 +204,19 @@ data class ShelfItem(
     }
 }
 
+/**
+ * 阅读状态自动推进：只升不降。
+ *
+ * 进了正文就算「在读」，读到末章最后一段就算「读完」。已经标「读完」的书重读不往回退，
+ * 否则回头翻一章就把记录抹了。返回 null 表示这次不用改。
+ */
+fun autoShelfStatus(current: String, atEnd: Boolean): String? = when {
+    current == ShelfItem.STATUS_DONE -> null
+    atEnd -> ShelfItem.STATUS_DONE
+    current == ShelfItem.STATUS_WANT -> ShelfItem.STATUS_READING
+    else -> null
+}
+
 fun JSONObject.str(key: String, fallback: String = ""): String {
     if (!has(key) || isNull(key)) return fallback
     return optString(key, fallback)

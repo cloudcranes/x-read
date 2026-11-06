@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -76,7 +79,17 @@ fun RankScreen(
     onBack: () -> Unit,
     onPick: (Int, String) -> Unit,
     onOpen: (Book) -> Unit,
+    // 滚动位置由调用方持有：从详情页退回来时还停在原来挑到的那一行，
+    // 而不是从头再翻一遍。换榜种/分类时才回到顶部。
+    listState: LazyListState = rememberLazyListState(),
 ) {
+    var lastPick by rememberSaveable { mutableStateOf(algorithm to categoryId) }
+    LaunchedEffect(algorithm, categoryId) {
+        if (lastPick != algorithm to categoryId) {
+            lastPick = algorithm to categoryId
+            listState.scrollToItem(0)
+        }
+    }
     val tabs = catalog?.tabs.orEmpty()
     val categories = catalog?.categories.orEmpty()
     val currentTab = tabs.firstOrNull { it.algorithm == algorithm }?.name.orEmpty()
@@ -131,6 +144,7 @@ fun RankScreen(
                 loading -> Loading()
                 books.isEmpty() -> EmptyHint("该榜暂无数据")
                 else -> LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = Space.xxl),
                 ) {
@@ -140,7 +154,10 @@ fun RankScreen(
                             title = book.title,
                             coverUrl = book.coverUrl,
                             author = book.author,
-                            category = book.category,
+                            // 选了具体分类就不逐行印书的标签：榜的分类来自上游
+                            // `sub_info_list`，书行上的是 `pure_category_tags`，两套词表
+                            // 对不上时会读成「这个榜挂错了书」。只有「全部」才显示书自己的标签。
+                            category = if (categoryId == "0") book.category else "",
                             status = book.status,
                             readCount = book.readCount,
                             onClick = { onOpen(book) },

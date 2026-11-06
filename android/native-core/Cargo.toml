@@ -9,7 +9,7 @@ name = "xread_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-fqapi_core = { path = "vendor/fqapi-core" }
+fqapi_core = { path = "vendor/fqapi-core", default-features = false }
 jni = { version = "0.21", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 serde_json = "1"
@@ -21,8 +21,9 @@ hex = "0.4"
 android = ["jni"]
 
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 strip = true
-lto = "thin"
+lto = "fat"
+codegen-units = 1
 
 [workspace]

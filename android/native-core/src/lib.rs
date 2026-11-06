@@ -230,7 +230,7 @@ pub extern "system" fn Java_com_alanmaster_xread_data_NativeCore_nativeInit(
                 Path::new(&dir).join("config/filter.json").to_string_lossy().into_owned(),
                 dir.clone(),
                 0,
-                fqapi_core::server::ListenMode::Disabled,
+                fqapi_core::listen::ListenMode::Disabled,
                 None,
             )
             .await

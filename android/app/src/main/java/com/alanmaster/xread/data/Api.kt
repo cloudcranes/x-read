@@ -70,6 +70,17 @@ class Api(context: Context) {
         check(library.setStatus(bookId, status)) { "状态保存失败" }
     }
 
+    /**
+     * 同步写状态，给阅读进度自动推进用。
+     *
+     * 走异步协程的话，读者翻到末章立刻退回书架时 [shelf] 可能先把旧值读回来，
+     * 界面就停在「在读」。这里就在调用线程落盘（几 KB 的 shelf.json，跟进度落盘同量级）。
+     */
+    fun setBookStatusNow(bookId: String, status: String): Boolean = runCatching {
+        checkId(bookId)
+        library.setStatus(bookId, status)
+    }.getOrDefault(false)
+
     suspend fun setBookRating(bookId: String, rating: Int) = withContext(Dispatchers.IO) {
         checkId(bookId)
         check(library.setRating(bookId, rating)) { "评分保存失败" }

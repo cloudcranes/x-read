@@ -112,6 +112,7 @@ fun SearchScreen(
     onSearch: (String) -> Unit,
     onPickHistory: (String) -> Unit = onSearch,
     onClearHistory: () -> Unit = {},
+    onRemoveHistory: (String) -> Unit = {},
     onOpen: (Book) -> Unit,
 ) {
     // 以 initialQuery 为 key：从书架换关键词再进来时要跟着更新
@@ -261,7 +262,7 @@ fun SearchScreen(
                 )
                 else -> {
                     if (history.isNotEmpty()) {
-                        HistoryBlock(history, onPickHistory, onClearHistory)
+                        HistoryBlock(history, onPickHistory, onClearHistory, onRemoveHistory)
                     }
                     if (fieldFocused && hotWords.isNotEmpty()) {
                         HotWordsBlock(hotWords, onPickHistory)
@@ -628,6 +629,7 @@ private fun HistoryBlock(
     history: List<String>,
     onPick: (String) -> Unit,
     onClear: () -> Unit,
+    onRemove: (String) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
         SectionHeader(
@@ -643,12 +645,54 @@ private fun HistoryBlock(
             verticalArrangement = Arrangement.spacedBy(Space.sm),
         ) {
             history.forEach { word ->
-                SelectChip(
+                HistoryChip(
                     label = word,
-                    selected = false,
                     onClick = { onPick(word) },
+                    onRemove = { onRemove(word) },
                 )
             }
+        }
+    }
+}
+
+/**
+ * 历史词条：点词条直接搜，点右侧叉只删这一条。
+ *
+ * 之前历史只有一个「清空」：想删掉某个不想被看见的词，只能把整段历史清掉。
+ * 叉放在词条内部而不是长按菜单里——历史就一排词，长按是隐藏动作。
+ */
+@Composable
+private fun HistoryChip(label: String, onClick: () -> Unit, onRemove: () -> Unit) {
+    Row(
+        Modifier
+            .height(28.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(Radius.none)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .clickable(onClick = onClick)
+                .padding(start = 10.dp, end = 2.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "删除搜索记录「$label」",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(12.dp),
+            )
         }
     }
 }

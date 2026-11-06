@@ -1,12 +1,22 @@
 package com.alanmaster.xread
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import com.alanmaster.xread.data.BackupManager
+import com.alanmaster.xread.data.BackupPrefs
+import com.alanmaster.xread.data.backupUiState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -209,12 +219,51 @@ private fun App(
     var readerFromShelf by remember { mutableStateOf(false) }
     /** 详情页是从阅读页点右上角进来的：返回时回正文，而不是把读者丢回书架。 */
     var detailFromReader by remember { mutableStateOf(false) }
+    /**
+     * 详情页的来路。榜单/分类/作者页点进去后返回要回原处——榜单是「挑书」的场景，
+     * 回到主 tab 等于把刚选的榜种和分类全丢了。阅读页/详情页之间跳转不算新来路。
+     */
+    var detailOrigin by remember { mutableStateOf<Screen?>(null) }
+    // 榜单滚动位置放在这里，从详情页返回时才能回到原来那一行
+    val rankListState = rememberLazyListState()
+    val openDetail: (Book) -> Unit = { b ->
+        if (screen !is Screen.Detail && screen !is Screen.Reader) detailOrigin = screen
+        vm.openBook(b)
+        screen = Screen.Detail(b)
+    }
 
     var dramaSwipePage by rememberSaveable { mutableIntStateOf(0) }
     var dramaBackToSwipe by rememberSaveable { mutableStateOf(false) }
     // 通知权限只在进入界面时读一次，授权回来后再刷新；不必每次重组都查系统
     var notifyAllowed by remember {
         mutableStateOf((hostContext as? MainActivity)?.hasNotificationPermission() ?: true)
+    }
+
+    // 自动备份：目录授权一次长期有效，设置面板与启动检查共用同一份快照
+    var backupUi by remember { mutableStateOf(backupUiState(hostContext)) }
+    val backupScope = rememberCoroutineScope()
+    val backupDirPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            // 不持久化授权的话，进程一重启就写不进这个目录了。
+            runCatching {
+                hostContext.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            BackupPrefs.setTreeUri(hostContext, uri.toString())
+            backupUi = backupUiState(hostContext)
+        }
+    }
+    // 没有常驻后台进程，备份只能借启动这一次检查间隔；写盘几 KB，放 IO 不挡首屏。
+    LaunchedEffect(Unit) {
+        val done = withContext(Dispatchers.IO) {
+            BackupManager.maybeAutoBackup(hostContext) { offline.backupJson() }
+        }
+        if (!done.isNullOrEmpty()) {
+            backupUi = backupUiState(hostContext)
+            vm.notify(done)
+        }
     }
     // 应用没有开机广播接收器，闹钟靠每次启动重排一次；改时间也走这里
     LaunchedEffect(state.reminder) {
@@ -501,8 +550,15 @@ private fun App(
                         detailFromReader = false
                         screen = Screen.Reader
                     } else {
-                        screen = mainTab
-                        vm.loadShelf()
+                        val origin = detailOrigin
+                        detailOrigin = null
+                        // 回到榜单/分类/作者页时不动书架；只有回主 tab 才顺手刷新
+                        if (origin != null && origin != mainTab) {
+                            screen = origin
+                        } else {
+                            screen = mainTab
+                            vm.loadShelf()
+                        }
                     }
                 }
                 screen is Screen.Category -> screen = Screen.Discover
@@ -656,7 +712,7 @@ private fun App(
                     onCategory = { vm.loadCategories(); screen = Screen.Category },
                     onBoard = { algo -> vm.loadRankings(algo, "0"); screen = Screen.Rank },
                     onMore = { vm.loadMoreFeed() },
-                    onOpen = { b -> vm.openBook(b); screen = Screen.Detail(b) },
+                    onOpen = openDetail,
                 )
 
                 Screen.Drama -> DramaScreen(
@@ -805,6 +861,7 @@ private fun App(
             onSearch = { q -> query = q; vm.search(q) },
             onPickHistory = { w -> query = w; vm.search(w) },
             onClearHistory = { vm.clearSearchHistory() },
+            onRemoveHistory = { vm.removeSearchHistory(it) },
             onOpen = { b ->
                 // 综合 tab 会把小说和有声书混在一条列表里，按条目自己判断，不能只看 tab
                 if (b.isAudio || state.searchTabType == 2) {
@@ -815,8 +872,7 @@ private fun App(
                     vm.openAudio(b)
                     screen = Screen.Audio
                 } else {
-                    vm.openBook(b)
-                    screen = Screen.Detail(b)
+                    openDetail(b)
                 }
             },
         )
@@ -829,7 +885,8 @@ private fun App(
             loading = state.loading,
             onBack = { screen = Screen.Discover },
             onPick = { algo, cat -> vm.loadRankings(algo, cat) },
-            onOpen = { b -> vm.openBook(b); screen = Screen.Detail(b) },
+            onOpen = openDetail,
+            listState = rankListState,
         )
 
         is Screen.Detail -> DetailScreen(
@@ -848,15 +905,23 @@ private fun App(
             onSetStatus = { st -> (state.book ?: s.book).let { vm.setBookStatus(it.bookId, st) } },
             onSetRating = { r -> (state.book ?: s.book).let { vm.setBookRating(it.bookId, r) } },
             onSetTags = { t -> (state.book ?: s.book).let { vm.setBookTags(it.bookId, t) } },
-            resumeChapterId = state.resumeChapterId,
-            resumeParagraph = state.resumeParagraph,
+            // 从阅读页进来时用实时位置：state.resume 只在 openBook 时写一次，
+            // 读了十几章再点详情，它还停在开书那一刻。
+            resumeChapterId = if (detailFromReader) state.currentChapterId else state.resumeChapterId,
+            resumeParagraph = if (detailFromReader) state.currentParagraph else state.resumeParagraph,
             onBack = {
                 if (detailFromReader) {
                     detailFromReader = false
                     screen = Screen.Reader
                 } else {
-                    screen = mainTab
-                    vm.loadShelf()
+                    val origin = detailOrigin
+                    detailOrigin = null
+                    if (origin != null && origin != mainTab) {
+                        screen = origin
+                    } else {
+                        screen = mainTab
+                        vm.loadShelf()
+                    }
                 }
             },
             onRead = { c -> readerFromShelf = false; detailFromReader = false; vm.loadChapter(c.id); screen = Screen.Reader },
@@ -866,7 +931,7 @@ private fun App(
             },
             onDownload = { max -> (state.book ?: s.book).let { vm.startDownload(it, max) }; vm.refreshOffline() },
             onCancel = { vm.cancelDownload() },
-            onOpenRelated = { r -> vm.openBook(r); screen = Screen.Detail(r) },
+            onOpenRelated = { r -> openDetail(r) },
             onOpenReviews = { vm.loadComments(); screen = Screen.Reviews },
             onOpenAuthor = { id -> vm.loadAuthor(id); screen = Screen.Author },
             onOpenToc = { screen = Screen.Toc },
@@ -925,7 +990,7 @@ private fun App(
             books = state.categoryBooks,
             loading = state.categoryLoading,
             onBack = { screen = Screen.Category },
-            onOpen = { b -> vm.openBook(b); screen = Screen.Detail(b) },
+            onOpen = openDetail,
         )
 
         Screen.AudioFeed -> AudioFeedScreen(
@@ -989,7 +1054,7 @@ private fun App(
             author = state.author,
             loading = state.loading,
             onBack = { screen = Screen.Detail(state.book ?: return@AuthorScreen) },
-            onOpen = { b -> vm.openBook(b); screen = Screen.Detail(b) },
+            onOpen = openDetail,
         )
 
         Screen.Reader -> ReaderScreen(
@@ -1030,7 +1095,12 @@ private fun App(
             onOpenDetail = {
                 // 离开阅读页先把这一段的阅读时长结掉，跟按返回键时一致。
                 vm.flushStats(force = true)
-                state.book?.let { b -> detailFromReader = true; screen = Screen.Detail(b) }
+                state.book?.let { b ->
+                    // 阅读中打开详情：只补详情字段，不动正在读的 flow。
+                    vm.refreshDetail(b)
+                    detailFromReader = true
+                    screen = Screen.Detail(b)
+                }
             },
             scrollRequest = state.scrollRequest,
             scrollChapterId = state.scrollChapterId,
@@ -1193,6 +1263,52 @@ private fun App(
             },
             onSaveRules = { list -> vm.saveRules(list); rulesSnapshot = list },
             onExport = { vm.exportBackup() },
+            backup = backupUi,
+            onPickBackupDir = { backupDirPicker.launch(null) },
+            onBackupInterval = { hours ->
+                BackupPrefs.setIntervalHours(hostContext, hours)
+                backupUi = backupUiState(hostContext)
+            },
+            onBackupNow = {
+                backupScope.launch {
+                    val tree = BackupPrefs.treeUri(hostContext)
+                    val json = withContext(Dispatchers.IO) { offline.backupJson() }
+                    if (json == null) {
+                        vm.notify("备份内容生成失败")
+                    } else {
+                        val res = withContext(Dispatchers.IO) {
+                            BackupManager.writeToTree(hostContext, tree, json)
+                        }
+                        if (res.isSuccess) BackupPrefs.setLastAt(hostContext, System.currentTimeMillis())
+                        backupUi = backupUiState(hostContext)
+                        vm.notify(res.fold({ "已备份到 $it" }, { "备份失败：${it.message}" }))
+                    }
+                }
+            },
+            onDavSave = { url, user, pass, enabled ->
+                BackupPrefs.saveDav(hostContext, url, user, pass, enabled)
+                backupUi = backupUiState(hostContext)
+            },
+            onDavUpload = {
+                backupScope.launch {
+                    val json = withContext(Dispatchers.IO) { offline.backupJson() }
+                    if (json == null) {
+                        vm.notify("备份内容生成失败")
+                    } else {
+                        val res = withContext(Dispatchers.IO) {
+                            BackupManager.uploadWebDav(
+                                BackupPrefs.davUrl(hostContext),
+                                BackupPrefs.davUser(hostContext),
+                                BackupPrefs.davPass(hostContext),
+                                json,
+                            )
+                        }
+                        if (res.isSuccess) BackupPrefs.setDavLastAt(hostContext, System.currentTimeMillis())
+                        backupUi = backupUiState(hostContext)
+                        vm.notify(res.fold({ "已上传到 $it" }, { "上传失败：${it.message}" }))
+                    }
+                }
+            },
             // 导入是「恢复」，统计与规则都要立刻重读：只刷规则会留下导入前的旧数字，
             // 用户以为没导入成功，再点一次（旧实现重复导入还会把统计翻倍）。
             onImport = {
