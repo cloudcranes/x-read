@@ -86,7 +86,8 @@ object AppUpdate {
      * GitHub `releases/latest` 的应答。
      *
      * 一个 Release 往往同时挂着 debug 包、standalone 包和更新清单，必须挑对：
-     * 名字带 `standalone` 的最优先，其次 `arm64`，带 `debug` 的直接降到底。
+     * 名字带 `standalone` 的最优先，其次 `arm64`；带 `debug` 或 `unsigned` 的分数为负，
+     * 直接跳过——那种包装不到正式版上，白让用户点一次安装。
      */
     fun parseGitHub(root: JSONObject): ReleaseInfo? {
         val tag = root.optString("tag_name").ifBlank { root.optString("name") }
@@ -96,6 +97,7 @@ object AppUpdate {
         val apk = (0 until assets.length())
             .mapNotNull { assets.optJSONObject(it) }
             .filter { it.optString("name").endsWith(".apk", ignoreCase = true) }
+            .filter { assetScore(it.optString("name")) >= 0 }
             .maxByOrNull { assetScore(it.optString("name")) }
             ?: return null
         val url = apk.optString("browser_download_url").ifBlank { apk.optString("url") }

@@ -97,6 +97,20 @@ class AppUpdateTest {
     }
 
     @Test
+    fun debugOnlyReleaseIsIgnored() {
+        val release = """
+            {
+              "tag_name": "v3.8.1",
+              "assets": [
+                {"name": "x-read-debug.apk", "browser_download_url": "https://example.com/debug.apk", "size": 1},
+                {"name": "update.json", "browser_download_url": "https://example.com/update.json", "size": 2}
+              ]
+            }
+        """.trimIndent()
+        assertNull(AppUpdate.parseGitHub(JSONObject(release)))
+    }
+
+    @Test
     fun checkThrottleIsDaily() {
         val now = 1_700_000_000_000L
         assertTrue(AppUpdate.dueForCheck(now, 0L))
