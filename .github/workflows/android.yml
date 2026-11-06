@@ -31,16 +31,16 @@ jobs:
       KEYSTORE_B64: ${{ secrets.XREAD_KEYSTORE_BASE64 }}
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 安装 JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: 启用 Gradle 缓存
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # NDK 不预装在 runner 上，且脚本按 r27c 的 ABI 布局找 linker，缺了就拒绝构建。
       - name: 安装 NDK r27c
@@ -144,7 +144,7 @@ jobs:
         env:
           APK_FILE: ${{ steps.apk.outputs.file }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: x-read-apk
           path: |
@@ -155,7 +155,7 @@ jobs:
 
       - name: 附到 GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ steps.apk.outputs.file }}
