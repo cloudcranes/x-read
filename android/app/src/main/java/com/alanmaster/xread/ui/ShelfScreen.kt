@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -102,20 +101,22 @@ fun ShelfScreen(
     recentDramas: List<DramaSeries> = emptyList(),
     onOpenDrama: (DramaSeries) -> Unit = {},
     updates: Map<String, Int>,
-    checkingUpdates: Boolean,
+    /** 整轮刷新是否在跑（重读书架 + 查新章）；页头图标转圈并防连点。 */
+    refreshing: Boolean,
     onSort: (String) -> Unit,
     onGroupFilter: (String) -> Unit,
-    onCheckUpdates: () -> Unit,
-    onLongPressBook: (Book) -> Unit,
+    /**
+     * 刷新书架：重读条目再查新章。页头图标与下拉手势共用这一个入口——
+     * 只重读本机 shelf.json 没有意义，用户真正想知道的是「有没有新章」。
+     */
     onRefresh: () -> Unit,
+    onLongPressBook: (Book) -> Unit,
     /**
      * 书架数据落库计数：每完成一次刷新 +1。
      *
      * 不用布尔标记：刷新快到同一帧完成时布尔翻转会被合帧吃掉，指示器就再也收不回来。
      */
     shelfRefreshDone: Int = 0,
-    /** 下拉刷新的回调；默认跟 [onRefresh] 一样。 */
-    onPullRefresh: () -> Unit = onRefresh,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
     onDiscover: () -> Unit,
@@ -178,9 +179,8 @@ fun ShelfScreen(
             } else {
                 ShelfHeader(
                     count = if (shelfMediaType == "drama") 0 else shelf.size,
-                    checkingUpdates = checkingUpdates,
+                    refreshing = refreshing,
                     onSearch = onSearch,
-                    onCheckUpdates = onCheckUpdates,
                     onRefresh = onRefresh,
                     onSettings = onSettings,
                 )
@@ -205,7 +205,7 @@ fun ShelfScreen(
             isRefreshing = pullRefreshing,
             onRefresh = {
                 pullRefreshing = true
-                onPullRefresh()
+                onRefresh()
             },
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -306,7 +306,7 @@ fun ShelfScreen(
                 } else {
                     /* -------------------- 我的书架 -------------------- */
                     // 「在架 N 本 · 查更新」这一行删掉了：分类已经在上面那排 chip 里，
-                    // 本数挪进了页头标题，查更新挪进了页头图标，书架直接接在工具栏下面。
+                    // 本数挪进了页头标题，刷新（含查新章）挪进了页头图标，书架直接接在工具栏下面。
                     if (shelf.isNotEmpty()) {
                         items(shelf, key = { "shelf-${it.book.bookId}" }) { item ->
                             val newChapters = updates[item.book.bookId]
@@ -576,7 +576,7 @@ private fun ShelfActionRow(
 /**
  * 多选顶栏：替代页头，只保留「已选 N 本 / 全选 / 取消」。
  *
- * 多选期间不显示搜索、查更新、刷新、设置——这些都会改变列表内容，
+ * 多选期间不显示搜索、刷新、设置——这些都会改变列表内容，
  * 与「我已经勾好这几本」冲突。
  */
 @Composable
@@ -710,9 +710,8 @@ private fun ShelfSection(
 @Composable
 private fun ShelfHeader(
     count: Int,
-    checkingUpdates: Boolean,
+    refreshing: Boolean,
     onSearch: () -> Unit,
-    onCheckUpdates: () -> Unit,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -744,24 +743,21 @@ private fun ShelfHeader(
             IconButton(onClick = onSearch) {
                 Icon(Icons.Filled.Search, "搜索", Modifier.size(22.dp))
             }
-            // 「查更新」原来占着书架顶部整行，挪到页头当图标：逐本比对章节数，
-            // 正在查的时候转圈，避免连点。
+            // 刷新 = 重读书架 + 查新章，与下拉手势同一件事，所以页头只留一个图标。
+            // 跑的时候转圈并禁用，避免连点叠出多轮请求。
             IconButton(
-                onClick = onCheckUpdates,
-                enabled = !checkingUpdates,
+                onClick = onRefresh,
+                enabled = !refreshing,
                 modifier = Modifier.size(38.dp),
             ) {
-                if (checkingUpdates) {
+                if (refreshing) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Icon(Icons.Filled.Update, "查更新", Modifier.size(22.dp))
+                    Icon(Icons.Filled.Refresh, "刷新书架", Modifier.size(22.dp))
                 }
-            }
-            IconButton(onClick = onRefresh, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.Filled.Refresh, "刷新", Modifier.size(22.dp))
             }
             IconButton(onClick = onSettings, modifier = Modifier.size(38.dp)) {
                 Icon(Icons.Filled.Settings, "设置", Modifier.size(22.dp))

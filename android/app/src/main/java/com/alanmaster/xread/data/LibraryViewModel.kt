@@ -190,7 +190,10 @@ data class UiState(
     val shelfStatusFilter: String = "all",
     /** 有新章的书目 id → 最新章数。 */
     val shelfUpdates: Map<String, Int> = emptyMap(),
+    /** 查更新正在跑：既是防连点的闸，也是页头刷新图标的转圈依据。 */
     val checkingUpdates: Boolean = false,
+    /** 整轮刷新（重读书架 + 查新章）是否在跑；下拉指示器与页头图标共用。 */
+    val refreshingShelf: Boolean = false,
     val dramaFeed: List<DramaSeries> = emptyList(),
     val dramaFeedLoading: Boolean = false,
     /** 短剧流首次加载失败的原因；空串表示没有错误。 */
@@ -337,11 +340,14 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
      * 全屏 Loading()，下拉的转圈指示器也就跟着没了。
      */
     fun refreshShelf() = viewModelScope.launch {
-        fetchShelf()
-        checkUpdatesNow()
-        // 计数 +1 而不是置位/复位：刷新快到同一帧完成时布尔翻转会被合帧吃掉，
-        // 界面就再也等不到「刷完了」，指示器会永远停在屏上。
-        update { it.copy(shelfRefreshDone = it.shelfRefreshDone + 1) }
+        if (_state.value.refreshingShelf) return@launch
+        update { it.copy(refreshingShelf = true) }
+        try {
+            fetchShelf()
+            checkUpdatesNow()
+        } finally {
+            update { it.copy(refreshingShelf = false, shelfRefreshDone = it.shelfRefreshDone + 1) }
+        }
     }
 
     private suspend fun fetchShelf() {
@@ -2166,12 +2172,9 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             .onFailure { e -> notify(e.message ?: "标签保存失败") }
     }
 
-    /** 检查更新：逐本比对章节数；失败静默，不打断阅读。 */
-    fun checkUpdates() = viewModelScope.launch { checkUpdatesNow() }
-
     /**
-     * 真正干活的那一半，[refreshShelf] 也直接 await 它——下拉的指示器要等到结果落地才收，
-     * 不能像点按钮那样先返回再后台跑。
+     * 真正干活的那一半，[refreshShelf] 直接 await 它——指示器要等到结果落地才收，
+     * 不能先返回再后台跑。
      */
     private suspend fun checkUpdatesNow() {
         // 用 shelfAll：shelf 可能被分组过滤过，用它会漏掉其余书的更新

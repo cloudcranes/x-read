@@ -601,10 +601,9 @@ private fun App(
                     },
                     updates = state.shelfUpdates,
                     onDetail = openDetail,
-                    checkingUpdates = state.checkingUpdates,
+                    refreshing = state.refreshingShelf,
                     onSort = { vm.setShelfSort(it) },
                     onGroupFilter = { vm.setShelfGroupFilter(it) },
-                    onCheckUpdates = { vm.checkUpdates() },
                     onLongPressBook = { b ->
                         groupTargets = listOf(b)
                         groupDraft = state.shelfAll.firstOrNull { it.book.bookId == b.bookId }?.group.orEmpty()
@@ -617,9 +616,8 @@ private fun App(
                     onBatchRemove = { books -> vm.removeBooksFromShelf(books) },
                     onBatchCache = { books -> vm.cacheBooks(books) },
                     onBatchFinish = { books -> vm.markBooksFinished(books) },
-                    onRefresh = { vm.loadShelf() },
+                    onRefresh = { vm.refreshShelf() },
                     shelfRefreshDone = state.shelfRefreshDone,
-                    onPullRefresh = { vm.refreshShelf() },
                     onSearch = {
                         vm.resetSearchView()
                         vm.loadSearchHistory()
