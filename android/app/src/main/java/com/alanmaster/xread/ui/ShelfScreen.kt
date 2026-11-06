@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -46,6 +48,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
@@ -367,34 +371,6 @@ fun ShelfScreen(
                                             .padding(end = Space.gutter + Space.sm, top = Space.md),
                                     )
                                 }
-                                // 长按菜单：保持「长按 = 操作菜单」的习惯，菜单里再进多选。
-                                DropdownMenu(
-                                    expanded = menuFor == book.bookId,
-                                    onDismissRequest = { menuFor = null },
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("书籍详情", fontSize = 13.sp) },
-                                        onClick = {
-                                            menuFor = null
-                                            onDetail(book)
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("多选", fontSize = 13.sp) },
-                                        onClick = {
-                                            menuFor = null
-                                            selecting = true
-                                            selectedIds = setOf(book.bookId)
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("设置分组", fontSize = 13.sp) },
-                                        onClick = {
-                                            menuFor = null
-                                            onLongPressBook(book)
-                                        },
-                                    )
-                                }
                             }
                         }
                     } else if (!loading) {
@@ -405,6 +381,29 @@ fun ShelfScreen(
                 }
             }
         }
+            // 长按菜单挂在页面根部而不是列表项里：列表项会随滚动回收，
+            // 面板一旦跟着 item 走，滑一下就会自己消失。
+            val actionItem = shelf.firstOrNull { it.book.bookId == menuFor }
+            if (actionItem != null) {
+                ModalBottomSheet(
+                    onDismissRequest = { menuFor = null },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    ShelfBookActionsSheet(
+                        item = actionItem,
+                        onDetail = { menuFor = null; onDetail(actionItem.book) },
+                        onFinish = { menuFor = null; onBatchFinish(listOf(actionItem.book)) },
+                        onGroup = { menuFor = null; onLongPressBook(actionItem.book) },
+                        onMultiSelect = {
+                            menuFor = null
+                            selectedIds = setOf(actionItem.book.bookId)
+                            selecting = true
+                        },
+                        onRemove = { menuFor = null; onBatchRemove(listOf(actionItem.book)) },
+                    )
+                }
+            }
             if (selecting) {
                 ShelfSelectionActions(
                     modifier = Modifier
@@ -417,6 +416,157 @@ fun ShelfScreen(
                     onRemove = { onBatchRemove(selectedBooks); exitSelection() },
                 )
             }
+        }
+    }
+}
+
+/* --------------------------- 长按操作面板 --------------------------- */
+
+/**
+ * 长按一本书弹出的操作面板。
+ *
+ * 顶部是这本书本身（封面 + 书名 + 一行元信息），下面才是动作——先确认「我对谁操作」，
+ * 再选做什么，比一列没有上下文的文字安全。动作按「常用 → 管理 → 危险」分组，
+ * 每条都有图标、主文案和一句副文案：只写「设置分组」四个字没人知道分组是干什么用的。
+ */
+@Composable
+private fun ShelfBookActionsSheet(
+    item: ShelfItem,
+    onDetail: () -> Unit,
+    onFinish: () -> Unit,
+    onGroup: () -> Unit,
+    onMultiSelect: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val book = item.book
+    val meta = listOfNotNull(
+        book.author.takeIf { it.isNotBlank() },
+        shelfSeriesMeta(book),
+        shelfReadInfo(item).takeIf { it != "未阅读" },
+    ).joinToString(" · ")
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = Space.xl),
+    ) {
+        // 头部：这本书。封面用统一的 BookCover，没有封面时退回书名首字。
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.gutter, vertical = Space.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BookCover(
+                title = book.title,
+                coverUrl = book.coverUrl,
+                modifier = Modifier
+                    .width(44.dp)
+                    .aspectRatio(0.72f),
+            )
+            Column(Modifier.padding(start = Space.md).weight(1f)) {
+                Text(
+                    text = book.title,
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (meta.isNotBlank()) {
+                    Text(
+                        text = meta,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        color = ink3,
+                        modifier = Modifier.padding(top = 2.dp),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        DividerLine()
+
+        // 常用动作：进详情看一眼，或者直接标记读完。
+        ShelfActionRow(
+            icon = Icons.Filled.Info,
+            label = "书籍详情",
+            hint = "简介、章节列表与我的标记",
+            onClick = onDetail,
+        )
+        ShelfActionRow(
+            icon = Icons.Filled.Check,
+            label = "标记读完",
+            hint = "把阅读进度推到最后一章",
+            onClick = onFinish,
+        )
+        DividerLine()
+
+        // 管理动作：分组与多选属于整理书架，不是阅读本身，所以单独成组。
+        ShelfActionRow(
+            icon = Icons.Filled.Category,
+            label = "设置分组",
+            hint = "把这本书收进自定义分组",
+            onClick = onGroup,
+        )
+        ShelfActionRow(
+            icon = Icons.Filled.Checklist,
+            label = "多选",
+            hint = "勾选多本后批量处理",
+            onClick = onMultiSelect,
+        )
+        DividerLine()
+
+        // 危险动作：移出书架会给一次撤销窗口，但仍要和上面的动作拉开距离。
+        ShelfActionRow(
+            icon = Icons.Filled.DeleteOutline,
+            label = "移出书架",
+            hint = "可从底部提示里撤销",
+            danger = true,
+            onClick = onRemove,
+        )
+    }
+}
+
+/**
+ * 面板里的一行动作：左图标、右主副文案。
+ *
+ * 点击范围铺满整行（48dp 高），不仅仅是有字的地方——这个面板单手拇指操作，
+ * 行内留白也算命中区。
+ */
+@Composable
+private fun ShelfActionRow(
+    icon: ImageVector,
+    label: String,
+    hint: String,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Space.gutter, vertical = Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (danger) tint else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(Modifier.padding(start = Space.md)) {
+            Text(text = label, fontSize = 14.sp, color = tint)
+            Text(
+                text = hint,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                color = if (danger) MaterialTheme.colorScheme.error.copy(alpha = 0.75f) else ink3,
+                modifier = Modifier.padding(top = 1.dp),
+            )
         }
     }
 }
