@@ -118,6 +118,8 @@ fun ShelfScreen(
     /** 追剧空态的「去发现短剧」；未接线时退回 [onDiscover]。 */
     onDiscoverDrama: (() -> Unit)? = null,
     onOpen: (Book) -> Unit,
+    /** 长按菜单里的「书籍详情」：书架点按是继续读，详情要显式选。 */
+    onDetail: (Book) -> Unit = {},
     onContinue: (Book) -> Unit = {},
     /** 短剧收藏与追剧记录：都落在 OfflineRepo，进程重启后仍在。 */
     dramaFavorites: List<DramaSeries> = emptyList(),
@@ -370,6 +372,13 @@ fun ShelfScreen(
                                     expanded = menuFor == book.bookId,
                                     onDismissRequest = { menuFor = null },
                                 ) {
+                                    DropdownMenuItem(
+                                        text = { Text("书籍详情", fontSize = 13.sp) },
+                                        onClick = {
+                                            menuFor = null
+                                            onDetail(book)
+                                        },
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("多选", fontSize = 13.sp) },
                                         onClick = {

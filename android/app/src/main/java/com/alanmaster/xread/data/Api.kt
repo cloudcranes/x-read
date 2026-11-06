@@ -38,24 +38,18 @@ class Api(context: Context) {
 
     suspend fun shelf(): List<ShelfItem> = withContext(Dispatchers.IO) {
         library.migrateDownloads(offline.offlineBooks())
-        val progress = library.entries().associateBy { it.book.bookId }
-        val lastRead = offline.lastReadTimes()
-        val readIndexes = offline.progressChapterIndexes()
-        library.books().map { b ->
-            val p = offline.progress(b.bookId)
-            val meta = progress[b.bookId]
-            ShelfItem(
-                book = b,
-                chapterId = p?.first.orEmpty(),
-                chapterOffset = p?.second ?: 0,
-                updatedAt = "",
-                group = meta?.group.orEmpty(),
-                addedAt = meta?.addedAt ?: 0,
-                knownChapters = meta?.knownChapters ?: b.chapterCount,
-                lastReadAt = lastRead[b.bookId] ?: 0L,
-                readChapterIndex = readIndexes[b.bookId] ?: -1,
-            )
-        }
+        // 直接遍历 shelf.json 的条目：分组、入架时间、更新基线和用户标记都在条目里。
+        // 组装逻辑见 [assembleShelf]——那里只有「随进度变化」的字段会被覆盖。
+        val entries = library.entries()
+        val progress = entries.mapNotNull { e ->
+            offline.progress(e.book.bookId)?.let { e.book.bookId to it }
+        }.toMap()
+        assembleShelf(
+            entries = entries,
+            progress = progress,
+            lastRead = offline.lastReadTimes(),
+            readIndexes = offline.progressChapterIndexes(),
+        )
     }
 
     /** 移动分组。 */

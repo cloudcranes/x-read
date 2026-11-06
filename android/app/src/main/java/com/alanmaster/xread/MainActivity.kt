@@ -600,6 +600,7 @@ private fun App(
                         screen = Screen.Drama
                     },
                     updates = state.shelfUpdates,
+                    onDetail = openDetail,
                     checkingUpdates = state.checkingUpdates,
                     onSort = { vm.setShelfSort(it) },
                     onGroupFilter = { vm.setShelfGroupFilter(it) },
