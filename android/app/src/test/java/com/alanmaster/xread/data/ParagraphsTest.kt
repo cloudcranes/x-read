@@ -4,11 +4,11 @@ import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 /**
- * 与 Python 侧 `tests/test_paragraph_split.py` 共用同一份 fixture —— 两边段落数
- * 一旦分叉，离线缓存与在线阅读的段落号就会整体错位。
+ * 与 Python 侧 `tests/test_paragraph_split.py` 共用同一份 fixture（本目录
+ * `src/test/resources/fixtures/paragraphs.json`）—— 两边段落数一旦分叉，离线缓存
+ * 与在线阅读的段落号就会整体错位。
  *
  * fixture 只覆盖**纯文本切分**；实体解码属于 HTML 阶段（Android `Html.fromHtml` /
  * Python `convert_charrefs`），JVM 单测无法执行，故由 Python 侧单独断言。
@@ -16,13 +16,9 @@ import java.io.File
 class ParagraphsTest {
 
     private fun fixture(): JSONArray {
-        var dir = File(System.getProperty("user.dir") ?: ".").absoluteFile
-        repeat(6) {
-            val candidate = File(dir, "tests/fixtures/paragraphs.json")
-            if (candidate.isFile) return JSONArray(candidate.readText())
-            dir = dir.parentFile ?: return@repeat
-        }
-        throw AssertionError("找不到 tests/fixtures/paragraphs.json")
+        val stream = javaClass.getResourceAsStream("/fixtures/paragraphs.json")
+            ?: throw AssertionError("找不到 fixtures/paragraphs.json 测试资源")
+        return JSONArray(stream.use { it.readBytes().toString(Charsets.UTF_8) })
     }
 
     @Test fun matchesSharedFixture() {
