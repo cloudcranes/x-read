@@ -1,8 +1,8 @@
 // fqapi_core - the Rust core for fanqie-lite-api.
 //
 // Ported from `fqapp/rust` (https://github.com/ch6vip/fqapp, GPL-3.0) at
-// commit 4eaeac3. The business modules below are carried over unchanged; see
-// docs/UPSTREAM.md for the exact deviation list. This file keeps its upstream
+// commit 4eaeac3. The business modules below are carried over unchanged; the
+// repository history records the exact deviation list. This file keeps its upstream
 // shape (`//` comments, no inner crate docs) so it stays diffable against the
 // original.
 //

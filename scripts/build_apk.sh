@@ -19,7 +19,7 @@ bash "$ROOT_DIR/scripts/build_native_core.sh"
 # release 构建不签 debug 包，因此只要求 release keystore 存在。
 # 旧实现检查 debug.keystore，而文档只教建 release.keystore，新机器照文档走必失败。
 if [ ! -f "$ROOT_DIR/android/signing/release.keystore" ]; then
-  echo 'REFUSING TO BUILD: android/signing/release.keystore is missing (see docs/ANDROID-STANDALONE.md).' >&2
+  echo 'REFUSING TO BUILD: android/signing/release.keystore is missing (see README 构建).' >&2
   echo 'A release build must never fall back to the debug signing config.' >&2
   exit 1
 fi

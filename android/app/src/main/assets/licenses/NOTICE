@@ -20,8 +20,8 @@ Copyright (C) 2026 fanqie-lite-api contributors
 - 上游许可证：GPL-3.0
 
 上游的全部版权声明与 GPL-3.0 许可证随本项目一同保留（见 `LICENSE`）。
-本项目的修改内容与范围登记在 `docs/UPSTREAM.md`，以符合 GPL-3.0 第 5(a) 条
-关于"显著修改需标注"的要求。
+本项目的修改内容与范围记录在本仓库的提交历史与源码注释中，以符合 GPL-3.0
+第 5(a) 条关于"显著修改需标注"的要求。
 
 ## 与上游的关系
 
@@ -29,4 +29,4 @@ Copyright (C) 2026 fanqie-lite-api contributors
 任何内容。所有内容实时来自第三方公开接口，版权归原作者所有。
 
 上游项目的产品边界（不持有账号、不写上游数据、不做客户端"解锁"）在本项目
-中同样适用，详见 `docs/PORTING-ANALYSIS.md` 第 1.2 节。
+中同样适用，正文范围见随附说明与 README。
