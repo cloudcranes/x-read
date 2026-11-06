@@ -111,6 +111,15 @@ class AppUpdateTest {
     }
 
     @Test
+    fun pendingPackageGoesStaleOnceInstalled() {
+        assertTrue(AppUpdate.pendingIsStale(14, "3.8.1", 14, "3.8.1-standalone"))
+        assertTrue(AppUpdate.pendingIsStale(13, "3.8.0", 14, "3.8.1-standalone"))
+        assertFalse(AppUpdate.pendingIsStale(15, "3.8.2", 14, "3.8.1-standalone"))
+        assertTrue(AppUpdate.pendingIsStale(0, "3.8.1", 14, "3.8.1-standalone"))
+        assertFalse(AppUpdate.pendingIsStale(0, "3.8.2", 14, "3.8.1-standalone"))
+    }
+
+    @Test
     fun checkThrottleIsDaily() {
         val now = 1_700_000_000_000L
         assertTrue(AppUpdate.dueForCheck(now, 0L))

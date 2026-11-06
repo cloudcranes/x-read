@@ -182,6 +182,17 @@ object AppUpdate {
         return compareVersions(release.versionName, currentName) > 0
     }
 
+    /**
+     * 缓存的包是否已经没用了：装完系统重启应用，`pendingUpdate` 还指着刚装上的那个版本，
+     * 面板会一直挂着「点安装」。
+     *
+     * 记过 versionCode 的按它比；老数据没有这个键，退回文件名里的版本名。
+     */
+    fun pendingIsStale(pendingCode: Int, pendingName: String, installedCode: Int, installedName: String): Boolean {
+        if (pendingCode > 0 && installedCode > 0) return pendingCode <= installedCode
+        return compareVersions(pendingName, installedName) <= 0
+    }
+
     /** 下载文件名：只留安全字符并去掉两端的点与横线，避免版本号里混进分隔符写出目录。 */
     fun fileName(release: ReleaseInfo): String {
         val safe = release.versionName

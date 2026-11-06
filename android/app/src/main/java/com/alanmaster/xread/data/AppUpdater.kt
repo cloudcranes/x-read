@@ -75,13 +75,21 @@ class AppUpdater(context: Context) {
                 )
             }
             // 上次已经下好、但没装就退出的包，重启后直接显示「安装」。
+            // 装完系统会在后台重启应用：这时缓存里的包对应的版本已经不新了，清掉。
             val saved = repo.pendingUpdate()
             if (saved.isNotBlank()) {
                 val f = File(saved)
-                if (f.isFile && f.length() > 0) {
+                val stale = AppUpdate.pendingIsStale(
+                    repo.pendingUpdateCode(), f.nameWithoutExtension,
+                    BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME,
+                )
+                if (stale) {
+                    repo.savePendingUpdate("", 0)
+                    f.delete()
+                } else if (f.isFile && f.length() > 0) {
                     _state.update { it.copy(file = f, message = "已下载 ${formatMb(f.length())}，点安装完成更新") }
                 } else {
-                    repo.savePendingUpdate("")
+                    repo.savePendingUpdate("", 0)
                 }
             }
         }
@@ -135,7 +143,7 @@ class AppUpdater(context: Context) {
                     },
                 )
             }
-            if (!newer) repo.savePendingUpdate("")
+            if (!newer) repo.savePendingUpdate("", 0)
         }
     }
 
@@ -177,7 +185,7 @@ class AppUpdater(context: Context) {
                 }
                 target
             }.onSuccess { file ->
-                repo.savePendingUpdate(file.absolutePath)
+                repo.savePendingUpdate(file.absolutePath, release.versionCode)
                 val size = formatMb(file.length())
                 _state.update {
                     it.copy(

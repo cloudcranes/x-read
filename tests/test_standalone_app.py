@@ -13,9 +13,15 @@ def read(p: Path) -> str:
 def test_no_server_url_or_token_configuration_remains():
     sources = list((APP / "src/main/java").rglob("*.kt"))
     joined = "\n".join(read(p) for p in sources)
-    for forbidden in ["server_url", "server_token", "setRequestProperty(\"Authorization\"", "192.168.1.170", "/api/v1/bookshelf"]:
+    for forbidden in ["server_url", "server_token", "192.168.1.170", "/api/v1/bookshelf"]:
         assert forbidden not in joined, f"仍有服务端配置残留：{forbidden}"
-    assert "HttpURLConnection" not in joined
+    # 内容核心走 JNI 进程内直调，唯一还在发 HTTP 的是热更新（拉 release 清单、下 APK）。
+    networked = [p.name for p in sources if "HttpURLConnection" in read(p)]
+    assert networked in ([], ["AppUpdater.kt"]), networked
+    if networked:
+        updater = read(APP / "src/main/java/com/alanmaster/xread/data/AppUpdater.kt")
+        # 令牌最多带去 GitHub，别顺着代理地址漏给第三方加速通道。
+        assert "isGitHubHost" in updater
     assert "settings.gradle"  # 项目仍为 Gradle 构建
     assert not (APP / "src/main/assets/offline.html").exists()
 

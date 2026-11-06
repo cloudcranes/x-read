@@ -1,6 +1,6 @@
 # x-read 独立版（单 APK，无需服务器）
 
-`versionName 3.8.1-standalone`（versionCode 14），包名 `com.alanmaster.xread.standalone`，仅 arm64-v8a，minSdk 24 / targetSdk 34。
+`versionName 3.8.2-standalone`（versionCode 15），包名 `com.alanmaster.xread.standalone`，仅 arm64-v8a，minSdk 24 / targetSdk 34。
 内容核心（fqapp / fanqie-lite 的 Rust 业务层）内置在 APK 里，经 JNI 进程内直连上游内容提供方；
 **不开本地端口，不需要 NAS、服务端地址或访问令牌**。
 
@@ -368,7 +368,7 @@ AlarmManager 而非 WorkManager：构建环境的 Gradle 缓存中没有 `androi
 bash scripts/build_apk.sh              # 内含 :app:testDebugUnitTest，产出 release 包
 ```
 
-Kotlin JVM 单测 **404 项**（`android/app/src/test/java/...`）：
+Kotlin JVM 单测 **405 项**（`android/app/src/test/java/...`）：
 解析（搜索分 tab 去重、长编号、205 章全量、榜单目录嵌套、热词）、本地书架（重开保留、一次性迁移、损坏文件不覆盖）、
 统计累计与按日、替换规则顺序、备份往返（含恢复到空仓库、**同一份备份连导两次统计不翻倍**、`days`/`since` 一并恢复）、自适应并发 9 项、
 数据安全回归 34 项（损坏文件另存不清空、并发写入不丢键、任务计数往返、章节计数忽略临时文件、旧格式章节被挑出重下、
@@ -382,7 +382,7 @@ Kotlin JVM 单测 **404 项**（`android/app/src/test/java/...`）：
 榜单分类折叠 5 项（收起只留一行且保留当前选中、选中不在行内时顶掉最后一个、展开全铺、分类本来就少时折叠、未知选中回落到普通前 5 个）、
 书架自动分组 10 项（未知连载状态归连载、只按上游完本判定、空组不进菜单、菜单顺序、内置组与手工组并存、
 分组叠加状态过滤）、
-热更新 20 项（GitHub Release 清单挑 `standalone`、自建清单版同样解析、坏载荷返回 null、版本号清洗与逐段比较、
+热更新 21 项（GitHub Release 清单挑 `standalone`、自建清单版同样解析、坏载荷返回 null、版本号清洗与逐段比较、
 `versionCode` 优先、资产打分 `debug` 为负、每日节流与时钟回拨、文件名去目录穿越、`sha256` 校验与空校验放行）。
 
 Python 侧 173 项：其中 Android 契约只断言**结构性事实**（核心内置且无监听器、GPL 许可随包、

@@ -643,8 +643,14 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         loadObject(settingsFile).optString("pendingUpdate")
     }.getOrDefault("")
 
-    fun savePendingUpdate(path: String) = mutate(settingsFile) { s ->
+    /** 缓存包对应的 versionCode；老数据没有这个键时返回 0。 */
+    fun pendingUpdateCode(): Int = runCatching {
+        loadObject(settingsFile).optInt("pendingUpdateCode", 0)
+    }.getOrDefault(0)
+
+    fun savePendingUpdate(path: String, versionCode: Int = 0) = mutate(settingsFile) { s ->
         s.put("pendingUpdate", path)
+        s.put("pendingUpdateCode", versionCode)
     }
 
     /* ---------- 首启引导 ---------- */
