@@ -113,6 +113,7 @@ fun ToolsScreen(
     leftoverBytes: Long = 0,
     onCleanLeftovers: () -> Unit = {},
     onOpenMarks: () -> Unit = {},
+    onOpenReport: () -> Unit = {},
     policy: DownloadPolicy = DownloadPolicy(),
     onPolicy: (DownloadPolicy) -> Unit = {},
     goal: ReadingGoal = ReadingGoal(),
@@ -723,7 +724,10 @@ fun ToolsScreen(
                 item {
                     SectionHeader("阅读回顾", index = sectionIndex.getValue("阅读统计"))
                     ToolCard {
-                        ReviewBlock(stats.optJSONObject("days"))
+                        ReviewBlock(
+                            days = stats.optJSONObject("days"),
+                            onOpenReport = onOpenReport,
+                        )
                     }
                 }
             }
@@ -1401,7 +1405,7 @@ private fun ReminderTimeDialog(
  * 拆不到单月，宁可不写也不估算。
  */
 @Composable
-private fun ReviewBlock(days: JSONObject?) {
+private fun ReviewBlock(days: JSONObject?, onOpenReport: () -> Unit = {}) {
     val context = LocalContext.current
     var yearly by remember { mutableStateOf(false) }
     val calendar = remember { java.util.Calendar.getInstance() }
@@ -1473,20 +1477,33 @@ private fun ReviewBlock(days: JSONObject?) {
         MetaStat(value = "${bestDay / 60}", label = "最长一天/分", modifier = Modifier.weight(1f))
     }
 
-    SecondaryButton(
-        text = "分享${label}",
-        modifier = Modifier.padding(top = Space.md),
-        onClick = {
-            val summary = "${label}读了 $activeDays 天，累计 " +
-                String.format(java.util.Locale.US, "%.1f", hours) + " 小时，" +
-                "最长的一天 ${bestDay / 60} 分钟。"
-            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(android.content.Intent.EXTRA_TEXT, "拾页 · $summary")
-            }
-            context.startActivity(android.content.Intent.createChooser(intent, "分享阅读回顾"))
-        },
-    )
+    // 三个数字只是摘要，真正的月报在独立页里（日历热力图 + 与上个周期对比 + 分享卡）。
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Space.md),
+        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        PrimaryButton(
+            text = "打开${if (yearly) "年度" else "本月"}报告",
+            modifier = Modifier.weight(1f),
+            onClick = onOpenReport,
+        )
+        SecondaryButton(
+            text = "分享文字",
+            modifier = Modifier.weight(1f),
+            onClick = {
+                val summary = "${label}读了 $activeDays 天，累计 " +
+                    String.format(java.util.Locale.US, "%.1f", hours) + " 小时，" +
+                    "最长的一天 ${bestDay / 60} 分钟。"
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, "拾页 · $summary")
+                }
+                context.startActivity(android.content.Intent.createChooser(intent, "分享阅读回顾"))
+            },
+        )
+    }
 }
 
 /** 自动备份间隔的小圆角标签，和搜索页的历史词样式区分开：这里始终带选中态。 */

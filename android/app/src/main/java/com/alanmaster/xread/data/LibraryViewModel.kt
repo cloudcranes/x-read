@@ -186,8 +186,13 @@ data class UiState(
     /** 书架排序：recent=最近阅读, added=入架时间, title=书名, group=按分组。 */
     val shelfSort: String = "recent",
     val shelfGroupFilter: String = "",
-    /** 个人标记筛选：all / want / reading / done。 */
-    val shelfStatusFilter: String = "all",
+    /**
+     * 个人标记筛选：all / want / reading / done。
+     *
+     * 默认落在「在读」：架上的书绝大多数是在读的，进书架先看「全部」等于让每个人
+     * 每次再手动点一下；想看全部仍然只有一次点击的距离。
+     */
+    val shelfStatusFilter: String = ShelfItem.STATUS_READING,
     /** 有新章的书目 id → 最新章数。 */
     val shelfUpdates: Map<String, Int> = emptyMap(),
     /** 查更新正在跑：既是防连点的闸，也是页头刷新图标的转圈依据。 */

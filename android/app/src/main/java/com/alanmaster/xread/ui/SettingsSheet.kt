@@ -31,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,10 +82,12 @@ fun SettingsSheet(
         val sheetMax = maxHeight * 0.8f
         Box(Modifier.fillMaxSize()) {
             // 遮罩：点它关闭。抽屉本体没有自带遮罩，这里补一层。
+            // 读屏播报时这一层没有文字，所以显式写一个动作说明。
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.45f))
+                    .semantics { contentDescription = "关闭设置" }
                     .clickable(onClick = onDismiss),
             )
             Column(
@@ -257,6 +261,9 @@ private fun NotificationChannelRows() {
                     checked = enabled,
                     onCheckedChange = { want ->
                         enabled = NotificationChannels.setEnabled(ctx, entry.id, want)
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = "${entry.title}通知"
                     },
                 )
             }
@@ -506,6 +513,9 @@ private fun UpdatePanel(
                                 onClick = {
                                     onMirror(m.key)
                                     pickingMirror = false
+                                },
+                                modifier = Modifier.semantics {
+                                    contentDescription = "加速通道 ${m.label}"
                                 },
                             )
                             Text(

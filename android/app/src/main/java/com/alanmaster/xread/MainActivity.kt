@@ -67,6 +67,7 @@ import com.alanmaster.xread.ui.ReviewScreen
 import com.alanmaster.xread.ui.TocScreen
 import com.alanmaster.xread.ui.MarksScreen
 import com.alanmaster.xread.ui.ReaderScreen
+import com.alanmaster.xread.ui.ReportScreen
 import com.alanmaster.xread.ui.RankScreen
 import com.alanmaster.xread.ui.SearchScreen
 import com.alanmaster.xread.ui.SettingsSheet
@@ -192,6 +193,7 @@ private sealed interface Screen {
     data object Reader : Screen
     data object Marks : Screen
     data object Tools : Screen
+    data object Report : Screen
     data object Reviews : Screen
     data object Author : Screen
     data object Toc : Screen
@@ -474,7 +476,7 @@ private fun App(
     // 统计数字只在进「工具」页时刷新一次：统计卡要的是全量累计，读者在页内停留期间
     // 不太可能同时在读书；而每次结算都回读 stats.json 会让翻页多一次读盘。
     LaunchedEffect(screen) {
-        if (screen is Screen.Tools) statsSnapshot = offline.stats()
+        if (screen is Screen.Tools || screen is Screen.Report) statsSnapshot = offline.stats()
     }
 
     // 目录裁剪标记：进目录时扫一次盘；下载推进时（done 变化）再扫，圆点跟着章走。
@@ -565,6 +567,7 @@ private fun App(
                 screen is Screen.Rank -> screen = Screen.Discover
                 screen is Screen.Search -> screen = mainTab
                 screen is Screen.Marks -> screen = Screen.Tools
+                screen is Screen.Report -> screen = Screen.Tools
                 screen == Screen.Discover || screen == Screen.Tools -> screen = Screen.Shelf
                 screen == Screen.Shelf -> {
                     val now = System.currentTimeMillis()
@@ -616,6 +619,11 @@ private fun App(
                     onBatchRemove = { books -> vm.removeBooksFromShelf(books) },
                     onBatchCache = { books -> vm.cacheBooks(books) },
                     onBatchFinish = { books -> vm.markBooksFinished(books) },
+                    onBatchStatus = { books, status ->
+                        // 逐本写：setBookStatus 内部会 loadShelf 刷一次，但只有一本／几本，
+                        // 一次读盘的开销远小于给这里再造一条批量写路径。
+                        books.forEach { vm.setBookStatus(it.bookId, status) }
+                    },
                     onRefresh = { vm.refreshShelf() },
                     shelfRefreshDone = state.shelfRefreshDone,
                     onSearch = {
@@ -1178,6 +1186,16 @@ private fun App(
             onSaveNote = { entry, note, tags -> vm.saveMarkNote(entry, note, tags) },
         )
 
+        Screen.Report -> ReportScreen(
+            stats = statsSnapshot,
+            goal = state.readingGoal,
+            onBack = { screen = Screen.Tools },
+            onShare = { summary, bars ->
+                val ok = com.alanmaster.xread.data.ReportCard.share(ctx, summary, bars)
+                vm.notify(if (ok) "阅读报告已生成" else "阅读报告生成失败")
+            },
+        )
+
         Screen.Tools -> ToolsScreen(
             offlineBooks = state.offlineBooks,
             resumable = state.resumable,
@@ -1191,6 +1209,7 @@ private fun App(
             leftoverBytes = state.leftoverBytes,
             onCleanLeftovers = { vm.cleanLeftovers() },
             onOpenMarks = { vm.loadAllMarks(); screen = Screen.Marks },
+            onOpenReport = { screen = Screen.Report },
             policy = state.downloadPolicy,
             onPolicy = { vm.setDownloadPolicy(it) },
             goal = state.readingGoal,

@@ -38,7 +38,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -68,6 +68,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,7 +95,7 @@ fun ShelfScreen(
     shelfSort: String,
     shelfGroup: String,
     shelfGroups: List<String>,
-    /** 按连载状态自动分好的组（连载中 / 已完结），只列有书的那些。 */
+    /** 现算的自动分组（待读 / 连载中 / 已完结），只列有书的那些。 */
     builtinGroups: List<ShelfGrouping.Group> = emptyList(),
     shelfMediaType: String = "all",
     onSelectMediaType: (String) -> Unit = {},
@@ -135,7 +136,9 @@ fun ShelfScreen(
     onBatchRemove: (List<Book>) -> Unit = {},
     onBatchCache: (List<Book>) -> Unit = {},
     onBatchFinish: (List<Book>) -> Unit = {},
-    shelfStatus: String = "all",
+    /** 改个人标记（想读 / 在读 / 读完）。长按面板里的三态芯片走这条。 */
+    onBatchStatus: (List<Book>, String) -> Unit = { _, _ -> },
+    shelfStatus: String = ShelfItem.STATUS_READING,
     onStatusFilter: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -143,6 +146,12 @@ fun ShelfScreen(
         context.getSharedPreferences("shelf_view", Context.MODE_PRIVATE)
     }
     var listView by rememberSaveable { mutableStateOf(viewPrefs.getBoolean("list", false)) }
+    // 大屏（平板 / 折叠屏展开）上单列卡片只有一行字，横向空间全浪费了。
+    // 列表视图保持单列——它的信息密度本来就是按整行设计的。
+    val columns = shelfColumns(
+        listView = listView,
+        widthDp = LocalConfiguration.current.screenWidthDp,
+    )
 
     /*
      * 多选。状态留在页面里而不是 ViewModel：这是纯粹的界面态，转屏丢失也无所谓
@@ -308,73 +317,78 @@ fun ShelfScreen(
                     // 「在架 N 本 · 查更新」这一行删掉了：分类已经在上面那排 chip 里，
                     // 本数挪进了页头标题，刷新（含查新章）挪进了页头图标，书架直接接在工具栏下面。
                     if (shelf.isNotEmpty()) {
-                        items(shelf, key = { "shelf-${it.book.bookId}" }) { item ->
-                            val newChapters = updates[item.book.bookId]
-                            val status = shelfStatus(item, newChapters)
-                            val subStatus = shelfSubStatus(item)
-                            val progress = shelfProgress(item)
-                            val book = item.book
-                            val checked = book.bookId in selectedIds
-                            val continueReading: (() -> Unit)? =
-                                if (progress == null) null else ({ onContinue(book) })
-                            // 多选时点按改成勾选；退出的唯一方式是顶栏「取消」或执行完动作，
-                            // 免得读到一半误触把选择清空。
-                            val onClick: () -> Unit = {
-                                if (selecting) {
-                                    haptic.light()
-                                    toggle(book)
-                                } else {
-                                    onOpen(book)
+                        if (columns == 2) {
+                            // 宽屏两列：卡片宽度交给 weight，间距交给 Row 的 spacedBy，
+                            // 每行左右只留页面留白，中间不再各加一份 gutter。
+                            items(shelf.chunked(columns), key = { "shelf-row-${it.first().book.bookId}" }) { row ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = Space.gutter),
+                                    horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                                ) {
+                                    row.forEach { item ->
+                                        ShelfBookCell(
+                                            item = item,
+                                            listView = false,
+                                            modifier = Modifier.weight(1f),
+                                            newChapters = updates[item.book.bookId],
+                                            selecting = selecting,
+                                            checked = item.book.bookId in selectedIds,
+                                            cardPadding = PaddingValues(vertical = Space.xs),
+                                            markPadding = PaddingValues(end = Space.sm, top = Space.md),
+                                            onOpen = onOpen,
+                                            onContinue = onContinue,
+                                            onToggle = { book -> haptic.light(); toggle(book) },
+                                            onLongPress = { book -> haptic.medium(); menuFor = book.bookId },
+                                        )
+                                    }
+                                    // 单数本时补一个空位，最后一张卡不会被拉成整行宽。
+                                    if (row.size == 1) Spacer(Modifier.weight(1f))
                                 }
                             }
-                            val onLongClick: () -> Unit = if (selecting) {
-                                ({ haptic.light(); toggle(book) })
-                            } else {
-                                ({ haptic.medium(); menuFor = book.bookId })
-                            }
-                            Box {
-                                if (listView) {
-                                    ShelfBookRow(
-                                        book = book,
-                                        status = status,
-                                        statusEmphasized = newChapters != null,
-                                        subStatus = subStatus,
-                                        meta = shelfSeriesMeta(book),
-                                        readInfo = shelfReadInfo(item),
-                                        progress = progress,
-                                        onContinue = if (selecting) null else continueReading,
-                                        onClick = onClick,
-                                        onLongClick = onLongClick,
-                                    )
-                                    DividerLine()
-                                } else {
-                                    ShelfBookCard(
-                                        book = book,
-                                        modifier = Modifier.padding(
-                                            horizontal = Space.gutter, vertical = Space.xs,
-                                        ),
-                                        status = status,
-                                        statusEmphasized = newChapters != null,
-                                        subStatus = shelfReadInfo(item),
-                                        meta = shelfSeriesMeta(book),
-                                        progress = progress,
-                                        onContinue = if (selecting) null else continueReading,
-                                        onClick = onClick,
-                                        onLongClick = onLongClick,
-                                    )
-                                }
-                                if (selecting) {
-                                    SelectionMark(
-                                        selected = checked,
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(end = Space.gutter + Space.sm, top = Space.md),
-                                    )
-                                }
+                        } else {
+                            items(shelf, key = { "shelf-${it.book.bookId}" }) { item ->
+                                ShelfBookCell(
+                                    item = item,
+                                    listView = listView,
+                                    newChapters = updates[item.book.bookId],
+                                    selecting = selecting,
+                                    checked = item.book.bookId in selectedIds,
+                                    cardPadding = PaddingValues(
+                                        horizontal = Space.gutter, vertical = Space.xs,
+                                    ),
+                                    markPadding = PaddingValues(
+                                        end = Space.gutter + Space.sm, top = Space.md,
+                                    ),
+                                    onOpen = onOpen,
+                                    onContinue = onContinue,
+                                    onToggle = { book -> haptic.light(); toggle(book) },
+                                    onLongPress = { book -> haptic.medium(); menuFor = book.bookId },
+                                )
                             }
                         }
                     } else if (!loading) {
-                        item { ShelfEmpty(onDiscover = onDiscover) }
+                        // 书架默认停在「在读」，架上有书但一本都不符合筛选时，
+                        // 说「书架还是空的」会让人以为书没了。这里一键清掉三层筛选。
+                        val filtered = shelfStatus != "all" || shelfGroup.isNotBlank() ||
+                            shelfMediaType != "all"
+                        if (filtered) {
+                            item {
+                                ShelfEmpty(
+                                    onDiscover = {
+                                        onStatusFilter("all")
+                                        onGroupFilter("")
+                                        onSelectMediaType("all")
+                                    },
+                                    title = "这一栏还没有书",
+                                    description = "当前筛选条件下没有书，换成「全部」就能看到整架。",
+                                    primaryLabel = "看全部",
+                                )
+                            }
+                        } else {
+                            item { ShelfEmpty(onDiscover = onDiscover) }
+                        }
                     } else {
                         item { Loading() }
                     }
@@ -394,6 +408,10 @@ fun ShelfScreen(
                         item = actionItem,
                         onDetail = { menuFor = null; onDetail(actionItem.book) },
                         onFinish = { menuFor = null; onBatchFinish(listOf(actionItem.book)) },
+                        onSetStatus = { status ->
+                            menuFor = null
+                            onBatchStatus(listOf(actionItem.book), status)
+                        },
                         onGroup = { menuFor = null; onLongPressBook(actionItem.book) },
                         onMultiSelect = {
                             menuFor = null
@@ -434,6 +452,7 @@ private fun ShelfBookActionsSheet(
     item: ShelfItem,
     onDetail: () -> Unit,
     onFinish: () -> Unit,
+    onSetStatus: (String) -> Unit,
     onGroup: () -> Unit,
     onMultiSelect: () -> Unit,
     onRemove: () -> Unit,
@@ -489,7 +508,32 @@ private fun ShelfBookActionsSheet(
         }
         DividerLine()
 
-        // 常用动作：进详情看一眼，或者直接标记读完。
+        // 个人标记：想读 / 在读 / 读完。三态直接摆在面板上，比藏进二级菜单少一次点击，
+        // 也是「手动移入待读」唯一的入口——详情页里同样的三个芯片，学一次就够。
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.gutter, vertical = Space.md),
+            verticalArrangement = Arrangement.spacedBy(Space.xs),
+        ) {
+            Text(
+                text = "我的标记",
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                color = ink3,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                ShelfItem.STATUS_LABELS.forEach { (key, label) ->
+                    SelectChip(
+                        label = label,
+                        selected = item.status == key,
+                        onClick = { onSetStatus(key) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+        DividerLine()
         ShelfActionRow(
             icon = Icons.Filled.Info,
             label = "书籍详情",
@@ -832,7 +876,7 @@ private fun ShelfToolbar(
         if (sortable) {
             IconButton(onClick = onToggleView, modifier = Modifier.size(34.dp)) {
                 Icon(
-                    imageVector = if (listView) Icons.Filled.GridView else Icons.Filled.ViewList,
+                    imageVector = if (listView) Icons.Filled.GridView else Icons.AutoMirrored.Filled.ViewList,
                     contentDescription = if (listView) "切换卡片视图" else "切换列表视图",
                     modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -903,7 +947,7 @@ private fun ShelfToolbar(
                     if (builtinGroups.isNotEmpty()) {
                         DividerLine()
                         Text(
-                            text = "按连载状态",
+                            text = "自动分组",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 16.dp, top = Space.sm, bottom = Space.xs),
@@ -934,6 +978,93 @@ private fun ShelfToolbar(
                     }
                 }
             }
+        }
+    }
+}
+
+/* --------------------------- 列数 --------------------------- */
+
+/**
+ * 书架卡片视图的列数。
+ *
+ * 阅读页用 720dp 作为「这是块平板」的判断，书架沿用同一个阈值，
+ * 免得同一个设备上阅读页两栏、书架却还是单列。列表视图永远是单列：
+ * 它的信息密度按整行设计，劈成两半每行只剩几个字。
+ */
+internal fun shelfColumns(listView: Boolean, widthDp: Int): Int =
+    if (!listView && widthDp >= 720) 2 else 1
+
+/* --------------------------- 单本书 --------------------------- */
+
+/**
+ * 一本书的渲染单元：列表视图是纯文字行，卡片视图是带封面的横排卡。
+ *
+ * 抽成独立 composable 是为了让单列与宽屏两列共用同一套点击/多选/长按语义——
+ * 早先两处各写一遍，多选时「点按＝勾选」这条规则在某一处漏掉就会变成打开书。
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ShelfBookCell(
+    item: ShelfItem,
+    listView: Boolean,
+    newChapters: Int?,
+    selecting: Boolean,
+    checked: Boolean,
+    cardPadding: PaddingValues,
+    markPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+    onOpen: (Book) -> Unit,
+    onContinue: (Book) -> Unit,
+    onToggle: (Book) -> Unit,
+    onLongPress: (Book) -> Unit,
+) {
+    val book = item.book
+    val status = shelfStatus(item, newChapters)
+    val progress = shelfProgress(item)
+    val continueReading: (() -> Unit)? =
+        if (progress == null) null else ({ onContinue(book) })
+    // 多选时点按改成勾选；退出的唯一方式是顶栏「取消」或执行完动作，
+    // 免得读到一半误触把选择清空。
+    val onClick: () -> Unit = { if (selecting) onToggle(book) else onOpen(book) }
+    val onLongClick: () -> Unit =
+        if (selecting) ({ onToggle(book) }) else ({ onLongPress(book) })
+
+    Box(modifier) {
+        if (listView) {
+            ShelfBookRow(
+                book = book,
+                status = status,
+                statusEmphasized = newChapters != null,
+                subStatus = shelfSubStatus(item),
+                meta = shelfSeriesMeta(book),
+                readInfo = shelfReadInfo(item),
+                progress = progress,
+                onContinue = if (selecting) null else continueReading,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            DividerLine()
+        } else {
+            ShelfBookCard(
+                book = book,
+                modifier = Modifier.padding(cardPadding),
+                status = status,
+                statusEmphasized = newChapters != null,
+                subStatus = shelfReadInfo(item),
+                meta = shelfSeriesMeta(book),
+                progress = progress,
+                onContinue = if (selecting) null else continueReading,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+        }
+        if (selecting) {
+            SelectionMark(
+                selected = checked,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(markPadding),
+            )
         }
     }
 }

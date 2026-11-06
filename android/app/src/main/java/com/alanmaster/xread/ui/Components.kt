@@ -43,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -476,6 +478,20 @@ fun RankRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // 一行里有序号、书名、元信息、右侧人数四段文字，读屏会逐个念，
+            // 中间还要停顿。整行合成一句，扫榜时才听得下去。
+            .semantics(mergeDescendants = true) {
+                contentDescription = rankRowLabel(
+                    rank = rank,
+                    title = title,
+                    author = author,
+                    category = category,
+                    status = status,
+                    score = score,
+                    readCount = readCount,
+                    countLabel = countLabel,
+                )
+            }
             .clickable(onClick = onClick)
             .padding(horizontal = Space.gutter, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -563,6 +579,38 @@ fun RankRow(
             }
         }
     }
+}
+
+/**
+ * 榜单行的读屏文案：一行念完名次、书名、元信息、评分与人数。
+ *
+ * 抽成纯函数是为了能单测：拼接规则一旦写进 composable，就只能靠真机读屏验证，
+ * 而那种验证最容易漏掉「人数为 0 时右边显示破折号」这种情况。
+ */
+internal fun rankRowLabel(
+    rank: Int,
+    title: String,
+    author: String,
+    category: String,
+    status: BookStatus,
+    score: String,
+    readCount: Long,
+    countLabel: String,
+): String {
+    val parts = buildList {
+        add("第 $rank 名")
+        if (title.isNotBlank()) add(title)
+        add(
+            listOfNotNull(
+                author.takeIf { it.isNotBlank() },
+                category.takeIf { it.isNotBlank() },
+                statusLabel(status),
+            ).joinToString("，"),
+        )
+        if (score.isNotBlank()) add("评分 $score")
+        if (readCount > 0) add("${ReadCountFormat.short(readCount)}$countLabel")
+    }
+    return parts.filter { it.isNotBlank() }.joinToString("，")
 }
 
 /** 连载状态的中文标签；未知时返回 null，不猜。 */
@@ -865,7 +913,10 @@ fun Loading(modifier: Modifier = Modifier) {
         CircularProgressIndicator(
             color = MaterialTheme.colorScheme.primary,
             strokeWidth = 2.dp,
-            modifier = Modifier.size(22.dp),
+            // 转圈本身没有文字，读屏滑到这里只会听到「进度条」三个字。
+            modifier = Modifier
+                .size(22.dp)
+                .semantics { contentDescription = "正在加载" },
         )
     }
 }

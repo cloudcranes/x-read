@@ -1349,26 +1349,30 @@ private fun ReaderBody(
             val bubbleByIndex = bubbles.associateBy { it.index }
             val marks = marksByChapter[chapter.id].orEmpty()
             val marksByIndex = marks.groupBy { it.paragraph }
-            val header = listOfNotNull(
-                bookTitle.takeIf { it.isNotBlank() },
-                chapter.title.takeIf { it.isNotBlank() },
-            ).joinToString(" · ")
+            // 页眉只印书名。早先这里把章名也拼了进去，而下面紧接着就是同一章的
+            // 大标题，同一行字一屏里连出两次，看着像是标题和页眉粘在了一起。
+            val header = bookTitle.takeIf { it.isNotBlank() }.orEmpty()
 
             item(key = "chapter-header-${chapter.id}", span = { GridItemSpan(maxLineSpan) }) {
                 // 页眉画在标题项内部：不进索引，滚走即隐藏
-                Text(
-                    text = header,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                    letterSpacing = 0.08.em,
-                    color = palette.dim,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Space.xs, bottom = Space.lg),
-                )
+                if (header.isNotEmpty()) {
+                    Text(
+                        text = header,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        letterSpacing = 0.08.em,
+                        color = palette.dim,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Space.xs, bottom = Space.lg),
+                    )
+                } else {
+                    // 没有书名可印时不占那行留白，直接让章名顶上来
+                    Spacer(Modifier.height(Space.md))
+                }
                 Text(
                     text = chapter.title,
                     fontFamily = Serif,

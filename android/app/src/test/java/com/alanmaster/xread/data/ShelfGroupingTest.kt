@@ -7,12 +7,18 @@ import org.junit.Test
 
 class ShelfGroupingTest {
 
-    private fun item(id: String, creationStatus: String, group: String = ""): ShelfItem = ShelfItem(
+    private fun item(
+        id: String,
+        creationStatus: String,
+        group: String = "",
+        status: String = ShelfItem.STATUS_READING,
+    ): ShelfItem = ShelfItem(
         book = Book(bookId = id, title = "书$id", creationStatus = creationStatus),
         chapterId = "",
         chapterOffset = 0,
         updatedAt = "",
         group = group,
+        status = status,
     )
 
     @Test
@@ -85,6 +91,51 @@ class ShelfGroupingTest {
 
         val finishedOnly = LibraryViewModel.ShelfSort.apply(items, "recent", ShelfGrouping.FINISHED)
         assertEquals(listOf("3"), finishedOnly.map { it.book.bookId })
+    }
+
+    @Test
+    fun wantGroupMatchesOnlyWantStatus() {
+        // 「待读」看个人标记，和上游连载状态正交：一本连载中的书可以在待读，也可以不在。
+        val want = item("1", "1", status = ShelfItem.STATUS_WANT)
+        val reading = item("2", "1", status = ShelfItem.STATUS_READING)
+        val done = item("3", "1", status = ShelfItem.STATUS_DONE)
+
+        assertTrue(ShelfGrouping.matches(want, ShelfGrouping.WANT))
+        assertFalse(ShelfGrouping.matches(reading, ShelfGrouping.WANT))
+        assertFalse(ShelfGrouping.matches(done, ShelfGrouping.WANT))
+        // 待读的书照样落在连载状态分组里
+        assertTrue(ShelfGrouping.matches(want, ShelfGrouping.SERIAL))
+    }
+
+    @Test
+    fun summarizePutsWantFirstWhenPresent() {
+        val groups = ShelfGrouping.summarize(
+            listOf(
+                item("1", "1", status = ShelfItem.STATUS_WANT),
+                item("2", "0", status = ShelfItem.STATUS_WANT),
+                item("3", "1"),
+            ),
+        )
+
+        // 三本里两本待读（其中一本已完结），所以三个自动分组都有书，待读排在最前。
+        assertEquals(
+            listOf(ShelfGrouping.WANT, ShelfGrouping.SERIAL, ShelfGrouping.FINISHED),
+            groups.map { it.key },
+        )
+        assertEquals(listOf(2, 2, 1), groups.map { it.count })
+        assertEquals("待读", groups.first().label)
+    }
+
+    @Test
+    fun shelfSortFiltersByWantGroup() {
+        val items = listOf(
+            item("1", "1", status = ShelfItem.STATUS_WANT),
+            item("2", "1"),
+            item("3", "0", status = ShelfItem.STATUS_DONE),
+        )
+
+        val want = LibraryViewModel.ShelfSort.apply(items, "group", ShelfGrouping.WANT)
+        assertEquals(listOf("1"), want.map { it.book.bookId })
     }
 
     @Test

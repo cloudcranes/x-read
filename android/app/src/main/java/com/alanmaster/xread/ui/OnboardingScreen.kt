@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -83,7 +85,10 @@ fun OnboardingScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDone) {
+                TextButton(
+                    onClick = onDone,
+                    modifier = Modifier.semantics { contentDescription = "跳过引导，直接进入书架" },
+                ) {
                     Text("跳过", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -158,6 +163,7 @@ private fun AppearanceStep(
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(Radius.sm))
+                        .semantics { contentDescription = "$label 主题" }
                         .selectable(
                             selected = active,
                             role = Role.RadioButton,
@@ -196,6 +202,9 @@ private fun AppearanceStep(
         SectionLabel("字号 · ${prefs.fontSize.roundToInt()}")
         Slider(
             value = prefs.fontSize,
+            modifier = Modifier.semantics {
+                contentDescription = "正文字号 ${prefs.fontSize.roundToInt()}"
+            },
             onValueChange = { onPrefs(prefs.copy(fontSize = it)) },
             valueRange = ReaderPrefs.MIN_FONT..ReaderPrefs.MAX_FONT,
             steps = (ReaderPrefs.MAX_FONT - ReaderPrefs.MIN_FONT).toInt() - 1,
@@ -336,6 +345,8 @@ private fun StepDots(step: Int, count: Int) {
     Row(
         Modifier
             .fillMaxWidth()
+            // 圆点本身没有文字，读屏到这里只会停一下什么也不说。
+            .semantics { contentDescription = "第 ${step + 1} 步，共 $count 步" }
             .padding(vertical = Space.md),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
