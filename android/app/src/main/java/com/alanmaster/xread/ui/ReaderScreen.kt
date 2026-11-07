@@ -1354,41 +1354,44 @@ private fun ReaderBody(
             val header = bookTitle.takeIf { it.isNotBlank() }.orEmpty()
 
             item(key = "chapter-header-${chapter.id}", span = { GridItemSpan(maxLineSpan) }) {
-                // 页眉画在标题项内部：不进索引，滚走即隐藏
-                if (header.isNotEmpty()) {
+                // 页眉画在标题项内部：不进索引，滚走即隐藏。
+                // 必须包 Column：grid item 默认叠放，不包则页眉与章名重合。
+                Column(Modifier.fillMaxWidth()) {
+                    if (header.isNotEmpty()) {
+                        Text(
+                            text = header,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            letterSpacing = 0.08.em,
+                            color = palette.dim,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = Space.xs, bottom = Space.lg),
+                        )
+                    } else {
+                        // 没有书名可印时不占那行留白，直接让章名顶上来
+                        Spacer(Modifier.height(Space.md))
+                    }
                     Text(
-                        text = header,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        letterSpacing = 0.08.em,
-                        color = palette.dim,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Space.xs, bottom = Space.lg),
+                        text = chapter.title,
+                        fontFamily = Serif,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = (prefs.fontSize + 4).sp,
+                        lineHeight = ((prefs.fontSize + 4) * 1.45f).sp,
+                        color = palette.title,
                     )
-                } else {
-                    // 没有书名可印时不占那行留白，直接让章名顶上来
                     Spacer(Modifier.height(Space.md))
+                    Box(
+                        Modifier
+                            .width(28.dp)
+                            .height(2.dp)
+                            .background(palette.rule),
+                    )
+                    Spacer(Modifier.height(Space.lg))
                 }
-                Text(
-                    text = chapter.title,
-                    fontFamily = Serif,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (prefs.fontSize + 4).sp,
-                    lineHeight = ((prefs.fontSize + 4) * 1.45f).sp,
-                    color = palette.title,
-                )
-                Spacer(Modifier.height(Space.md))
-                Box(
-                    Modifier
-                        .width(28.dp)
-                        .height(2.dp)
-                        .background(palette.rule),
-                )
-                Spacer(Modifier.height(Space.lg))
             }
 
             if (chapter.isManga) {
