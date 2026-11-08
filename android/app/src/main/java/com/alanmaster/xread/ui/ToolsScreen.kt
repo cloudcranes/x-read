@@ -23,6 +23,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -30,12 +31,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Highlight
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -62,6 +65,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alanmaster.xread.data.Book
@@ -84,16 +88,113 @@ internal fun formatBytes(bytes: Long): String {
     return String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0)
 }
 
+/** 「我的」页分组：总览只放入口，具体区块按组进入独立子页。 */
+enum class ToolsPage { Overview, Downloads, Reading, Content, Backup }
+
+@Composable
+private fun ToolsOverview(onPage: (ToolsPage) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.md),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        ToolsEntryCard(
+            icon = Icons.Filled.Download,
+            title = "下载与离线",
+            hint = "下载状态、未完成任务、下载策略、本地已下载、存储与残留",
+            onClick = { onPage(ToolsPage.Downloads) },
+        )
+        ToolsEntryCard(
+            icon = Icons.Filled.Bookmark,
+            title = "阅读管理",
+            hint = "阅读目标、阅读统计、阅读回顾、每日提醒",
+            onClick = { onPage(ToolsPage.Reading) },
+        )
+        ToolsEntryCard(
+            icon = Icons.AutoMirrored.Filled.VolumeUp,
+            title = "内容与朗读",
+            hint = "正文替换、书摘、朗读本章",
+            onClick = { onPage(ToolsPage.Content) },
+        )
+        ToolsEntryCard(
+            icon = Icons.Filled.SettingsBackupRestore,
+            title = "备份与恢复",
+            hint = "导入导出、自动备份、WebDAV 同步",
+            onClick = { onPage(ToolsPage.Backup) },
+        )
+    }
+}
+
+@Composable
+private fun ToolsEntryCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    hint: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .clickable(onClick = onClick, role = Role.Button),
+        shape = RoundedCornerShape(Radius.none),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.card, vertical = Space.md),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(start = Space.md, end = Space.md),
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = hint,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Space.xs),
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
 /**
- * 工具与离线页。
+ * 「我的」（工具与离线）页：总览 + 4 个分组子页。
  *
- * 每个区块一张**白面 + 1dp 发丝线 + 0 阴影**的卡片，顺序固定：
+ * 总览只显示 4 个入口，点进去才是各自独立子页，避免全部堆在一屏；
+ * 每个区块仍是一张**白面 + 1dp 发丝线 + 0 阴影**的卡片，顺序固定：
  * 下载状态 / 未完成任务 / 下载策略 / 本地已下载 / 存储与残留 /
  * 阅读目标 / 阅读统计 / 每日提醒 / 正文替换 / 书摘 / 备份与恢复 / 朗读。
  *
  * 「未完成任务」只在有可续传任务时出现，「阅读统计」只在有阅读记录时出现；
  * 「阅读目标」始终出现——它同时是开启目标的入口，藏起来就等于没有入口；
- * 两块的序号由 [sectionIndex] 在进入 LazyColumn 前一次算好，滚动不会改变。
+ * 两块的序号由 [sectionIndex] 在进入 LazyColumn 前一次算好，子页沿用全局序号，
+ * 滚动不会改变，也不会漏号重排。
  *
  * 旧实现是一长串裸 SectionTitle + 按钮，开关行与说明文字挤在同一层，
  * 层级全靠字号区分；现在卡片负责分区，开关行文字 13sp、说明 11–12sp，
@@ -127,6 +228,9 @@ fun ToolsScreen(
     onNewChapterNotify: (Boolean) -> Unit = {},
     ttsRunning: Boolean,
     onBack: (() -> Unit)? = null,
+    page: ToolsPage = ToolsPage.Overview,
+    onPage: (ToolsPage) -> Unit = {},
+    onSettings: () -> Unit = {},
     onOpen: (Book) -> Unit,
     onExportBook: (Book) -> Unit,
     onDelete: (Book) -> Unit,
@@ -184,12 +288,36 @@ fun ToolsScreen(
         order.withIndex().associate { (i, key) -> key to (i + 1).toString().padStart(2, '0') }
     }
 
+    val pageTitle = when (page) {
+        ToolsPage.Overview -> "离线与工具"
+        ToolsPage.Downloads -> "下载与离线"
+        ToolsPage.Reading -> "阅读管理"
+        ToolsPage.Content -> "内容与朗读"
+        ToolsPage.Backup -> "备份与恢复"
+    }
+    val pageSubtitle = when (page) {
+        ToolsPage.Overview -> "本地书架、下载、备份与朗读"
+        ToolsPage.Downloads -> "下载状态、策略、本地书籍与存储"
+        ToolsPage.Reading -> "目标、统计、回顾与每日提醒"
+        ToolsPage.Content -> "正文替换、书摘与朗读"
+        ToolsPage.Backup -> "导入导出、自动备份与 WebDAV"
+    }
+    val backAction: (() -> Unit)? = if (page == ToolsPage.Overview) {
+        onBack
+    } else {
+        { onPage(ToolsPage.Overview) }
+    }
     Scaffold(
         topBar = {
             XReadTopBar(
-                title = "离线与工具",
-                subtitle = "本地书架、下载、备份与朗读",
-                onBack = onBack,
+                title = pageTitle,
+                subtitle = pageSubtitle,
+                onBack = backAction,
+                actions = {
+                    IconButton(onClick = onSettings) {
+                        Icon(Icons.Filled.Settings, "设置")
+                    }
+                },
             )
         },
     ) { padding ->
@@ -197,6 +325,11 @@ fun ToolsScreen(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = Space.navFloat),
         ) {
+
+            if (page == ToolsPage.Overview) {
+                item { ToolsOverview(onPage) }
+            }
+            if (page == ToolsPage.Downloads) {
 
             /* -------------------- 下载状态 -------------------- */
             item {
@@ -525,6 +658,9 @@ fun ToolsScreen(
                 }
             }
 
+            }
+            if (page == ToolsPage.Reading) {
+
             /* -------------------- 阅读目标 -------------------- */
             item {
                 val normalized = goal.normalized()
@@ -792,6 +928,9 @@ fun ToolsScreen(
                 }
             }
 
+            }
+            if (page == ToolsPage.Content) {
+
             /* -------------------- 正文替换 -------------------- */
             item {
                 SectionHeader("正文替换", index = sectionIndex.getValue("正文替换"))
@@ -888,6 +1027,9 @@ fun ToolsScreen(
                     )
                 }
             }
+
+            }
+            if (page == ToolsPage.Backup) {
 
             /* -------------------- 备份与恢复 -------------------- */
             item {
@@ -1052,6 +1194,9 @@ fun ToolsScreen(
                 }
             }
 
+            }
+            if (page == ToolsPage.Content) {
+
             /* -------------------- 朗读 -------------------- */
             item {
                 SectionHeader("朗读", index = sectionIndex.getValue("朗读"))
@@ -1098,6 +1243,7 @@ fun ToolsScreen(
                         )
                     }
                 }
+            }
             }
         }
     }

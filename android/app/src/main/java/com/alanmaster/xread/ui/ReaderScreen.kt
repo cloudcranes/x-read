@@ -128,6 +128,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -557,6 +559,16 @@ fun ReaderScreen(
     // 抽屉打开时收起工具栏，避免两层控件叠在一起
     LaunchedEffect(settingsVisible) {
         if (settingsVisible) chromeVisible = false
+    }
+
+    // 正文滑动时自动收起工具栏，避免遮挡阅读内容
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling && chromeVisible) {
+                chromeVisible = false
+                findOpen = false
+            }
+        }
     }
 
     fun toggleChrome() {
@@ -2707,6 +2719,9 @@ private fun ReaderSettingsSheet(
             // 否则底部会多出一段空隙。留一点底距纯粹是为了让最后一行不贴着边。
             .padding(bottom = Space.xxl),
     ) {
+        var settingTab by remember { mutableStateOf(0) }
+        val settingTabs = listOf("排版", "背景与翻页", "功能与朗读")
+
         Row(
             Modifier
                 .fillMaxWidth()
@@ -2722,6 +2737,53 @@ private fun ReaderSettingsSheet(
             )
         }
 
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.gutter, vertical = Space.xs)
+                .height(44.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+        ) {
+            settingTabs.forEachIndexed { index, tabTitle ->
+                val active = settingTab == index
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .selectable(
+                            selected = active,
+                            role = Role.Tab,
+                            onClick = { settingTab = index },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxHeight(),
+                    ) {
+                        Text(
+                            text = tabTitle,
+                            fontSize = 13.sp,
+                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (active) palette.accent else palette.dim,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.height(Space.xxs))
+                        Box(
+                            Modifier
+                                .width(20.dp)
+                                .height(2.dp)
+                                .background(if (active) palette.accent else Color.Transparent),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(Space.xs))
+
+        if (settingTab == 0) {
         // 1. 字号：14–30sp（数据模型的上限，不缩窄），步进 1
         ReaderSheetRow(label = "字号", palette = palette) {
             ReaderStepButton(
@@ -2855,6 +2917,9 @@ private fun ReaderSettingsSheet(
             )
         }
 
+        }
+
+        if (settingTab == 1) {
         // 4. 背景：用户显式挑选，色板用各方案自己的底色与正文色
         ReaderSheetRow(label = "背景", palette = palette) {
             Row(
@@ -2931,6 +2996,9 @@ private fun ReaderSettingsSheet(
             palette = palette,
         ) { onPrefs(prefs.copy(paragraphComments = it)) }
 
+        }
+
+        if (settingTab == 2) {
         // 自动滚动与常亮成对出现：这两项都是为「放下手读到睡着」准备的
         ReaderSheetRow(label = "自动滚动", palette = palette) {
             ReaderSegmented(
@@ -2995,6 +3063,7 @@ private fun ReaderSettingsSheet(
                 modifier = Modifier.weight(1f),
                 onClick = { onTtsSleep(0) },
             )
+        }
         }
     }
 }

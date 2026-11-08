@@ -18,12 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
-import com.alanmaster.xread.data.DramaSeries
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -93,8 +89,6 @@ fun SearchScreen(
     hotWords: List<String> = emptyList(),
     searchTabType: Int = 3,
     onSelectTabType: (Int, String) -> Unit = { _, _ -> },
-    dramaResults: List<DramaSeries> = emptyList(),
-    onOpenDrama: (DramaSeries) -> Unit = {},
     /** 搜索结果是否已经到底；true 时不再请求下一页。 */
     exhausted: Boolean = true,
     moreLoading: Boolean = false,
@@ -129,12 +123,7 @@ fun SearchScreen(
         onLibrarySearch(query)
     }
 
-    val placeholder = when (searchTabType) {
-        8 -> "搜索漫画、条漫、同名改编"
-        11 -> "搜索短剧、漫剧、短剧名"
-        2 -> "搜索有声书、主播、有声改编"
-        else -> "书名、作者、主角"
-    }
+    val placeholder = "书名、作者、主角"
 
     Scaffold(
         topBar = {
@@ -169,9 +158,6 @@ fun SearchScreen(
             val searchTabs = listOf(
                 "综合" to 1,
                 "小说" to 3,
-                "漫画" to 8,
-                "听书" to 2,
-                "短剧" to 11,
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.xs),
@@ -210,28 +196,10 @@ fun SearchScreen(
                 )
                 loading -> Loading()
                 error.isNotEmpty() -> SearchErrorState(error) { onSearch(query) }
-                searchTabType == 11 && dramaResults.isNotEmpty() -> {
-                    SectionHeader("短剧结果", "${dramaResults.size} 部", index = "DRAMA")
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.sm),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        gridItems(dramaResults, key = { it.seriesId }) { drama ->
-                            DramaCard(drama = drama, onClick = { onOpenDrama(drama) })
-                        }
-                    }
-                }
                 results.isNotEmpty() -> {
                     val sectionHint = when (searchTabType) {
-                        8 -> "漫画结果"
                         1 -> "综合结果"
-                        2 -> "听书结果"
-                        else -> "结果"
+                        else -> "小说结果"
                     }
                     SectionHeader(sectionHint, "${results.size} 本", index = "RESULTS")
                     // 搜索结果是**行**不是网格：同名书很多（「十日终焉」能搜出十几本），
@@ -242,7 +210,7 @@ fun SearchScreen(
                     ) {
                         items(results, key = { it.bookId }) { book ->
                             // 有声书在综合 tab 里也混着，只能按条目自己判断
-                            SearchResultRow(book, audio = book.isAudio || searchTabType == 2, onClick = { onOpen(book) })
+                            SearchResultRow(book, audio = book.isAudio, onClick = { onOpen(book) })
                             DividerLine()
                         }
                         item(key = "search-more") {

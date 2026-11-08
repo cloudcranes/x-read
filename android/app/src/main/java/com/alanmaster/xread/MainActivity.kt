@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.LocalLibrary
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -73,15 +72,15 @@ import com.alanmaster.xread.ui.SearchScreen
 import com.alanmaster.xread.ui.SettingsSheet
 import com.alanmaster.xread.ui.Space
 import com.alanmaster.xread.ui.ShelfScreen
+import com.alanmaster.xread.ui.ToolsPage
 import com.alanmaster.xread.ui.ToolsScreen
 import com.alanmaster.xread.ui.XReadTheme
 import org.json.JSONObject
 
-/** 底栏四个入口。图标与文字在这里定死，选中态只影响展开与配色。 */
+/** 底栏三个入口。图标与文字在这里定死，选中态只影响展开与配色。 */
 private val mainNavItems = listOf(
     FloatingNavItem(Icons.Filled.LocalLibrary, "书架"),
     FloatingNavItem(Icons.Filled.Explore, "发现"),
-    FloatingNavItem(Icons.Filled.Movie, "短剧"),
     FloatingNavItem(Icons.Filled.Person, "我的"),
 )
 
@@ -280,6 +279,8 @@ private fun App(
         }
     }
     var showSettings by remember { mutableStateOf(false) }
+    // 「我的」总览/子页；与 screen 一样用普通 remember，配置变更随 screen 一起回默认。
+    var toolsPage by remember { mutableStateOf(ToolsPage.Overview) }
     // 听书页当前对应哪本书、从哪儿进来的。
     // 听书榜进听书时 state.book 是空的（openAudio 不动它），只靠 state.book
     // 会标题空白、返回键失效。
@@ -484,22 +485,10 @@ private fun App(
         if (screen is Screen.Toc) vm.refreshCachedChapters()
     }
 
-    // 冷启动回到上次阅读的位置：进度已经在本地 progress.json 里，这里只负责「打开哪本书、进哪个页面」。
-    // 用 rememberSaveable 记一次，配置变化（旋转、切深浅色）不会重复把读者拽进阅读页。
-    var restoredSession by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (restoredSession) return@LaunchedEffect
-        restoredSession = true
-        val last = vm.lastSessionBook() ?: return@LaunchedEffect
-        readerFromShelf = true
-        vm.openBook(last)
-        screen = Screen.Reader
-    }
-
     // 系统返回键：面板 → 详情 → 书架，逐级回退；书架处两次退出。
     var lastBack by remember { mutableStateOf(0L) }
     val activity = hostContext as? MainActivity
-    androidx.compose.runtime.LaunchedEffect(showSettings, screen, state.paragraphCommentOpen, readerFromShelf) {
+    androidx.compose.runtime.LaunchedEffect(showSettings, screen, toolsPage, state.paragraphCommentOpen, readerFromShelf) {
         activity?.setAppBackHandler {
             when {
                 showSettings -> showSettings = false
@@ -568,6 +557,8 @@ private fun App(
                 screen is Screen.Search -> screen = mainTab
                 screen is Screen.Marks -> screen = Screen.Tools
                 screen is Screen.Report -> screen = Screen.Tools
+                // 「我的」子页先回总览，别一按返回就跳回书架。
+                screen == Screen.Tools && toolsPage != ToolsPage.Overview -> toolsPage = ToolsPage.Overview
                 screen == Screen.Discover || screen == Screen.Tools -> screen = Screen.Shelf
                 screen == Screen.Shelf -> {
                     val now = System.currentTimeMillis()
@@ -578,7 +569,8 @@ private fun App(
             }
         }
     }
-    val isMainTab = screen == Screen.Shelf || screen == Screen.Discover || screen == Screen.Tools
+    val isMainTab = screen == Screen.Shelf || screen == Screen.Discover ||
+            (screen == Screen.Tools && toolsPage == ToolsPage.Overview)
     Scaffold { innerPadding ->
         Box(
             androidx.compose.ui.Modifier
@@ -597,11 +589,6 @@ private fun App(
                     onSelectMediaType = { vm.setShelfMediaType(it) },
                     shelfStatus = state.shelfStatusFilter,
                     onStatusFilter = { vm.setShelfStatusFilter(it) },
-                    recentDramas = state.recentDramas,
-                    onOpenDrama = { drama ->
-                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
-                        screen = Screen.Drama
-                    },
                     updates = state.shelfUpdates,
                     onDetail = openDetail,
                     refreshing = state.refreshingShelf,
@@ -633,13 +620,7 @@ private fun App(
                         if (state.hot.isEmpty()) vm.loadHot()
                         screen = Screen.Search
                     },
-                    onSettings = { showSettings = true },
                     onDiscover = { screen = Screen.Discover },
-                    // 追剧空态落在短剧板块（section 2），而不是小说首页再让用户自己切。
-                    onDiscoverDrama = {
-                        vm.setDiscoverSection(2)
-                        screen = Screen.Discover
-                    },
                     // 书架是「继续阅读」的地方：点书直接进正文，不再先过详情页。
                     onOpen = { b ->
                         readerFromShelf = true
@@ -651,17 +632,9 @@ private fun App(
                         vm.openBook(it)
                         screen = Screen.Reader
                     },
-                    dramaFavorites = state.dramaFavorites,
-                    onOpenFavoriteDrama = { drama ->
-                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
-                        screen = Screen.Drama
-                    },
-                    onToggleFavoriteDrama = { vm.toggleDramaFavorite(it) },
                 )
 
                 Screen.Discover -> DiscoverScreen(
-                    section = state.discoverSection,
-                    onSelectSection = { sec -> vm.setDiscoverSection(sec) },
                     ranked = state.feedRanked,
                     recommended = state.feedRecommended,
                     newBooks = state.feedNew,
@@ -670,39 +643,9 @@ private fun App(
                     feedError = state.feedError,
                     exhausted = state.feedExhausted,
                     loading = state.loading,
-                    mangaFeed = state.mangaFeed,
-                    mangaLoading = state.mangaFeedLoading,
-                    mangaMoreLoading = state.mangaMoreLoading,
-                    mangaExhausted = state.mangaExhausted,
-                    onMoreManga = { vm.loadMoreManga() },
-                    mangaCategory = state.mangaCategory,
-                    onSelectMangaCategory = { cat -> vm.setMangaCategory(cat) },
-                    dramaFeed = state.dramaFeed,
-                    dramaLoading = state.dramaFeedLoading,
-                    dramaMoreLoading = state.dramaMoreLoading,
-                    dramaExhausted = state.dramaExhausted,
-                    onMoreDrama = { vm.loadMoreDrama() },
-                    dramaCategory = state.dramaCategory,
-                    onSelectDramaCategory = { cat -> vm.setDramaCategory(cat) },
-                    onOpenDrama = { drama ->
-                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
-                        screen = Screen.Drama
-                    },
-                    onOpenDramaDouyin = { drama ->
-                        if (drama != null) {
-                            vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
-                        } else if (state.dramaFeed.isNotEmpty()) {
-                            val first = state.dramaFeed.first()
-                            vm.loadDramaDetail(first.seriesId, first.isMotionComic, autoPlayFirst = true)
-                        }
-                        screen = Screen.DramaDouyin
-                    },
                     onRefresh = {
-                        when (state.discoverSection) {
-                            0 -> { vm.loadHot(); vm.loadFeed() }
-                            1 -> vm.loadMangaFeed()
-                            2 -> vm.loadDramaFeed()
-                        }
+                        vm.loadHot()
+                        vm.loadFeed()
                     },
                     onSearch = {
                         vm.resetSearchView()
@@ -848,14 +791,9 @@ private fun App(
                 // 后到的那个还可能把分页游标写回第一页
                 vm.setSearchTabType(tab, q)
             },
-            dramaResults = state.dramaResults,
             exhausted = state.searchExhausted,
             moreLoading = state.searchMoreLoading,
             onMore = { vm.loadMoreSearch() },
-            onOpenDrama = { drama ->
-                vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
-                screen = Screen.Drama
-            },
             libraryAvailable = state.offlineBooks.isNotEmpty(),
             libraryHits = state.libraryHits,
             librarySearching = state.librarySearching,
@@ -1197,6 +1135,8 @@ private fun App(
         )
 
         Screen.Tools -> ToolsScreen(
+            page = toolsPage,
+            onPage = { toolsPage = it },
             offlineBooks = state.offlineBooks,
             resumable = state.resumable,
             download = download,
@@ -1271,6 +1211,7 @@ private fun App(
             },
             ttsRunning = ttsSpeaking,
             onBack = null,
+            onSettings = { showSettings = true },
             onOpen = { b -> vm.openOfflineBook(b); screen = Screen.Reader },
             onExportBook = { b -> vm.exportBookText(b) },
             onDelete = { b -> vm.deleteOfflineBook(b.bookId) },
@@ -1383,7 +1324,7 @@ private fun App(
                     selectedIndex = when (screen) {
                         Screen.Shelf -> 0
                         Screen.Discover -> 1
-                        Screen.Tools -> 3
+                        Screen.Tools -> 2
                         else -> 1
                     },
                     onSelect = { index ->
@@ -1396,15 +1337,12 @@ private fun App(
                                 }
                                 screen = Screen.Discover
                             }
-                            2 -> {
-                                if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
-                                screen = Screen.DramaSwipe
-                            }
                             else -> {
                                 vm.flushStats(force = true)
                                 statsSnapshot = offline.stats()
                                 rulesSnapshot = vm.rules()
                                 vm.refreshOffline()
+                                toolsPage = ToolsPage.Overview
                                 screen = Screen.Tools
                             }
                         }

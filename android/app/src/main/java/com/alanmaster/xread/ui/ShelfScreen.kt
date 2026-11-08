@@ -5,6 +5,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,11 +35,8 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalLibrary
-import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -49,7 +48,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -67,22 +65,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.alanmaster.xread.data.Book
 import com.alanmaster.xread.data.BookStatus
-import com.alanmaster.xread.data.DramaSeries
 import com.alanmaster.xread.data.ShelfGrouping
 import com.alanmaster.xread.data.ShelfItem
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 书架页：用户的个人藏书、阅读进度、最近阅读与分组管理。
@@ -99,8 +92,6 @@ fun ShelfScreen(
     builtinGroups: List<ShelfGrouping.Group> = emptyList(),
     shelfMediaType: String = "all",
     onSelectMediaType: (String) -> Unit = {},
-    recentDramas: List<DramaSeries> = emptyList(),
-    onOpenDrama: (DramaSeries) -> Unit = {},
     updates: Map<String, Int>,
     /** 整轮刷新是否在跑（重读书架 + 查新章）；页头图标转圈并防连点。 */
     refreshing: Boolean,
@@ -119,18 +110,13 @@ fun ShelfScreen(
      */
     shelfRefreshDone: Int = 0,
     onSearch: () -> Unit,
-    onSettings: () -> Unit,
     onDiscover: () -> Unit,
     /** 追剧空态的「去发现短剧」；未接线时退回 [onDiscover]。 */
-    onDiscoverDrama: (() -> Unit)? = null,
     onOpen: (Book) -> Unit,
     /** 长按菜单里的「书籍详情」：书架点按是继续读，详情要显式选。 */
     onDetail: (Book) -> Unit = {},
     onContinue: (Book) -> Unit = {},
     /** 短剧收藏与追剧记录：都落在 OfflineRepo，进程重启后仍在。 */
-    dramaFavorites: List<DramaSeries> = emptyList(),
-    onOpenFavoriteDrama: (DramaSeries) -> Unit = {},
-    onToggleFavoriteDrama: (DramaSeries) -> Unit = {},
     /** 批量操作：多选模式下一次性处理选中的书。 */
     onBatchGroup: (List<Book>) -> Unit = {},
     onBatchRemove: (List<Book>) -> Unit = {},
@@ -187,11 +173,10 @@ fun ShelfScreen(
                 )
             } else {
                 ShelfHeader(
-                    count = if (shelfMediaType == "drama") 0 else shelf.size,
+                    count = shelf.size,
                     refreshing = refreshing,
                     onSearch = onSearch,
                     onRefresh = onRefresh,
-                    onSettings = onSettings,
                 )
             }
         },
@@ -249,70 +234,19 @@ fun ShelfScreen(
                             listView = !listView
                             viewPrefs.edit().putBoolean("list", listView).apply()
                         },
-                        // 追剧记录只有一种卡片样式、也不参与排序，按钮留着只会让人以为点坏了。
-                        sortable = shelfMediaType != "drama",
+                        sortable = true,
                     )
                 }
 
                 /* -------------------- 个人标记 -------------------- */
                 // 与媒体类型分两行：一行管「这是什么书」，一行管「我读到哪一步」，
                 // 混在一行里 chip 会多到需要横向滚两次才看得全。
-                if (!selecting && shelfMediaType != "drama") {
+                if (!selecting) {
                     item(key = "status-filter") {
                         StatusFilterRow(selected = shelfStatus, onSelect = onStatusFilter)
                     }
                 }
 
-                if (shelfMediaType == "drama") {
-                    /* -------------------- 短剧收藏 + 追剧记录 -------------------- */
-                    // 以前这里只有「追剧记录」，而「收藏」的星标只写进 SharedPreferences，
-                    // 全仓没有第二个地方读它——用户收藏完根本找不回来。现在收藏也落盘并列出。
-                    if (dramaFavorites.isNotEmpty()) {
-                        item {
-                            ShelfSection(title = "我的收藏", hint = "${dramaFavorites.size} 部")
-                        }
-                        items(dramaFavorites, key = { "fav-drama-${it.seriesId}" }) { drama ->
-                            RecentDramaCard(
-                                drama = drama,
-                                onClick = { onOpenFavoriteDrama(drama) },
-                                onToggleFavorite = { onToggleFavoriteDrama(drama) },
-                            )
-                            DividerLine()
-                        }
-                    }
-                    if (recentDramas.isNotEmpty()) {
-                        item {
-                            ShelfSection(
-                                title = "追剧记录",
-                                hint = if (recentDramas.isEmpty()) "" else "${recentDramas.size} 部",
-                            )
-                        }
-                        items(recentDramas, key = { "recent-drama-${it.seriesId}" }) { drama ->
-                            RecentDramaCard(
-                                drama = drama,
-                                onClick = { onOpenDrama(drama) },
-                                onToggleFavorite = if (dramaFavorites.any { it.seriesId == drama.seriesId }) {
-                                    { onToggleFavoriteDrama(drama) }
-                                } else {
-                                    null
-                                },
-                            )
-                            DividerLine()
-                        }
-                    }
-                    if (dramaFavorites.isEmpty() && recentDramas.isEmpty()) {
-                        item {
-                            // 追剧记录的空态不是「书架还是空的」——短剧收藏和书架无关，
-                            // 所以只留「去发现」。
-                            ShelfEmpty(
-                                onDiscover = onDiscoverDrama ?: onDiscover,
-                                title = "还没有追剧记录",
-                                description = "去「发现」的短剧板块挑一部，播放过的短剧会出现在这里。",
-                                primaryLabel = "去发现短剧",
-                            )
-                        }
-                    }
-                } else {
                     /* -------------------- 我的书架 -------------------- */
                     // 「在架 N 本 · 查更新」这一行删掉了：分类已经在上面那排 chip 里，
                     // 本数挪进了页头标题，刷新（含查新章）挪进了页头图标，书架直接接在工具栏下面。
@@ -392,7 +326,6 @@ fun ShelfScreen(
                     } else {
                         item { Loading() }
                     }
-                }
             }
         }
             // 长按菜单挂在页面根部而不是列表项里：列表项会随滚动回收，
@@ -620,7 +553,7 @@ private fun ShelfActionRow(
 /**
  * 多选顶栏：替代页头，只保留「已选 N 本 / 全选 / 取消」。
  *
- * 多选期间不显示搜索、刷新、设置——这些都会改变列表内容，
+ * 多选期间不显示搜索、刷新——这些都会改变列表内容，
  * 与「我已经勾好这几本」冲突。
  */
 @Composable
@@ -722,33 +655,6 @@ private fun SelectionAction(
 
 /* --------------------------- 分区标题 --------------------------- */
 
-@Composable
-private fun ShelfSection(
-    title: String,
-    hint: String,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(start = Space.gutter, end = Space.gutter, top = Space.md, bottom = Space.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            fontFamily = Serif,
-            fontSize = 17.sp,
-            lineHeight = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        Spacer(Modifier.weight(1f))
-        if (hint.isNotBlank()) {
-            Text(hint, fontSize = 11.sp, color = ink3)
-        }
-    }
-}
-
 /* --------------------------- 页头 --------------------------- */
 
 @Composable
@@ -757,7 +663,6 @@ private fun ShelfHeader(
     refreshing: Boolean,
     onSearch: () -> Unit,
     onRefresh: () -> Unit,
-    onSettings: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Row(
@@ -803,9 +708,6 @@ private fun ShelfHeader(
                     Icon(Icons.Filled.Refresh, "刷新书架", Modifier.size(22.dp))
                 }
             }
-            IconButton(onClick = onSettings, modifier = Modifier.size(38.dp)) {
-                Icon(Icons.Filled.Settings, "设置", Modifier.size(22.dp))
-            }
         }
     }
 }
@@ -818,13 +720,40 @@ private fun StatusFilterRow(selected: String, onSelect: (String) -> Unit) {
     val options = remember {
         listOf("all" to "全部", ShelfItem.STATUS_WANT to "想读", ShelfItem.STATUS_READING to "在读", ShelfItem.STATUS_DONE to "读完")
     }
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.xs),
-        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+    // 上方类型筛选和这里的状态筛选都带「全部」，两排红底 chip 会撞成上下两块红砖。
+    // 状态改等宽文字 tab：选中只留朱红字 + 底部短线；整格 48dp 可点，选中态走 selectable 语义。
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter)
+            .height(48.dp)
+            .selectableGroup(),
     ) {
-        items(options.size) { i ->
-            val (key, label) = options[i]
-            SelectChip(label = label, selected = selected == key, onClick = { onSelect(key) })
+        options.forEach { (key, label) ->
+            val active = selected == key
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .selectable(selected = active, role = Role.Tab, onClick = { onSelect(key) }),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (active) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .width(20.dp)
+                        .height(2.dp)
+                        .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent),
+                )
+            }
         }
     }
 }
@@ -845,8 +774,14 @@ private fun ShelfToolbar(
     // 原来这两个按钮照样显示但点了没反应，用户会以为排序坏了。
     sortable: Boolean = true,
 ) {
-    val mediaTabs = listOf("全部" to "all", "小说" to "novel", "漫画" to "manga", "短剧" to "drama")
+    val mediaTabs = listOf("全部" to "all", "小说" to "novel")
     val sortOptions = listOf("最近" to "recent", "入架" to "added", "书名" to "title")
+    // 收敛为纯小说后只有「全部」与「小说」两种有效态；
+    // 旧数据里残留的 manga/drama 一律按「全部」显示，避免下拉里没有对应项却高亮。
+    val all = mediaType != "novel"
+    val mediaLabel = if (all) "全部" else "小说"
+
+    val mediaMenuOpen = remember { mutableStateOf(false) }
     val menuOpen = remember { mutableStateOf(false) }
     val activeGroup = if (sort == "group" && group.isNotBlank()) ShelfGrouping.labelOf(group) else ""
     val sortLabel = when (sort) {
@@ -861,18 +796,71 @@ private fun ShelfToolbar(
             .padding(start = Space.gutter, end = Space.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LazyRow(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+        // 类型筛选与状态 tab 分两行，两行都摆红底「全部」会像重复报错。
+        // 合并成「全部/类型」一枚下拉：选中具体类型时 chip 直接写明类型，
+        // 「全部」保持中性描边；点开菜单仍可切回全部或换类型。
+        Box(
+            Modifier
+                .height(48.dp)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = "切换书籍类型",
+                    onClick = { mediaMenuOpen.value = true },
+                ),
+            contentAlignment = Alignment.Center,
         ) {
-            items(mediaTabs) { (label, key) ->
-                SelectChip(
-                    label = label,
-                    selected = mediaType == key,
-                    onClick = { onSelectMediaType(key) },
-                )
+            Surface(
+                modifier = Modifier.height(28.dp),
+                shape = RoundedCornerShape(Radius.none),
+                // 「全部」＝没有筛选，保持中性描边；选中具体类型才上朱红浅底。
+                // 这样顶行不再有第二个红色「全部」，和下面的状态 tab 也不撞色。
+                color = if (all) Color.Transparent else MaterialTheme.colorScheme.primaryContainer,
+                border = BorderStroke(
+                    1.dp,
+                    if (all) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                ),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (all) "全部" else mediaLabel,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = if (all) FontWeight.Normal else FontWeight.Medium,
+                        color = if (all) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 1,
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (all) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+            }
+            DropdownMenu(
+                expanded = mediaMenuOpen.value,
+                onDismissRequest = { mediaMenuOpen.value = false },
+            ) {
+                mediaTabs.forEach { (label, key) ->
+                    DropdownMenuItem(
+                        text = { Text(label, fontSize = 13.sp) },
+                        trailingIcon = if (mediaType == key) {
+                            { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
+                        } else null,
+                        onClick = {
+                            onSelectMediaType(key)
+                            mediaMenuOpen.value = false
+                        },
+                    )
+                }
             }
         }
+        Spacer(Modifier.weight(1f))
         if (sortable) {
             IconButton(onClick = onToggleView, modifier = Modifier.size(34.dp)) {
                 Icon(
@@ -1276,118 +1264,3 @@ private fun shelfSubStatus(item: ShelfItem): String? = when {
 }
 
 /* --------------------------- 相对时间 --------------------------- */
-
-private fun relativeTime(at: Long): String {
-    if (at <= 0) return ""
-    val diff = System.currentTimeMillis() - at
-    return when {
-        diff < 60_000L -> "刚刚"
-        diff < 3_600_000L -> "${diff / 60_000L} 分钟前"
-        diff < 86_400_000L -> "${diff / 3_600_000L} 小时前"
-        diff < 7 * 86_400_000L -> "${diff / 86_400_000L} 天前"
-        else -> SimpleDateFormat("MM-dd", Locale.US).format(Date(at))
-    }
-}
-
-@Composable
-private fun RecentDramaCard(
-    drama: DramaSeries,
-    onClick: () -> Unit,
-    onToggleFavorite: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = Space.gutter, vertical = Space.md),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(56.dp)
-                .aspectRatio(0.72f)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        ) {
-            if (drama.coverUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = drama.coverUrl,
-                    contentDescription = drama.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Icon(
-                    Icons.Filled.Movie,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(24.dp)
-                        .align(Alignment.Center),
-                    tint = MaterialTheme.colorScheme.outline,
-                )
-            }
-        }
-        Spacer(Modifier.width(Space.md))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = drama.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (drama.isMotionComic) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiary,
-                        shape = RoundedCornerShape(2.dp),
-                    ) {
-                        Text(
-                            text = "漫剧",
-                            fontSize = 10.sp,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                        )
-                    }
-                }
-            }
-            Text(
-                text = if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            if (drama.intro.isNotBlank()) {
-                Text(
-                    text = drama.intro,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
-        Spacer(Modifier.width(Space.sm))
-        if (onToggleFavorite != null) {
-            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Filled.Star,
-                    contentDescription = "取消收藏",
-                    tint = Color(0xFFFFC107),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-        OutlinedButton(
-            onClick = onClick,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            shape = RoundedCornerShape(Radius.none),
-        ) {
-            Text("播放", fontSize = 12.sp)
-        }
-    }
-}
