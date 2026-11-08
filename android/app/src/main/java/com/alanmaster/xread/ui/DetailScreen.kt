@@ -130,6 +130,23 @@ fun DetailScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            DetailTopBar(
+                book = book,
+                menuOpen = menuOpen,
+                onMenuOpenChange = { menuOpen = it },
+                onBack = onBack,
+                onShare = onShare,
+                onToc = onOpenToc,
+                onReviews = onOpenReviews,
+                onAudio = onOpenAudio,
+                onAuthor = { onOpenAuthor(book.authorId) },
+                onDownload = { onDownload(0) },
+                onDownloadFirst = { onDownload(20) },
+                onCancel = onCancel,
+                downloading = mine,
+            )
+        },
     ) { padding ->
         LazyColumn(
             Modifier
@@ -137,23 +154,9 @@ fun DetailScreen(
                 .padding(padding),
             contentPadding = PaddingValues(bottom = Space.xxl),
         ) {
-            /* -------------------- 头部：纸色带 + 封面 -------------------- */
+            /* -------------------- 头部：居中大封面 -------------------- */
             item {
-                DetailHeader(
-                    book = book,
-                    menuOpen = menuOpen,
-                    onMenuOpenChange = { menuOpen = it },
-                    onBack = onBack,
-                    onShare = onShare,
-                    onToc = onOpenToc,
-                    onReviews = onOpenReviews,
-                    onAudio = onOpenAudio,
-                    onAuthor = { onOpenAuthor(book.authorId) },
-                    onDownload = { onDownload(0) },
-                    onDownloadFirst = { onDownload(20) },
-                    onCancel = onCancel,
-                    downloading = mine,
-                )
+                DetailCoverSection(book = book)
             }
 
             /* -------------------- 书名 + 作者行 -------------------- */
@@ -438,7 +441,7 @@ fun DetailScreen(
  * 三个图标用负偏移压在色带上，因此 Scaffold 不再单独占一个顶栏高度。
  */
 @Composable
-private fun DetailHeader(
+private fun DetailTopBar(
     book: Book,
     menuOpen: Boolean,
     onMenuOpenChange: (Boolean) -> Unit,
@@ -453,35 +456,15 @@ private fun DetailHeader(
     onCancel: () -> Unit,
     downloading: Boolean,
 ) {
-    Box(Modifier.fillMaxWidth()) {
-        // 纸色带
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        )
-        // 图标行：负偏移 12dp，图标正好落在色带上；触控区仍是 48dp。
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .offset(y = (-12).dp)
-                .padding(horizontal = Space.sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    "返回",
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            Spacer(Modifier.weight(1f))
+    XReadTopBar(
+        title = "",
+        onBack = onBack,
+        actions = {
             IconButton(onClick = onShare) {
                 Icon(
                     Icons.Filled.Share,
                     "分享",
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                 )
             }
             Box {
@@ -489,7 +472,7 @@ private fun DetailHeader(
                     Icon(
                         Icons.Filled.MoreVert,
                         "更多",
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
                 DetailMenu(
@@ -506,14 +489,24 @@ private fun DetailHeader(
                     onCancel = { onMenuOpenChange(false); onCancel() },
                 )
             }
-        }
-        // 封面：3:4、120dp 宽、8dp 圆角，居中压在色带上。
+        },
+    )
+}
+
+@Composable
+private fun DetailCoverSection(book: Book) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Space.xs, bottom = Space.md),
+        contentAlignment = Alignment.Center,
+    ) {
         BookCover(
             title = book.title,
             coverUrl = book.coverUrl,
+            corner = Radius.sm,
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .width(120.dp)
+                .width(128.dp)
                 .aspectRatio(0.75f),
         )
     }

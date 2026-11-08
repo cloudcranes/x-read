@@ -221,12 +221,10 @@ fun ShelfScreen(
                             ),
                         )
                     } else ShelfToolbar(
-                        mediaType = shelfMediaType,
                         sort = shelfSort,
                         group = shelfGroup,
                         groups = shelfGroups,
                         builtinGroups = builtinGroups,
-                        onSelectMediaType = onSelectMediaType,
                         onSort = onSort,
                         onGroupFilter = onGroupFilter,
                         listView = listView,
@@ -760,12 +758,10 @@ private fun StatusFilterRow(selected: String, onSelect: (String) -> Unit) {
 
 @Composable
 private fun ShelfToolbar(
-    mediaType: String,
     sort: String,
     group: String,
     groups: List<String>,
     builtinGroups: List<ShelfGrouping.Group>,
-    onSelectMediaType: (String) -> Unit,
     onSort: (String) -> Unit,
     onGroupFilter: (String) -> Unit,
     listView: Boolean,
@@ -774,14 +770,7 @@ private fun ShelfToolbar(
     // 原来这两个按钮照样显示但点了没反应，用户会以为排序坏了。
     sortable: Boolean = true,
 ) {
-    val mediaTabs = listOf("全部" to "all", "小说" to "novel")
     val sortOptions = listOf("最近" to "recent", "入架" to "added", "书名" to "title")
-    // 收敛为纯小说后只有「全部」与「小说」两种有效态；
-    // 旧数据里残留的 manga/drama 一律按「全部」显示，避免下拉里没有对应项却高亮。
-    val all = mediaType != "novel"
-    val mediaLabel = if (all) "全部" else "小说"
-
-    val mediaMenuOpen = remember { mutableStateOf(false) }
     val menuOpen = remember { mutableStateOf(false) }
     val activeGroup = if (sort == "group" && group.isNotBlank()) ShelfGrouping.labelOf(group) else ""
     val sortLabel = when (sort) {
@@ -796,70 +785,7 @@ private fun ShelfToolbar(
             .padding(start = Space.gutter, end = Space.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 类型筛选与状态 tab 分两行，两行都摆红底「全部」会像重复报错。
-        // 合并成「全部/类型」一枚下拉：选中具体类型时 chip 直接写明类型，
-        // 「全部」保持中性描边；点开菜单仍可切回全部或换类型。
-        Box(
-            Modifier
-                .height(48.dp)
-                .clickable(
-                    role = Role.Button,
-                    onClickLabel = "切换书籍类型",
-                    onClick = { mediaMenuOpen.value = true },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Surface(
-                modifier = Modifier.height(28.dp),
-                shape = RoundedCornerShape(Radius.none),
-                // 「全部」＝没有筛选，保持中性描边；选中具体类型才上朱红浅底。
-                // 这样顶行不再有第二个红色「全部」，和下面的状态 tab 也不撞色。
-                color = if (all) Color.Transparent else MaterialTheme.colorScheme.primaryContainer,
-                border = BorderStroke(
-                    1.dp,
-                    if (all) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-                ),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = if (all) "全部" else mediaLabel,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp,
-                        fontWeight = if (all) FontWeight.Normal else FontWeight.Medium,
-                        color = if (all) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                    )
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = if (all) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
-            }
-            DropdownMenu(
-                expanded = mediaMenuOpen.value,
-                onDismissRequest = { mediaMenuOpen.value = false },
-            ) {
-                mediaTabs.forEach { (label, key) ->
-                    DropdownMenuItem(
-                        text = { Text(label, fontSize = 13.sp) },
-                        trailingIcon = if (mediaType == key) {
-                            { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
-                        } else null,
-                        onClick = {
-                            onSelectMediaType(key)
-                            mediaMenuOpen.value = false
-                        },
-                    )
-                }
-            }
-        }
+        // 纯小说阅读器无需再在书架左上角显示「全部/小说」类型下拉，右侧视图切换与排序直接靠右对齐。
         Spacer(Modifier.weight(1f))
         if (sortable) {
             IconButton(onClick = onToggleView, modifier = Modifier.size(34.dp)) {
