@@ -727,7 +727,10 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun openBook(book: Book) = viewModelScope.launch {
         update {
             it.copy(loading = true, book = book, chapters = emptyList(), flow = emptyList(), flowPrevDone = false,
-                flowIndex = 0, currentChapterId = "", related = emptyList())
+                flowIndex = 0, currentChapterId = "", related = emptyList(),
+                // 切书先清掉上一本的评论快照，否则横向卡片流会短暂展示旧书短评。
+                comments = emptyList(), commentTotal = 0, commentRaters = 0, commentContext = "",
+                commentsLoading = false, commentsHasMore = false, commentsOffset = 0)
         }
         runCatching {
             // 上游详情接口不是每次都给全字段：第二次打开同一本书可能少回 word_number
@@ -923,18 +926,23 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun loadComments(bookId: String? = _state.value.book?.bookId) {
         val id = bookId ?: return
         viewModelScope.launch {
-            update { it.copy(commentsLoading = true) }
+            // 详情页卡片流与书评页共用这份结果；A 书迟到的响应不能落到已切到的 B 书上。
+            update { st -> if (st.book?.bookId != id) st else st.copy(commentsLoading = true) }
             runCatching { api.bookComments(id, offset = 0, count = PAGE) }
                 .onSuccess { page ->
-                    update {
-                        it.copy(commentsLoading = false, comments = page.items,
+                    update { st ->
+                        if (st.book?.bookId != id) st else st.copy(
+                            commentsLoading = false, comments = page.items,
                             commentTotal = page.total, commentRaters = page.raters,
                             commentContext = page.context,
                             commentsHasMore = page.hasMore, commentsOffset = page.nextOffset)
                     }
                 }
                 .onFailure { e ->
-                    update { it.copy(commentsLoading = false, message = e.message ?: "书评加载失败") }
+                    update { st ->
+                        if (st.book?.bookId != id) st
+                        else st.copy(commentsLoading = false, message = e.message ?: "书评加载失败")
+                    }
                 }
         }
     }
@@ -943,7 +951,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         val st = _state.value
         val bookId = st.book?.bookId ?: return
         if (st.commentsLoading || !st.commentsHasMore) return
-        update { it.copy(commentsLoading = true) }
+        update { cur -> if (cur.book?.bookId != bookId) cur else cur.copy(commentsLoading = true) }
         viewModelScope.launch {
             runCatching { api.bookComments(bookId, offset = st.commentsOffset, count = PAGE) }
                 .onSuccess { page ->
@@ -951,15 +959,21 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     val fresh = page.items.filter { it.id !in seen }
                     // 偏移没推进就视为到底，避免原地反复取同一页
                     val advanced = page.nextOffset > st.commentsOffset
-                    update {
-                        it.copy(commentsLoading = false,
+                    update { cur ->
+                        if (cur.book?.bookId != bookId) cur else cur.copy(
+                            commentsLoading = false,
                             comments = st.comments + fresh,
                             commentTotal = page.total.let { if (it > 0) it else st.commentTotal },
                             commentsHasMore = page.hasMore && advanced && fresh.isNotEmpty(),
                             commentsOffset = if (advanced) page.nextOffset else st.commentsOffset)
                     }
                 }
-                .onFailure { e -> update { it.copy(commentsLoading = false, message = e.message ?: "书评加载失败") } }
+                .onFailure { e ->
+                    update { cur ->
+                        if (cur.book?.bookId != bookId) cur
+                        else cur.copy(commentsLoading = false, message = e.message ?: "书评加载失败")
+                    }
+                }
         }
     }
 

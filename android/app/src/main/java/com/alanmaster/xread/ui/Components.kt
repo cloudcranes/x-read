@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -33,7 +34,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -255,8 +256,10 @@ if (!status.isNullOrBlank()) {
                             Text(
                                 text = "继续",
                                 modifier = Modifier
-                                    .clickable(onClick = onContinue)
-                                    .padding(start = Space.sm, top = Space.xxs, bottom = Space.xxs),
+                                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                    .clickable(onClick = onContinue, role = Role.Button)
+                                    .padding(start = Space.sm, top = Space.xxs, bottom = Space.xxs)
+                                    .semantics { contentDescription = "继续阅读${book.title}" },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -265,15 +268,21 @@ if (!status.isNullOrBlank()) {
                     }
                 }
                 if (progress != null) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier
+                    Box(
+                        Modifier
                             .fillMaxWidth()
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp)),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.outlineVariant,
-                    )
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth(progress)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.dp))
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                    }
                 }
             }
         }
@@ -805,7 +814,10 @@ fun SectionHeader(
     /** 栏目序号（"01"、"02"…）。空串则不显示。 */
     index: String = "",
     action: Pair<String, () -> Unit>? = null,
+    /** 序号着色；默认沿用三级灰，发现页方案 B 的 01/02 用朱红强调刊物骨架。 */
+    indexColor: Color = Color.Unspecified,
 ) {
+    val resolvedIndexColor = if (indexColor == Color.Unspecified) ink3 else indexColor
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -821,7 +833,7 @@ fun SectionHeader(
                 fontSize = 10.sp,
                 lineHeight = 14.sp,
                 letterSpacing = 1.2.sp,
-                color = ink3,
+                color = resolvedIndexColor,
             )
             Spacer(Modifier.width(Space.sm))
         }
@@ -838,6 +850,7 @@ fun SectionHeader(
         if (action != null) {
             androidx.compose.material3.TextButton(
                 onClick = action.second,
+                modifier = Modifier.sizeIn(minHeight = 48.dp),
                 contentPadding = PaddingValues(horizontal = Space.sm),
             ) {
                 Text(action.first, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
@@ -1023,10 +1036,12 @@ fun SecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** 与同行主按钮等高时传 56.dp；默认沿用 48dp。 */
+    height: Dp = 48.dp,
 ) {
     androidx.compose.material3.OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(48.dp),
+        modifier = modifier.height(height),
         enabled = enabled,
         shape = RoundedCornerShape(Radius.sm),
     ) {

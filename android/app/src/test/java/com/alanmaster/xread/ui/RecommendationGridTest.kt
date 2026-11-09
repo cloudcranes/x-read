@@ -65,4 +65,17 @@ class RecommendationGridTest {
             )
         }
     }
+
+    /**
+     * 单个网格块的高度必须留在 Compose Constraints 可编码范围内。
+     * 一次性把整条推荐流塞进一个 LazyVerticalGrid.height() 时，
+     * 列表涨到上千本会触发 IllegalArgumentException（width=0 + 超大 height）。
+     */
+    @Test fun chunkHeightStaysWithinConstraintBudget() {
+        val chunkHeight = recommendationGridHeight(RecommendationChunkSize, phoneWidth)
+        assertTrue(
+            "chunk=${RecommendationChunkSize} height=${chunkHeight.value}",
+            chunkHeight.value < 6000f,
+        )
+    }
 }

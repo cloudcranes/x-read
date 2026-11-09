@@ -585,6 +585,7 @@ private fun App(
                     shelfGroup = state.shelfGroupFilter,
                     shelfGroups = state.shelfAll.map { it.group }.filter { it.isNotBlank() }.distinct().sorted(),
                     builtinGroups = ShelfGrouping.summarize(state.shelfAll),
+                    totalCount = state.shelfAll.size,
                     shelfMediaType = state.shelfMediaType,
                     onSelectMediaType = { vm.setShelfMediaType(it) },
                     shelfStatus = state.shelfStatusFilter,
@@ -878,6 +879,10 @@ private fun App(
             onCancel = { vm.cancelDownload() },
             onOpenRelated = { r -> openDetail(r) },
             onOpenReviews = { vm.loadComments(); screen = Screen.Reviews },
+            reviews = state.comments,
+            reviewTotal = state.commentTotal,
+            reviewsLoading = state.commentsLoading,
+            onLoadReviews = { id -> vm.loadComments(id) },
             onOpenAuthor = { id -> vm.loadAuthor(id); screen = Screen.Author },
             onOpenToc = { screen = Screen.Toc },
             onOpenAudio = {

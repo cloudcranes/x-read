@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -44,7 +46,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -68,6 +69,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -90,6 +93,7 @@ fun ShelfScreen(
     shelfGroups: List<String>,
     /** 现算的自动分组（待读 / 连载中 / 已完结），只列有书的那些。 */
     builtinGroups: List<ShelfGrouping.Group> = emptyList(),
+    totalCount: Int = 0,
     shelfMediaType: String = "all",
     onSelectMediaType: (String) -> Unit = {},
     updates: Map<String, Int>,
@@ -173,7 +177,7 @@ fun ShelfScreen(
                 )
             } else {
                 ShelfHeader(
-                    count = shelf.size,
+                    count = totalCount,
                     refreshing = refreshing,
                     onSearch = onSearch,
                     onRefresh = onRefresh,
@@ -584,7 +588,7 @@ private fun ShelfSelectionHeader(
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            IconButton(onClick = onCancel, modifier = Modifier.size(38.dp)) {
+            IconButton(onClick = onCancel, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.Close, "退出多选", Modifier.size(20.dp))
             }
         }
@@ -666,7 +670,7 @@ private fun ShelfHeader(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(start = Space.gutter, end = Space.xs),
+                .padding(start = Space.gutter, end = Space.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -678,8 +682,9 @@ private fun ShelfHeader(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             if (count > 0) {
+                Spacer(Modifier.width(Space.sm))
                 Text(
-                    text = "  $count 本",
+                    text = "$count 本",
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     color = ink3,
@@ -695,7 +700,7 @@ private fun ShelfHeader(
             IconButton(
                 onClick = onRefresh,
                 enabled = !refreshing,
-                modifier = Modifier.size(38.dp),
+                modifier = Modifier.size(48.dp),
             ) {
                 if (refreshing) {
                     CircularProgressIndicator(
@@ -782,13 +787,21 @@ private fun ShelfToolbar(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = Space.gutter, end = Space.xs),
+            .height(48.dp)
+            .padding(start = Space.gutter, end = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 纯小说阅读器无需再在书架左上角显示「全部/小说」类型下拉，右侧视图切换与排序直接靠右对齐。
-        Spacer(Modifier.weight(1f))
+        // 纯小说阅读器只留一个信息锚：当前分组或「全部藏书」，右侧视图/排序靠右对齐。
+        Text(
+            text = activeGroup.ifBlank { "全部藏书" },
+            fontSize = 11.sp,
+            color = ink3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
         if (sortable) {
-            IconButton(onClick = onToggleView, modifier = Modifier.size(34.dp)) {
+            IconButton(onClick = onToggleView, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector = if (listView) Icons.Filled.GridView else Icons.AutoMirrored.Filled.ViewList,
                     contentDescription = if (listView) "切换卡片视图" else "切换列表视图",
@@ -799,6 +812,7 @@ private fun ShelfToolbar(
             Box {
                 TextButton(
                     onClick = { menuOpen.value = true },
+                    modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = Space.sm),
                 ) {
                     Text(
@@ -957,7 +971,7 @@ private fun ShelfBookCell(
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            DividerLine()
+            DividerLine(Modifier.align(Alignment.BottomCenter))
         } else {
             ShelfBookCard(
                 book = book,
@@ -1063,8 +1077,10 @@ private fun ShelfBookRow(
                     Text(
                         text = "继续",
                         modifier = Modifier
-                            .clickable(onClick = onContinue)
-                            .padding(start = Space.sm, top = Space.xxs, bottom = Space.xxs),
+                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                            .clickable(onClick = onContinue, role = Role.Button)
+                            .padding(start = Space.sm, top = Space.xxs, bottom = Space.xxs)
+                            .semantics { contentDescription = "继续阅读${book.title}" },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
@@ -1073,16 +1089,22 @@ private fun ShelfBookRow(
             }
         }
         if (progress != null) {
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
+            Box(
+                Modifier
                     .fillMaxWidth()
                     .padding(top = Space.xs)
-                    .height(2.dp)
-                    .clip(RoundedCornerShape(1.dp)),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.outlineVariant,
-            )
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(progress)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                )
+            }
         }
     }
 }
@@ -1161,7 +1183,7 @@ private fun shelfProgress(item: ShelfItem): Float? {
     val index = item.readChapterIndex
     val total = if (item.book.chapterCount > 0) item.book.chapterCount else item.knownChapters
     if (index < 0 || total <= 0) return null
-    return ((index + 1).toFloat() / total).coerceIn(0f, 1f)
+    return ((index + 1).toFloat() / total).coerceIn(0.01f, 1f)
 }
 
 /** 「已读至第 K 章 · M 章未读」/「未阅读」/「已读完」。 */

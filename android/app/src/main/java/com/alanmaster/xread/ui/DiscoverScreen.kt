@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +24,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,7 +39,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,24 +47,37 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alanmaster.xread.data.Book
+import com.alanmaster.xread.data.BookStatus
 import com.alanmaster.xread.data.HomeBoard
+import com.alanmaster.xread.data.ReadCountFormat
 
-/** 榜单板块首屏默认展开的数量，其余收进「更多榜单」入口。 */
-private const val BoardsPreviewCount = 2
+/** 自动续页上限：避免 LaunchedEffect 随列表增长反复拉取，把整页撑到上千本。 */
+private const val MaxAutoLoadBooks = 120
+
+/** 单个网格块的书本数：把每块高度压在 Compose Constraints 可编码范围内。 */
+internal const val RecommendationChunkSize = 60
 
 /**
- * 发现页：只做小说，聚焦榜单、分类与新书。
+ * 发现页（方案 B「主笔甄选流」）：只做小说。
+ *
+ * 一张「今日主笔力荐」折页大卡定调，热榜/新书/各榜单收成一条纯封面横滑带，
+ * 推荐区走三列竖版海报流。数据仍来自 ranked / newBooks / boards / recommended，
+ * 业务回调（onRank / onCategory / onAudio / onBoard / onMore / onOpen）一个不改。
  */
 @Composable
 fun DiscoverScreen(
-    // 小说
     ranked: List<Book>,
     recommended: List<Book>,
     newBooks: List<Book>,
@@ -84,14 +96,21 @@ fun DiscoverScreen(
     onOpen: (Book) -> Unit,
 ) {
     var moreRequested by remember { mutableStateOf(-1) }
-    // 榜单板块默认只展开前 2 个，其余收进「更多榜单」。首屏先看到热榜和一本榜单，
-    // 剩下的一排标题对读者没有区分度，只是把滚动距离拉长。
+    // 榜单板块默认全部收进「更多榜单」；展开后逐个露出完整榜单入口。
     var boardsExpanded by remember { mutableStateOf(false) }
 
+    // 已收敛为纯小说阅读器：新书榜并入 01 横滑带，漫剧/短剧榜不再露出。
+    val boardList = boards.filter {
+        it.name != "新书榜" && !it.name.contains("漫剧") && !it.name.contains("短剧")
+    }
+    val hero = ranked.firstOrNull()
+    // 01 横滑带：热榜魁首之外 + 新书 + 各榜单，按 bookId 去重，信息量足且不重复封面。
+    val stripBooks = (ranked.drop(1) + newBooks + boardList.flatMap { it.books })
+        .distinctBy { it.bookId }
+        .take(20)
+
     Scaffold(
-        topBar = {
-            DiscoverHeader(onRefresh = onRefresh)
-        },
+        topBar = { DiscoverHeader(onRefresh = onRefresh) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -101,168 +120,157 @@ fun DiscoverScreen(
         ) {
             /* -------------------- 搜索栏 -------------------- */
             item {
-                SearchBarEntry(placeholder = "搜索书名、作者 · 精选好书与榜单", onClick = onSearch)
+                SearchBarEntry(placeholder = "搜索书名、作者、主角…", onClick = onSearch)
             }
 
-            // 只做小说：以下板块无条件渲染，不再随 section 切换。
-                    /* ==================== 小说板块 ==================== */
+            /* -------------------- 今日主笔力荐 -------------------- */
+            if (hero != null) {
+                item { HeroFeatureCard(hero, onClick = { onOpen(hero) }) }
+            }
+
+            /* -------------------- 三色快捷入口 -------------------- */
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Space.gutter, vertical = Space.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                ) {
+                    DiscoverTile(
+                        title = "排行榜",
+                        hint = "多维榜单",
+                        icon = Icons.Filled.Leaderboard,
+                        badgeColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        iconTint = rankGold,
+                        onClick = onRank,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DiscoverTile(
+                        title = "题材书库",
+                        hint = "36 类细分",
+                        icon = Icons.Filled.GridView,
+                        badgeColor = MaterialTheme.colorScheme.secondaryContainer,
+                        iconTint = MaterialTheme.colorScheme.secondary,
+                        onClick = onCategory,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DiscoverTile(
+                        title = "官方听书",
+                        hint = "声临其境",
+                        icon = Icons.Filled.Headphones,
+                        badgeColor = MaterialTheme.colorScheme.primaryContainer,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        onClick = onAudio,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            /* -------------------- 01 飙升与完本 -------------------- */
+            if (stripBooks.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "飙升与完本",
+                        hint = "读者热捧",
+                        index = "01",
+                        indexColor = MaterialTheme.colorScheme.primary,
+                        action = "全部榜单" to onRank,
+                    )
+                }
+                item { BookStrip(stripBooks, onOpen) }
+            }
+
+            /* -------------------- 更多榜单（默认折叠） -------------------- */
+            if (boardsExpanded) {
+                boardList.forEach { board ->
                     item {
-                        // 三宫格整行抬到 96dp：图标与标题横向对齐，hint 不再挤在标题下面换一行，
-                        // 首屏从「三张小方块 + 一大片留白」变成一条可扫的快捷入口带。
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Space.gutter, vertical = Space.xs),
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
-                        ) {
-                            DiscoverTile(
-                                title = "排行榜",
-                                hint = "实时榜单 · 完本",
-                                icon = Icons.Filled.Leaderboard,
-                                onClick = onRank,
-                                modifier = Modifier.weight(1f),
-                            )
-                            DiscoverTile(
-                                title = "题材分类",
-                                hint = "全部题材 · 男频",
-                                // 原来的 Icons.Filled.Category 画的是几块细矩形，20dp 下
-                                // 几乎看不出是个图标；换「宫格」的 GridView，一眼就知道是分类。
-                                icon = Icons.Filled.GridView,
-                                onClick = onCategory,
-                                modifier = Modifier.weight(1f),
-                            )
-                            DiscoverTile(
-                                title = "官方听书",
-                                hint = "原声畅听 · 选集",
-                                icon = Icons.Filled.Headphones,
-                                onClick = onAudio,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                        SectionHeader(
+                            title = board.name,
+                            hint = "${board.books.size} 本",
+                            action = "完整榜单" to { onBoard(board.algorithm) },
+                        )
                     }
+                    item { BookStrip(board.books.take(20), onOpen) }
+                }
+            } else if (boardList.isNotEmpty()) {
+                item {
+                    MoreBoardsEntry(
+                        remaining = boardList.size,
+                        onClick = { boardsExpanded = true },
+                    )
+                }
+            }
 
-                    if (ranked.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "番茄热榜",
-                                hint = "实时",
-                                index = "01",
-                                action = "完整榜单" to onRank,
-                            )
-                        }
-                        items(ranked.take(3), key = { "rank-${it.bookId}" }) { b ->
-                            RankRow(
-                                rank = ranked.indexOfFirst { it.bookId == b.bookId } + 1,
-                                title = b.title,
-                                coverUrl = b.coverUrl,
-                                author = b.author,
-                                category = b.category,
-                                status = b.status,
-                                readCount = b.readCount,
-                                onClick = { onOpen(b) },
-                            )
-                        }
-                        item { DividerLine() }
-                        item { BookStrip(ranked.drop(3).take(17), onOpen) }
+            /* -------------------- 02 个性化淘书 -------------------- */
+            if (recommended.isNotEmpty()) {
+                item {
+                    SectionHeader(
+                        title = "个性化淘书",
+                        hint = "下拉自动续页",
+                        index = "02",
+                        indexColor = MaterialTheme.colorScheme.primary,
+                        action = "换一批" to onMore,
+                    )
+                }
+                // 拆成固定大小的网格块：单块高度有上限，避免长列表把
+                // LazyVerticalGrid 的 height() 推到 Constraints 无法编码的数值。
+                val chunks = recommended.chunked(RecommendationChunkSize)
+                chunks.forEach { chunk ->
+                    item { RecommendationGrid(chunk, onOpen) }
+                }
+                item {
+                    // 到达上限后只提示手动「换一批」，不再自动把列表拉到无限长。
+                    val autoLoadCapReached = recommended.size >= MaxAutoLoadBooks
+                    LaunchedEffect(recommended.size, moreLoading, exhausted, autoLoadCapReached) {
+                        if (moreLoading || exhausted || autoLoadCapReached) return@LaunchedEffect
+                        if (moreRequested == recommended.size) return@LaunchedEffect
+                        moreRequested = recommended.size
+                        onMore()
                     }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(Space.xl),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        when {
+                            moreLoading -> Text(
+                                "正在取更多…",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            exhausted -> Text(
+                                "已经到底了 · 共 ${recommended.size} 本",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            autoLoadCapReached -> Text(
+                                "已展示 ${recommended.size} 本 · 点「换一批」继续",
+                                fontSize = 12.sp,
+                                color = ink3,
+                            )
+                            else -> Text(
+                                "继续下滑，自动加载更多",
+                                fontSize = 12.sp,
+                                color = ink3,
+                            )
+                        }
+                    }
+                }
+            }
 
-                    if (newBooks.isNotEmpty()) {
-                        item {
-                            SectionHeader(
-                                title = "新书速递",
-                                hint = "刚上榜",
-                                index = "02",
-                                action = "更多" to onRank,
-                            )
-                        }
-                        item { BookStrip(newBooks.take(20), onOpen) }
-                    }
-
-                    val boardList = boards.filter { it.name != "新书榜" }
-                    val shownBoards = if (boardsExpanded) boardList else boardList.take(BoardsPreviewCount)
-                    shownBoards.forEach { board ->
-                        item {
-                            SectionHeader(
-                                title = board.name,
-                                hint = "${board.books.size} 本",
-                                action = "完整榜单" to { onBoard(board.algorithm) },
-                            )
-                        }
-                        items(board.books.take(3), key = { "board-${board.algorithm}-${it.bookId}" }) { b ->
-                            RankRow(
-                                rank = board.books.indexOfFirst { it.bookId == b.bookId } + 1,
-                                title = b.title,
-                                coverUrl = b.coverUrl,
-                                author = b.author,
-                                category = b.category,
-                                status = b.status,
-                                readCount = b.readCount,
-                                onClick = { onOpen(b) },
-                            )
-                        }
-                        item { DividerLine() }
-                        item { BookStrip(board.books.drop(3).take(17), onOpen) }
-                    }
-                    if (!boardsExpanded && boardList.size > BoardsPreviewCount) {
-                        item {
-                            MoreBoardsEntry(
-                                remaining = boardList.size - BoardsPreviewCount,
-                                onClick = { boardsExpanded = true },
-                            )
-                        }
-                    }
-
-                    if (recommended.isNotEmpty()) {
-                        item {
-                            SectionHeader("猜你喜欢", "${recommended.size} 本 · 继续下滑自动加载")
-                        }
-                        item {
-                            RecommendationGrid(recommended, onOpen)
-                        }
-                        item {
-                            LaunchedEffect(recommended.size, moreLoading, exhausted) {
-                                if (moreLoading || exhausted) return@LaunchedEffect
-                                if (moreRequested == recommended.size) return@LaunchedEffect
-                                moreRequested = recommended.size
-                                onMore()
-                            }
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(Space.xl),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                when {
-                                    moreLoading -> Text(
-                                        "正在取更多…",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    exhausted -> Text(
-                                        "已经到底了 · 共 ${recommended.size} 本",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    else -> TextButton(onClick = onMore) {
-                                        Text("换一批", fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (loading && ranked.isEmpty() && recommended.isEmpty()) {
-                        item { Loading() }
-                    }
-                    if (!loading && ranked.isEmpty() && recommended.isEmpty()) {
-                        item {
-                            EmptyHint(
-                                text = feedError.ifEmpty { "暂时取不到推荐。点右上角刷新，或直接搜索书名。" },
-                                actionLabel = "刷新",
-                                onAction = onRefresh,
-                            )
-                        }
-                    }
+            if (loading && ranked.isEmpty() && recommended.isEmpty()) {
+                item { Loading() }
+            }
+            if (!loading && ranked.isEmpty() && recommended.isEmpty()) {
+                item {
+                    EmptyHint(
+                        text = feedError.ifEmpty { "暂时取不到推荐。点右上角刷新，或直接搜索书名。" },
+                        actionLabel = "刷新",
+                        onAction = onRefresh,
+                    )
+                }
+            }
         }
     }
 }
@@ -270,9 +278,7 @@ fun DiscoverScreen(
 /* --------------------------- 页头 --------------------------- */
 
 @Composable
-private fun DiscoverHeader(
-    onRefresh: () -> Unit,
-) {
+private fun DiscoverHeader(onRefresh: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Row(
             Modifier
@@ -281,17 +287,24 @@ private fun DiscoverHeader(
                 .padding(start = Space.gutter, end = Space.xs, top = Space.lg, bottom = Space.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "发现",
-                fontFamily = Serif,
-                fontSize = 24.sp,
-                lineHeight = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f),
-            )
-            // 搜索已有整行入口，页头只保留刷新；避免重复图标挤占段落标题。
-            IconButton(onClick = onRefresh) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "发现",
+                    fontFamily = Serif,
+                    fontSize = 24.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = "拾页精选 · 纯粹小说阅读",
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    color = ink3,
+                )
+            }
+            // 搜索已有整行入口，页头只保留刷新；显式 48dp 触控，图标仍是 22dp。
+            IconButton(onClick = onRefresh, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.Refresh, "刷新", Modifier.size(22.dp))
             }
         }
@@ -336,40 +349,159 @@ private fun SearchBarEntry(placeholder: String, onClick: () -> Unit) {
     }
 }
 
+/* --------------------------- 主笔力荐折页大卡 --------------------------- */
+
+@Composable
+private fun HeroFeatureCard(book: Book, onClick: () -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
+    val statusLabel = when (book.status) {
+        BookStatus.Finished -> "完本"
+        BookStatus.Serial -> "连载"
+        BookStatus.Unknown -> null
+    }
+    val meta = listOfNotNull(
+        book.author.takeIf { it.isNotBlank() },
+        if (book.readCount > 0) "${ReadCountFormat.short(book.readCount)}人在读" else null,
+        statusLabel,
+    ).joinToString(" · ").ifBlank { "编辑甄选" }
+    // 接口简介常带换行、&#10; 实体与【标签】，折成单行短引文，避免两行里大半行被空行吃掉。
+    val quote = book.description
+        .replace(Regex("&#(?:10|13|xa0|160);?|&nbsp;|<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .takeIf { it.isNotBlank() }
+        ?: "翻开第一页，便舍不得合上。"
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.sm)
+            .heightIn(min = 132.dp)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "今日主笔力荐，${book.title}，点击查看详情"
+            },
+        shape = RoundedCornerShape(Radius.sm),
+        color = surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Box {
+            // 整卡先铺朱红，右侧内容再以宣纸白覆盖，天然留出 4dp 折页竖线。
+            Box(Modifier.matchParentSize().background(primary))
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp)
+                    .background(surface)
+                    .padding(horizontal = Space.md, vertical = Space.md),
+            ) {
+                Row(verticalAlignment = Alignment.Top) {
+                    BookCover(
+                        title = book.title,
+                        coverUrl = book.coverUrl,
+                        modifier = Modifier.width(68.dp).height(96.dp),
+                    )
+                    Spacer(Modifier.width(Space.md))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "今日主笔力荐",
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(Radius.sm))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = Space.sm, vertical = Space.xxs),
+                        )
+                        Spacer(Modifier.height(Space.xs))
+                        Text(
+                            text = "热榜魁首 · 编辑甄选",
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp,
+                            color = primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(Space.xxs))
+                        Text(
+                            text = book.title,
+                            fontFamily = Serif,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.height(Space.xxs))
+                        Text(
+                            text = quote,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Space.sm))
+                Text(
+                    text = meta,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    color = ink3,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 /* --------------------------- 快捷入口卡 --------------------------- */
 
 @Composable
 private fun DiscoverTile(
     title: String,
     hint: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    badgeColor: Color = Color.Transparent,
+    iconTint: Color? = null,
 ) {
+    val tint = iconTint ?: MaterialTheme.colorScheme.primary
     Surface(
         modifier = modifier
-            .heightIn(min = 96.dp)
-            .clickable(onClick = onClick, role = Role.Button),
-        shape = RoundedCornerShape(Radius.none),
+            .heightIn(min = 58.dp)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) { contentDescription = "$title，$hint" },
+        shape = RoundedCornerShape(Radius.sm),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Space.sm, vertical = Space.md),
+                .padding(horizontal = Space.sm, vertical = Space.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Column(Modifier.padding(start = Space.sm)) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(Radius.sm))
+                    .background(badgeColor),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = tint)
+            }
+            Spacer(Modifier.width(Space.sm))
+            Column(Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     lineHeight = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -378,33 +510,65 @@ private fun DiscoverTile(
                 )
                 Text(
                     text = hint,
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = Space.xxs),
                 )
             }
         }
     }
 }
 
-/* --------------------------- 动态漫剧卡片 --------------------------- */
-
-/* --------------------------- 横向书籍带 --------------------------- */
+/* --------------------------- 横向封面带 --------------------------- */
 
 @Composable
 private fun BookStrip(books: List<Book>, onOpen: (Book) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = Space.gutter),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.md),
     ) {
         itemsIndexed(books, key = { _, b -> b.bookId }) { _, book ->
-            Box(Modifier.width(108.dp)) {
-                BookCard(book, onClick = { onOpen(book) })
-            }
+            StripBookCard(book, onClick = { onOpen(book) })
         }
+    }
+}
+
+/** 90×126 纯封面卡：书名两行 + 一行作者/题材，不铺大段文字。 */
+@Composable
+private fun StripBookCard(book: Book, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .width(90.dp)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) { contentDescription = "打开《${book.title}》" },
+    ) {
+        BookCover(
+            title = book.title,
+            coverUrl = book.coverUrl,
+            modifier = Modifier.width(90.dp).height(126.dp),
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            text = book.title,
+            fontSize = 11.sp,
+            lineHeight = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = book.author.takeIf { it.isNotBlank() }
+                ?: book.category.takeIf { it.isNotBlank() }
+                ?: "小说",
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            color = ink3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -466,24 +630,61 @@ private fun RecommendationGrid(books: List<Book>, onOpen: (Book) -> Unit) {
             userScrollEnabled = false,
         ) {
             gridItems(books, key = { it.bookId }) { book ->
-                BookCard(book, onClick = { onOpen(book) })
+                PosterCard(book, onClick = { onOpen(book) })
             }
         }
     }
 }
 
+/** 三列竖版海报：书名单行截断，封面按 0.70 宽高比撑满列宽。 */
+@Composable
+private fun PosterCard(book: Book, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) { contentDescription = "打开《${book.title}》" },
+    ) {
+        BookCover(
+            title = book.title,
+            coverUrl = book.coverUrl,
+            modifier = Modifier.fillMaxWidth().aspectRatio(0.70f),
+        )
+        Spacer(Modifier.height(Space.xs))
+        Text(
+            text = book.title,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = book.author.takeIf { it.isNotBlank() }
+                ?: book.category.takeIf { it.isNotBlank() }
+                ?: "小说",
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            color = ink3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 /**
- * 「更多榜单」入口：把首屏之外的榜单收一行。
- *
- * 榜单板块每个都带三行排名加一条书带，三四个叠在一起读者根本滑不到
- * 「猜你喜欢」；这里默认只展开前两个，剩下的按需翻开。
+ * 「更多榜单」入口：把榜单板块收一行，展开后逐个露出完整榜单入口。
  */
 @Composable
 private fun MoreBoardsEntry(remaining: Int, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "更多榜单，还有 $remaining 个"
+            }
             .padding(horizontal = Space.gutter, vertical = Space.xl),
         verticalAlignment = Alignment.CenterVertically,
     ) {

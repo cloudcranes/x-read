@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -50,18 +52,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alanmaster.xread.data.Book
+import com.alanmaster.xread.data.BookComment
 import com.alanmaster.xread.data.Chapter
 import com.alanmaster.xread.data.DownloadState
 import com.alanmaster.xread.data.ReadCountFormat
@@ -71,20 +78,29 @@ import com.alanmaster.xread.data.ShelfItem
 /**
  * 书籍详情页。
  *
- * v2 层级：**纸色带 + 封面 → 书名（衬线最大）→ 三列数字块 → 标签行 → 主次操作 → 内容**。
+ * v3 层级：**纸色带 + 封面 → 书名（衬线最大）→ 三列数字块 → 标签行 → 同行主次操作 → 书评横向卡片流 → 内容**。
  *
  * 三条硬约束：
- * - 只有「开始阅读」是实心主按钮（56dp），架内/架外切换的全宽描边次按钮（48dp）；
- *   下载 / 前 20 章 / 目录 / 书评 / 听书 / 作者全部收进顶栏的「更多」菜单，
- *   不再平铺成第三、第四行按钮；
+ * - 「继续阅读 / 开始阅读」与「加入 / 移出书架」并排同一行：主按钮实心 56dp、
+ *   次按钮描边 56dp，两件事是同一层决策，不再竖排占掉首屏；
+ *   下载 / 前 20 章 / 目录 / 书评 / 听书 / 作者仍收在顶栏「更多」菜单，
+ *   但书评在页面上是可左右滑动的真实短评卡片流，末尾接「查看全部」；
  * - 评分 / 字数 / 章数拆成三列数字块（[MetaStat] + [MetaStatDivider]），
  *   分类是字符串标签不是数字，放进下面的标签行；
- * - 目录预览行用 [androidx.compose.material.icons.Icons.Filled.Lock] 表示锁定章，
- *   不用 emoji。
+ * - 目录预览默认只列前 10 章名称（[TocPreviewCount]），其余走「查看全部」；
+ *   锁定章用 [androidx.compose.material.icons.Icons.Filled.Lock] 表示，不用 emoji。
  *
  * `resumeChapterId` / `resumeParagraph` 的语义不变：
  * 续读目标章 = 上次读到的章，找不到才退回第一章，绝不因为进详情页就覆盖进度。
  */
+/** 目录预览默认只列前 10 章名称，其余进目录页。 */
+private const val TocPreviewCount = 10
+
+/** 详情只横滑展示前几条短评，完整列表仍走书评页，避免 LazyRow 扛整包评论。 */
+private const val ReviewPreviewCount = 6
+private val ReviewCardWidth = 260.dp
+private val ReviewCardHeight = 124.dp
+private val ReviewAllCardWidth = 160.dp
 @Composable
 fun DetailScreen(
     book: Book,
@@ -112,6 +128,11 @@ fun DetailScreen(
     onOpenToc: () -> Unit,
     onOpenAudio: () -> Unit,
     onShare: () -> Unit,
+    /** 横向卡片流只消费 ViewModel 里已有的评论快照，不另起数据契约。 */
+    reviews: List<BookComment> = emptyList(),
+    reviewTotal: Int = 0,
+    reviewsLoading: Boolean = false,
+    onLoadReviews: (String) -> Unit = {},
 ) {
     // 上游 related 常只回 1–2 本（且可能含当前书的听书版：同 id 不同标题）。
     // 去重口径必须与列表 key 一致——都按 bookId，否则同一 id 会生成两个 key 崩溃。
@@ -124,6 +145,12 @@ fun DetailScreen(
     // 移出书架会一并删掉这本书的分组与「已读到第几章」基线（LocalLibrary.remove 是整条移除），
     // 误触后重新加入也拿不回来，所以必须先问一句。
     var confirmRemove by remember(book.bookId) { mutableStateOf(false) }
+
+    // 卡片流要显示真实短评：复用书评页的 loadComments，不复制数据、不新增接口。
+    // 按 bookId 触发，切书时重取；loadComments 自己会按当前书守卫迟到响应。
+    LaunchedEffect(book.bookId) {
+        if (book.bookId.isNotBlank()) onLoadReviews(book.bookId)
+    }
 
     // 下载按钮只反映「本书」的下载状态，避免 A 书下载中在 B 书里显示「取消」
     val mine = download.running && download.bookId == book.bookId
@@ -152,7 +179,7 @@ fun DetailScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(bottom = Space.xxl),
+            contentPadding = PaddingValues(bottom = Space.navFloat),
         ) {
             /* -------------------- 头部：居中大封面 -------------------- */
             item {
@@ -248,43 +275,67 @@ fun DetailScreen(
                 val resume = remember(chapters, resumeChapterId) {
                     chapters.firstOrNull { it.id == resumeChapterId } ?: chapters.firstOrNull()
                 }
-                val hasProgress = resumeChapterId.isNotEmpty() &&
-                    chapters.any { it.id == resumeChapterId }
-                val label = if (hasProgress) {
-                    if (resumeParagraph > 0) {
-                        "继续阅读 · 第${(chapters.indexOfFirst { it.id == resumeChapterId } + 1)}章"
-                    } else "继续阅读"
-                } else "开始阅读"
+                val resumeIndex = chapters.indexOfFirst { it.id == resumeChapterId }
+                val hasProgress = resumeChapterId.isNotEmpty() && resumeIndex >= 0
+                val label = if (hasProgress) "继续阅读" else "开始阅读"
+                // 同行后按钮里放不下「· 第 N 章」，完整进度交给读屏播报。
+                val spokenLabel = if (hasProgress && resumeParagraph > 0) {
+                    "继续阅读，上次读到第 ${resumeIndex + 1} 章"
+                } else label
                 Column(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Space.gutter, vertical = Space.lg),
                 ) {
-                    // 唯一的主操作：实心、全宽、56dp。
-                    Button(
-                        onClick = { resume?.let(onRead) },
-                        enabled = resume != null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(Radius.sm),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
+                    // 「继续阅读」与「加入 / 移出书架」并排：两件事是同一层决策，
+                    // 竖排成两行会把书评与目录都挤到首屏之外。
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        // 唯一主操作：实心，56dp。
+                        Button(
+                            onClick = { resume?.let(onRead) },
+                            enabled = resume != null,
+                            modifier = Modifier
+                                .weight(1.35f)
+                                .height(56.dp)
+                                .semantics { contentDescription = spokenLabel },
+                            shape = RoundedCornerShape(Radius.sm),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        ) {
+                            Text(
+                                label,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        // 次操作：描边，与主按钮等高 56dp。
+                        // 文案写「移出书架」而不是「已在书架」：后者读起来像状态标签，
+                        // 点下去却会把书从书架删掉，用户不知道这一下是破坏性的。
+                        SecondaryButton(
+                            text = if (inShelf) "移出书架" else "加入书架",
+                            onClick = { if (inShelf) confirmRemove = true else onShelf() },
+                            modifier = Modifier.weight(1f),
+                            height = 56.dp,
+                        )
                     }
-                    // 次操作：全宽描边，48dp。
-                    // 文案写「移出书架」而不是「已在书架」：后者读起来像状态标签，
-                    // 点下去却会把书从书架删掉，用户不知道这一下是破坏性的。
-                    SecondaryButton(
-                        text = if (inShelf) "移出书架" else "加入书架",
-                        onClick = { if (inShelf) confirmRemove = true else onShelf() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = Space.sm),
-                    )
+                    // 进度落点单独写成一行小字，信息不丢，按钮也不折行。
+                    if (hasProgress) {
+                        Text(
+                            text = "上次读到第 ${resumeIndex + 1} 章",
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = Space.xs),
+                        )
+                    }
                     // 标记只在架内出现：不在书架的书没有「我读到哪一步」这回事，
                     // 先让人把书收进来，标记才有落点。
                     if (inShelf) {
@@ -299,6 +350,16 @@ fun DetailScreen(
                         )
                     }
                 }
+            }
+
+            /* -------------------- 读者书评：横向卡片流 -------------------- */
+            item {
+                ReviewCarousel(
+                    reviews = reviews,
+                    reviewTotal = reviewTotal,
+                    reviewsLoading = reviewsLoading,
+                    onOpenReviews = onOpenReviews,
+                )
             }
 
             if (download.message.isNotEmpty()) {
@@ -363,7 +424,7 @@ fun DetailScreen(
             item {
                 TocHeader(chapters.size, onOpenToc)
             }
-            items(chapters.take(4), key = { it.id }) { c ->
+            items(chapters.take(TocPreviewCount), key = { it.id }) { c ->
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -391,7 +452,7 @@ fun DetailScreen(
                 }
                 DividerLine()
             }
-            if (chapters.size > 4) {
+            if (chapters.size > TocPreviewCount) {
                 item {
                     Box(
                         Modifier
@@ -399,7 +460,10 @@ fun DetailScreen(
                             .padding(Space.sm),
                         contentAlignment = Alignment.Center,
                     ) {
-                        TextButton(onClick = onOpenToc) {
+                        TextButton(
+                            onClick = onOpenToc,
+                            modifier = Modifier.height(48.dp),
+                        ) {
                             Text("查看全部 ${chapters.size} 章", fontSize = 13.sp)
                         }
                     }
@@ -515,7 +579,7 @@ private fun DetailCoverSection(book: Book) {
 /**
  * 「更多」菜单：目录 / 书评 / 听书 / 作者 / 下载。
  *
- * 这些入口一个都不能丢，只是从「第三、第四行平铺按钮」收进一个菜单。
+ * 这些入口一个都不能丢；书评在页面上另有显眼卡片，菜单里保留一份快捷入口。
  */
 @Composable
 private fun DetailMenu(
@@ -566,6 +630,246 @@ private fun DetailMenu(
         )
     }
 }
+
+/* --------------------------- 读者书评：横向卡片流 --------------------------- */
+
+/**
+ * 详情页首屏只做「可左右移动」的短评展示：
+ * - 原生 [LazyRow] 承担横向手势，不与外层竖向 LazyColumn 抢事件；
+ * - 数据直接来自 ViewModel 的评论快照（与书评页同一份 loadComments 结果），
+ *   详情页不复制、不缓存、不新增接口；
+ * - 每张卡都是 [Role.Button]，标题行也是按钮，给滑动之外一条明确的点击/读屏路径；
+ * - 末尾固定「查看全部」卡，即使 0 条短评也有两张卡可左右移动。
+ */
+@Composable
+private fun ReviewCarousel(
+    reviews: List<BookComment>,
+    reviewTotal: Int,
+    reviewsLoading: Boolean,
+    onOpenReviews: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(top = Space.sm)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.gutter)
+                .heightIn(min = 48.dp)
+                .clickable(onClick = onOpenReviews, role = Role.Button)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "读者书评，共 $reviewTotal 条，点击查看全部书评"
+                },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.RateReview,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                "读者书评",
+                fontFamily = FontFamily.Serif,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = Space.sm),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (reviewTotal > 0) "共 $reviewTotal 条 · 左右滑动" else "左右滑动 · 查看全部",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        LazyRow(
+            Modifier
+                .fillMaxWidth()
+                .height(ReviewCardHeight),
+            contentPadding = PaddingValues(horizontal = Space.gutter),
+            horizontalArrangement = Arrangement.spacedBy(Space.md),
+        ) {
+            if (reviews.isEmpty()) {
+                item(key = "review-state") {
+                    ReviewStateCard(loading = reviewsLoading, onClick = onOpenReviews)
+                }
+            }
+            itemsIndexed(
+                reviews.take(ReviewPreviewCount),
+                key = { i, c -> "$i-${c.id}" },
+            ) { index, comment ->
+                ReviewCard(index = index, comment = comment, onClick = onOpenReviews)
+            }
+            item(key = "review-all") {
+                ReviewAllCard(count = reviewTotal, onClick = onOpenReviews)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewCard(index: Int, comment: BookComment, onClick: () -> Unit) {
+    val snippet = reviewSnippet(comment.text)
+    Surface(
+        modifier = Modifier
+            .width(ReviewCardWidth)
+            .height(ReviewCardHeight)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "第 ${index + 1} 条短评，读者 ${comment.user}：${snippet}，点击查看全部书评"
+            },
+        shape = RoundedCornerShape(Radius.sm),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = Space.md, vertical = Space.sm),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    comment.user.ifBlank { "读者" },
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = Space.sm),
+                )
+                if (comment.score.isNotBlank()) {
+                    Text(
+                        "${comment.score} 分",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            Text(
+                snippet,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = Space.sm),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                Text(
+                    "${comment.digg} 赞",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (comment.replyCount > 0) {
+                    Text(
+                        "${comment.replyCount} 回复",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewAllCard(count: Int, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .width(ReviewAllCardWidth)
+            .height(ReviewCardHeight)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "查看全部书评"
+            },
+        shape = RoundedCornerShape(Radius.sm),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Text(
+                "查看全部",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = Space.xs),
+            )
+            Text(
+                if (count > 0) "共 $count 条" else "读者书评",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReviewStateCard(loading: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .width(ReviewCardWidth)
+            .height(ReviewCardHeight)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (loading) "正在加载读者书评" else "暂无短评，点击查看书评"
+            },
+        shape = RoundedCornerShape(Radius.sm),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                Icons.Filled.RateReview,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Text(
+                if (loading) "正在加载读者书评…" else "暂无短评，点此查看",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = Space.sm),
+            )
+        }
+    }
+}
+
+/** 上游短评常带 &#10; / <br> / &nbsp;，折成单行再让 Text 自己按 3 行截断。 */
+private fun reviewSnippet(raw: String): String = raw
+    .replace(Regex("&#(?:10|13|xa0|160);?|&nbsp;|<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
+    .replace(Regex("\\s+"), " ")
+    .trim()
+    .ifEmpty { "这位读者没有留下文字" }
 
 /* --------------------------- 目录标题 --------------------------- */
 
