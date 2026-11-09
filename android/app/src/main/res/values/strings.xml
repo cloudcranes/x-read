@@ -9,4 +9,11 @@
     <string name="reminder_channel_desc">到点提醒你今天还没读完</string>
     <string name="update_channel">新章提醒</string>
     <string name="update_channel_desc">书架里的书有新章节时提醒</string>
+
+    <!-- 桌面「继续阅读」小组件 -->
+    <string name="widget_reading_desc">显示上次读到的书，点一下继续读</string>
+    <string name="widget_reading_empty_title">还没有阅读记录</string>
+    <string name="widget_reading_empty_hint">打开拾页，读一本试试</string>
+    <string name="widget_reading_untitled">未命名书籍</string>
+    <string name="widget_reading_hint">上次阅读 %1$s · 点击继续</string>
 </resources>

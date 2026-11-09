@@ -451,6 +451,16 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         }.maxByOrNull { it.second }
     }.getOrNull()
 
+    /**
+     * 桌面小组件的「继续阅读」快照；没有可用记录时返回 null。
+     *
+     * 小组件在无 Activity 的进程里刷新，所以这里给的是纯数据 + 纯函数
+     * （见 [ReadingWidgetStateParser]），渲染不在这一层做。
+     */
+    @Synchronized
+    fun readingWidgetState(): ReadingWidgetState? =
+        runCatching { ReadingWidgetStateParser.parse(loadObject(progressFile)) }.getOrNull()
+
     /** 批量取已读章节下标；缺记录的书籍不出现在结果里。 */
     @Synchronized
     fun progressChapterIndexes(): Map<String, Int> = runCatching {

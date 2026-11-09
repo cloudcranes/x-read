@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RateReview
@@ -78,9 +80,14 @@ import com.alanmaster.xread.data.ShelfItem
 /**
  * 书籍详情页。
  *
- * v3 层级：**纸色带 + 封面 → 书名（衬线最大）→ 三列数字块 → 标签行 → 同行主次操作 → 书评横向卡片流 → 内容**。
+ * v3 层级：**纸色带 + 封面 / 书名 / 作者 / 简介（同一头部块）→ 三列数字块 → 标签行 →
+ * 同行主次操作（我的标记默认折叠成一行）→ 书评横向卡片流 → 内容**。
  *
- * 三条硬约束：
+ * 硬约束：
+ * - 简介紧贴书名与作者，和封面同处一个头部块：不再单独占一节把首屏往下推；
+ *   上游 &#10; / <br> / &nbsp; 先折成单行再按 3 行截断，展开 / 收起保留全文；
+ * - 「我的标记」默认只留一行摘要（状态 / 星级 / 标签数 + 展开箭头），点开才露出
+ *   状态 chips / 星级 / 标签编辑；整行 ≥48dp 按钮语义，三项数据操作与弹窗一个不丢；
  * - 「继续阅读 / 开始阅读」与「加入 / 移出书架」并排同一行：主按钮实心 56dp、
  *   次按钮描边 56dp，两件事是同一层决策，不再竖排占掉首屏；
  *   下载 / 前 20 章 / 目录 / 书评 / 听书 / 作者仍收在顶栏「更多」菜单，
@@ -181,35 +188,67 @@ fun DetailScreen(
                 .padding(padding),
             contentPadding = PaddingValues(bottom = Space.navFloat),
         ) {
-            /* -------------------- 头部：居中大封面 -------------------- */
+            /* ---------- 头部：封面 + 书名/作者 + 简介，同一个 item ---------- */
             item {
-                DetailCoverSection(book = book)
-            }
-
-            /* -------------------- 书名 + 作者行 -------------------- */
-            item {
-                Column(Modifier.padding(horizontal = Space.gutter)) {
-                    Text(
-                        text = book.title,
-                        fontSize = 22.sp,
-                        lineHeight = 30.sp,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    val byline = listOfNotNull(
-                        book.author.takeIf { it.isNotBlank() },
-                        book.category.takeIf { it.isNotBlank() },
-                    ).joinToString(" · ")
-                    if (byline.isNotEmpty()) {
+                Column(Modifier.fillMaxWidth()) {
+                    DetailCoverSection(book = book)
+                    Column(Modifier.padding(horizontal = Space.gutter)) {
                         Text(
-                            text = byline,
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = Space.xs),
+                            text = book.title,
+                            fontSize = 22.sp,
+                            lineHeight = 30.sp,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
                         )
+                        val byline = listOfNotNull(
+                            book.author.takeIf { it.isNotBlank() },
+                            book.category.takeIf { it.isNotBlank() },
+                        ).joinToString(" · ")
+                        if (byline.isNotEmpty()) {
+                            Text(
+                                text = byline,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Space.xs),
+                            )
+                        }
+                        // 简介与封面、书名同块：上游常带 &#10; / <br> / &nbsp;，
+                        // 折成单行再按 3 行截断，展开后给全文。
+                        val intro = bookDescription(book.description)
+                        if (intro.isNotEmpty()) {
+                            Text(
+                                text = intro,
+                                fontSize = 13.sp,
+                                lineHeight = 21.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = if (descExpanded) Int.MAX_VALUE else 3,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = Space.sm),
+                            )
+                            if (intro.length > 60) {
+                                TextButton(
+                                    onClick = { descExpanded = !descExpanded },
+                                    modifier = Modifier.heightIn(min = 48.dp),
+                                    contentPadding = PaddingValues(horizontal = Space.xs),
+                                ) {
+                                    Text(
+                                        if (descExpanded) "收起" else "展开",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
                     }
+                    DividerLine(
+                        Modifier.padding(
+                            start = Space.gutter,
+                            top = Space.md,
+                            end = Space.gutter,
+                        ),
+                    )
                 }
             }
 
@@ -370,35 +409,6 @@ fun DetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.xs),
                     )
-                }
-            }
-
-            /* -------------------- 简介 -------------------- */
-            if (book.description.isNotBlank()) {
-                item { SectionHeader("简介") }
-                item {
-                    Column(Modifier.padding(horizontal = Space.gutter)) {
-                        Text(
-                            book.description,
-                            fontSize = 13.sp,
-                            lineHeight = 21.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = if (descExpanded) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (book.description.length > 60) {
-                            TextButton(
-                                onClick = { descExpanded = !descExpanded },
-                                contentPadding = PaddingValues(horizontal = Space.xs),
-                            ) {
-                                Text(
-                                    if (descExpanded) "收起" else "展开",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
@@ -864,6 +874,12 @@ private fun ReviewStateCard(loading: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** 上游简介常带 &#10; / <br> / &nbsp;，折成单行再让 Text 按行数截断；空简介交回调用方判断。 */
+private fun bookDescription(raw: String): String = raw
+    .replace(Regex("&#(?:10|13|xa0|160);?|&nbsp;|<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
+    .replace(Regex("\\s+"), " ")
+    .trim()
+
 /** 上游短评常带 &#10; / <br> / &nbsp;，折成单行再让 Text 自己按 3 行截断。 */
 private fun reviewSnippet(raw: String): String = raw
     .replace(Regex("&#(?:10|13|xa0|160);?|&nbsp;|<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
@@ -910,8 +926,8 @@ private fun TocHeader(chapterCount: Int, onOpenToc: () -> Unit) {
 /**
  * 想读 / 在读 / 读完 + 星级 + 标签。
  *
- * 三件事放在同一块里，是因为它们在用户脑子里是同一个问题——「这本书对我来说是什么」。
- * 拆成三个入口会让详情页再多三行按钮。
+ * 三件事在用户脑子里是同一个问题——「这本书对我来说是什么」，所以仍放同一块；
+ * 但整块常驻太占首屏，默认只留一行摘要，点开才露出编辑控件，数据操作一个不丢。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -924,7 +940,14 @@ private fun ShelfMarkBlock(
     onSetTags: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var expanded by remember { mutableStateOf(false) }
     var editingTags by remember { mutableStateOf(false) }
+    val summary = buildString {
+        append(ShelfItem.labelOf(status))
+        append(" · ")
+        append(if (rating > 0) "$rating 星" else "未评分")
+        if (tags.isNotEmpty()) append(" · ${tags.size} 个标签")
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -932,64 +955,99 @@ private fun ShelfMarkBlock(
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(
-            Modifier.padding(Space.card),
-            verticalArrangement = Arrangement.spacedBy(Space.sm),
-        ) {
-            Text(
-                text = "我的标记",
-                fontSize = 11.sp,
-                letterSpacing = 1.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
-                ShelfItem.STATUS_LABELS.forEach { (key, label) ->
-                    SelectChip(
-                        label = label,
-                        selected = status == key,
-                        onClick = { onSetStatus(key) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                (1..5).forEach { i ->
-                    IconButton(
-                        onClick = { onSetRating(if (rating == i) 0 else i) },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = if (i <= rating) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription = "$i 星",
-                            tint = if (i <= rating) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
+        Column {
+            // 折叠态只有这一行：整行 ≥48dp、按钮语义、读屏能播报当前标记摘要。
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button) { expanded = !expanded }
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "我的标记，$summary，点击${if (expanded) "收起" else "展开"}编辑"
                     }
-                }
-                Spacer(Modifier.weight(1f))
+                    .padding(horizontal = Space.card, vertical = Space.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.sm),
+            ) {
                 Text(
-                    text = if (rating > 0) "$rating / 5" else "未评分",
+                    text = "我的标记",
                     fontSize = 11.sp,
+                    letterSpacing = 1.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = summary,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
-                tags.forEach { tag ->
-                    Surface(
-                        shape = RoundedCornerShape(0.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                    ) {
+            if (expanded) {
+                DividerLine()
+                Column(
+                    Modifier.padding(Space.card),
+                    verticalArrangement = Arrangement.spacedBy(Space.sm),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        ShelfItem.STATUS_LABELS.forEach { (key, label) ->
+                            SelectChip(
+                                label = label,
+                                selected = status == key,
+                                onClick = { onSetStatus(key) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        (1..5).forEach { i ->
+                            IconButton(
+                                onClick = { onSetRating(if (rating == i) 0 else i) },
+                                modifier = Modifier.size(48.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (i <= rating) Icons.Filled.Star else Icons.Filled.StarBorder,
+                                    contentDescription = "$i 星",
+                                    tint = if (i <= rating) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.outlineVariant,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
                         Text(
-                            text = "#$tag",
+                            text = if (rating > 0) "$rating / 5" else "未评分",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = Space.sm, vertical = 3.dp),
                         )
                     }
-                }
-                TextButton(onClick = { editingTags = true }, modifier = Modifier.height(28.dp)) {
-                    Text(if (tags.isEmpty()) "加标签" else "改标签", fontSize = 11.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        tags.forEach { tag ->
+                            Surface(
+                                shape = RoundedCornerShape(0.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                            ) {
+                                Text(
+                                    text = "#$tag",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = Space.sm, vertical = 3.dp),
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { editingTags = true },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) {
+                            Text(if (tags.isEmpty()) "加标签" else "改标签", fontSize = 11.sp)
+                        }
+                    }
                 }
             }
         }

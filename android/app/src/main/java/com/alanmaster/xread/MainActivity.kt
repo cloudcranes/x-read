@@ -8,6 +8,7 @@ import com.alanmaster.xread.data.BackupManager
 import com.alanmaster.xread.data.BackupPrefs
 import com.alanmaster.xread.data.backupUiState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.os.Build
@@ -147,6 +148,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         api = Api(this)
         offline = OfflineRepo.of(this)
+        // 桌面小组件点进来时带着书 id：冷启动要直接落到那本书的阅读位置。
+        widgetTarget.value = bookFromIntent(intent)
         // 尽早注入上下文：音频控制器需要它申请音频焦点（来电/其它播放器打断）
         AudioPlaybackHolder.install(this)
 
@@ -167,6 +170,7 @@ class MainActivity : ComponentActivity() {
                 App(
                     api = api,
                     offline = offline,
+                    widgetTarget = widgetTarget,
                 )
             }
         }
@@ -178,9 +182,49 @@ class MainActivity : ComponentActivity() {
 
     fun setAppBackHandler(handler: (() -> Unit)?) { backAction = handler }
 
+    /**
+     * 桌面小组件要打开的那本书。
+     *
+     * 用 StateFlow 而不是普通字段：小组件在应用已在后台时点进来走的是
+     * [onNewIntent]，那会儿 Compose 已经在跑了，字段改完没有重组通知。
+     */
+    private val widgetTarget = MutableStateFlow<Book?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        bookFromIntent(intent)?.let { widgetTarget.value = it }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 回到前台顺手刷新小组件：进度可能是在别的入口改的。
+        com.alanmaster.xread.ui.ReadingWidgetProvider.refresh(this)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
     }
+
+    companion object {
+        const val EXTRA_BOOK_ID = "com.alanmaster.xread.extra.BOOK_ID"
+        const val EXTRA_BOOK_SOURCE = "com.alanmaster.xread.extra.BOOK_SOURCE"
+        const val EXTRA_BOOK_TITLE = "com.alanmaster.xread.extra.BOOK_TITLE"
+        const val EXTRA_BOOK_AUTHOR = "com.alanmaster.xread.extra.BOOK_AUTHOR"
+    }
+}
+
+/** 从 Intent 里还原小组件要打开的书；没有带 id 就返回 null（正常启动）。 */
+private fun bookFromIntent(intent: Intent?): Book? {
+    val source = intent ?: return null
+    val id = source.getStringExtra(MainActivity.EXTRA_BOOK_ID).orEmpty()
+    if (id.isEmpty()) return null
+    return Book(
+        source = source.getStringExtra(MainActivity.EXTRA_BOOK_SOURCE).orEmpty().ifEmpty { "fanqie" },
+        bookId = id,
+        title = source.getStringExtra(MainActivity.EXTRA_BOOK_TITLE).orEmpty(),
+        author = source.getStringExtra(MainActivity.EXTRA_BOOK_AUTHOR).orEmpty(),
+    )
 }
 
 private sealed interface Screen {
@@ -209,6 +253,7 @@ private sealed interface Screen {
 private fun App(
     api: Api,
     offline: OfflineRepo,
+    widgetTarget: MutableStateFlow<Book?>,
 ) {
     val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(api, offline))
     val state by vm.state.collectAsStateWithLifecycle()
@@ -231,6 +276,21 @@ private fun App(
         if (screen !is Screen.Detail && screen !is Screen.Reader) detailOrigin = screen
         vm.openBook(b)
         screen = Screen.Detail(b)
+    }
+
+    // 桌面小组件点进来：直接落到那本书的阅读位置（openBook 会按本地进度续读）。
+    val widgetBook by widgetTarget.collectAsStateWithLifecycle()
+    LaunchedEffect(widgetBook) {
+        val b = widgetBook ?: return@LaunchedEffect
+        readerFromShelf = true
+        vm.openBook(b)
+        screen = Screen.Reader
+        widgetTarget.value = null
+    }
+
+    // 桌面「继续阅读」小组件跟着阅读进度走：换书或换章时刷一次。
+    androidx.compose.runtime.LaunchedEffect(state.book?.bookId, state.currentChapterId) {
+        com.alanmaster.xread.ui.ReadingWidgetProvider.refresh(hostContext)
     }
 
     var dramaSwipePage by rememberSaveable { mutableIntStateOf(0) }
