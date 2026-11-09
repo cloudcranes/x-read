@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| 版本 | `4.5.2-standalone`（versionCode 27，应用内名称「拾页」） |
+| 版本 | `4.5.3-standalone`（versionCode 28，应用内名称「拾页」） |
 | 包名 | `com.alanmaster.xread.standalone` |
 | 适配 | minSdk 24 / targetSdk 34，仅 arm64-v8a |
 | 体积 | release 约 11 MB（10.5 MiB）：原生 `.so` 5.7 MB（APK 内不再压缩）、三套阅读字体压缩后 2.7 MB、DEX 2.0 MB |

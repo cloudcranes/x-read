@@ -38,12 +38,22 @@ data class Mirror(val key: String, val label: String, val prefix: String)
 object AppUpdate {
 
     /**
-     * 默认更新源：仓库的「最新 Release」。
+     * 默认更新源：CI 随每个 `v*` tag 附到 Release 的公开 `update.json` 清单。
      *
-     * 仓库是私有的，这个地址不带令牌会返回 404；[AppUpdater] 会把 404/401
-     * 翻译成「去设置里填令牌」，而不是「没有新版本」。
+     * 仓库已公开，这个地址走 Release 资产 CDN，不走 `api.github.com`，
+     * 不吃匿名接口每小时 60 次的限额，也不需要令牌；[AppUpdate.parseManifest]
+     * 能直接读它。用户手动换成私有仓库或 GitHub API 时才需要填只读令牌。
      */
-    const val DEFAULT_SOURCE = "https://api.github.com/repos/cloudcranes/x-read/releases/latest"
+    const val DEFAULT_SOURCE =
+        "https://github.com/cloudcranes/x-read/releases/latest/download/update.json"
+
+    /** 4.5.2 之前的默认源；匿名请求每小时 60 次，耗尽时回 403，正是这次误报的来源。 */
+    const val LEGACY_DEFAULT_SOURCE =
+        "https://api.github.com/repos/cloudcranes/x-read/releases/latest"
+
+    /** 存量配置里若仍写着旧默认源，静默迁到公开清单；用户手填的其它地址原样保留。 */
+    fun migrateSource(source: String): String =
+        if (source.trim() == LEGACY_DEFAULT_SOURCE) DEFAULT_SOURCE else source
 
     /** 启动时自动检查的节流：一天最多一次。 */
     const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
@@ -207,6 +217,29 @@ object AppUpdate {
         if (lastCheckAt <= 0L) return true
         if (now < lastCheckAt) return true
         return now - lastCheckAt >= CHECK_INTERVAL_MS
+    }
+
+    /**
+     * GitHub 匿名 API 的 403 限额耗尽（`X-RateLimit-Remaining: 0`）与 429 都是限流，
+     * 不是令牌失效。旧实现把 401/403 一律报成「令牌无效」，用户没填令牌也会被误导。
+     */
+    fun isRateLimited(code: Int, rateLimitRemaining: String?): Boolean =
+        code == 429 || (code == 403 && rateLimitRemaining?.trim() == "0")
+
+    /** 把 HTTP 失败翻成人话；纯函数，全部分支都能在 JVM 单测里覆盖。 */
+    fun httpMessage(code: Int, rateLimited: Boolean, hasToken: Boolean): String = when {
+        rateLimited ->
+            "GitHub 接口请求次数已用完（$code）：稍后再试，或换用公开清单地址；填有效只读令牌也能提高限额"
+        code == 401 ->
+            "令牌无效或已过期（401）：到「更新源」换一个有效的 GitHub 只读令牌；用公开清单地址可以留空"
+        code == 403 -> if (hasToken) {
+            "令牌没有读 Release 的权限（403）：换成带 contents:read 的只读令牌"
+        } else {
+            "访问被拒绝（403）：检查网络，或在「更新源」里填一个只读令牌"
+        }
+        code == 404 ->
+            "更新源 404：地址填错了，或这个版本还没发布 Release / update.json"
+        else -> "更新源返回 HTTP $code"
     }
 
     /** `sha256:abcd...` / `abcd...` 都归一成小写十六进制。 */

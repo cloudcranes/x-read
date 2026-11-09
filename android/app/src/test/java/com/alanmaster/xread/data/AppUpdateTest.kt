@@ -190,4 +190,76 @@ class AppUpdateTest {
         assertEquals("", AppUpdate.mirrorOf("gone").key)
         assertEquals("ghfast", AppUpdate.mirrorOf("ghfast").key)
     }
+
+    @Test
+    fun defaultSourceIsPublicManifestWithoutApiRateLimit() {
+        // 匿名 api.github.com 只有 60 次/小时，耗尽时回 403 曾被误报成「令牌无效」。
+        assertEquals(
+            "https://github.com/cloudcranes/x-read/releases/latest/download/update.json",
+            AppUpdate.DEFAULT_SOURCE,
+        )
+        assertFalse(AppUpdate.DEFAULT_SOURCE.contains("api.github.com"))
+        val info = AppUpdate.parse(
+            """{"versionName":"4.5.2","versionCode":27,"url":"https://e/app.apk","size":11024997,"sha256":"D7CEFF14","notes":"拾页 4.5.2"}"""
+        )
+        assertEquals("4.5.2", info?.versionName)
+        assertEquals(27, info?.versionCode)
+        assertEquals("d7ceff14", info?.sha256)
+    }
+
+    @Test
+    fun legacyDefaultSourceMigratesButCustomSourcesStay() {
+        assertEquals(AppUpdate.DEFAULT_SOURCE, AppUpdate.migrateSource(AppUpdate.LEGACY_DEFAULT_SOURCE))
+        assertEquals(
+            AppUpdate.DEFAULT_SOURCE,
+            AppUpdate.migrateSource("  ${AppUpdate.LEGACY_DEFAULT_SOURCE}  "),
+        )
+        val custom = "https://example.com/my-update.json"
+        assertEquals(custom, AppUpdate.migrateSource(custom))
+        assertEquals("", AppUpdate.migrateSource(""))
+    }
+
+    @Test
+    fun rateLimitHeaderIsDetectedBeforeTokenBlame() {
+        assertTrue(AppUpdate.isRateLimited(403, "0"))
+        assertTrue(AppUpdate.isRateLimited(403, " 0 "))
+        assertTrue(AppUpdate.isRateLimited(429, null))
+        assertFalse(AppUpdate.isRateLimited(403, "59"))
+        assertFalse(AppUpdate.isRateLimited(403, null))
+        assertFalse(AppUpdate.isRateLimited(401, "0"))
+        assertFalse(AppUpdate.isRateLimited(200, "0"))
+    }
+
+    @Test
+    fun rateLimited403IsNotReportedAsInvalidToken() {
+        val text = AppUpdate.httpMessage(403, rateLimited = true, hasToken = false)
+        assertTrue(text.contains("请求次数已用完"))
+        assertTrue(text.contains("403"))
+        assertFalse(text.contains("令牌无效"))
+        assertTrue(AppUpdate.httpMessage(429, rateLimited = true, hasToken = true).contains("请求次数已用完"))
+    }
+
+    @Test
+    fun real401StillPointsAtExpiredToken() {
+        val text = AppUpdate.httpMessage(401, rateLimited = false, hasToken = true)
+        assertTrue(text.contains("令牌无效或已过期（401）"))
+        assertTrue(text.contains("换一个有效的 GitHub 只读令牌"))
+    }
+
+    @Test
+    fun plain403SeparatesPermissionFromNetworkBlock() {
+        val withToken = AppUpdate.httpMessage(403, rateLimited = false, hasToken = true)
+        val withoutToken = AppUpdate.httpMessage(403, rateLimited = false, hasToken = false)
+        assertTrue(withToken.contains("没有读 Release 的权限"))
+        assertFalse(withToken.contains("令牌无效"))
+        assertTrue(withoutToken.contains("访问被拒绝（403）"))
+        assertFalse(withoutToken.contains("令牌无效"))
+    }
+
+    @Test
+    fun missingAndGenericHttpFailuresHaveTheirOwnMessages() {
+        assertTrue(AppUpdate.httpMessage(404, false, false).contains("地址填错了"))
+        assertTrue(AppUpdate.httpMessage(404, false, false).contains("还没发布"))
+        assertEquals("更新源返回 HTTP 500", AppUpdate.httpMessage(500, false, true))
+    }
 }

@@ -618,14 +618,16 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }
 
     fun updateSource(): String = runCatching {
-        loadObject(settingsFile).optString("updateSource").ifBlank { AppUpdate.DEFAULT_SOURCE }
+        AppUpdate.migrateSource(
+            loadObject(settingsFile).optString("updateSource").ifBlank { AppUpdate.DEFAULT_SOURCE }
+        )
     }.getOrDefault(AppUpdate.DEFAULT_SOURCE)
 
     fun saveUpdateSource(source: String) = mutate(settingsFile) { s ->
         s.put("updateSource", source.trim())
     }
 
-    /** GitHub 只读令牌；仓库私有，不带令牌拉 releases/latest 会 404。 */
+    /** GitHub 只读令牌；默认公开清单不用填，只有换成私有仓库或 GitHub API 时才需要。 */
     fun updateToken(): String = runCatching {
         loadObject(settingsFile).optString("updateToken")
     }.getOrDefault("")

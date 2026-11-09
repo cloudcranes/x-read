@@ -468,8 +468,8 @@ private fun UpdatePanel(
                             .padding(top = Space.sm),
                     )
                     Text(
-                        text = "仓库是私有的，不带令牌拉最新 Release 会 404。" +
-                                "填一个只有 contents:read 的只读令牌即可，令牌只存在本机。",
+                        text = "仓库已公开，默认清单地址不用令牌；换成私有仓库或 GitHub API 时，" +
+                                "才填一个只有 contents:read 的只读令牌。令牌只存在本机。",
                         fontSize = 11.sp,
                         lineHeight = 17.sp,
                         color = ink3,
@@ -527,7 +527,7 @@ private fun UpdatePanel(
                         }
                     }
                     Text(
-                        text = "加速通道是第三方反向代理，只代理 APK 下载；更新源和令牌仍然直连 GitHub，" +
+                        text = "加速通道是第三方反向代理，只代理 APK 下载；更新源和令牌只发给 GitHub 自己，" +
                             "令牌不会发给代理。通道不通时会自动退回直连。",
                         fontSize = 11.sp,
                         lineHeight = 17.sp,

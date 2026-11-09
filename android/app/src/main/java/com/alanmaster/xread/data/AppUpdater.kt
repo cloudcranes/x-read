@@ -40,7 +40,7 @@ data class UpdateUi(
 )
 
 /**
- * 应用自更新（热更新）：检查本仓库最新 Release → 下载 APK → 交给系统安装器。
+ * 应用自更新（热更新）：读取公开 `update.json` 清单或 GitHub Release → 下载 APK → 交给系统安装器。
  *
  * 为什么是「自更新」而不是 Tinker 那类代码级热修复：本项目所有业务逻辑都在
  * Kotlin 里编译进 APK，没有独立插件进程，也没有补丁分发通道；要真正替换
@@ -109,12 +109,16 @@ class AppUpdater(context: Context) {
                 it.copy(checking = true, downloading = false, progress = 0f,
                     message = if (manual) "" else it.message)
             }
-            val source = _state.value.source.ifBlank { AppUpdate.DEFAULT_SOURCE }
+            val source = AppUpdate.migrateSource(_state.value.source.ifBlank { AppUpdate.DEFAULT_SOURCE })
+            if (source != _state.value.source) {
+                _state.update { it.copy(source = source) }
+                runCatching { repo.saveUpdateSource(source) }
+            }
             val token = _state.value.token
             val outcome = runCatching { fetchText(source, token) }
             outcome.onFailure { e ->
                 _state.update {
-                    it.copy(checking = false, message = describe(e))
+                    it.copy(checking = false, message = describe(e, token.isNotBlank()))
                 }
                 return@launch
             }
@@ -202,11 +206,13 @@ class AppUpdater(context: Context) {
             }.onFailure { e ->
                 part.delete()
                 val hint = if (e is HttpFailure && _state.value.mirror.isNotBlank()) {
-                    "；加速通道取不到私有仓库的包，换个通道或选直连"
+                    "；加速通道取不到这个包，换个通道或选直连"
                 } else {
                     ""
                 }
-                _state.update { it.copy(downloading = false, message = describe(e) + hint) }
+                _state.update {
+                    it.copy(downloading = false, message = describe(e, _state.value.token.isNotBlank()) + hint)
+                }
             }
         }
     }
@@ -283,7 +289,7 @@ class AppUpdater(context: Context) {
         val conn = open(url, token)
         try {
             val code = conn.responseCode
-            if (code !in 200..299) throw HttpFailure(code)
+            if (code !in 200..299) throw HttpFailure(code, rateLimited(conn, code))
             return conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
         } finally {
             conn.disconnect()
@@ -294,7 +300,7 @@ class AppUpdater(context: Context) {
         val conn = open(url, token)
         try {
             val code = conn.responseCode
-            if (code !in 200..299) throw HttpFailure(code)
+            if (code !in 200..299) throw HttpFailure(code, rateLimited(conn, code))
             val total = conn.contentLengthLong
             var written = 0L
             conn.inputStream.use { input ->
@@ -339,14 +345,17 @@ class AppUpdater(context: Context) {
             host == "githubusercontent.com" || host.endsWith(".githubusercontent.com")
     }
 
-    private class HttpFailure(val code: Int) : Exception("HTTP $code")
+    private class HttpFailure(
+        val code: Int,
+        val rateLimited: Boolean = false,
+    ) : Exception("HTTP $code")
 
-    private fun describe(e: Throwable): String = when {
-        e is HttpFailure && e.code == 404 ->
-            "更新源 404：私有仓库要在「更新源」里填 GitHub 令牌，或换成公开清单地址"
-        e is HttpFailure && (e.code == 401 || e.code == 403) ->
-            "令牌无效或没有读 Release 的权限（${e.code}）"
-        e is HttpFailure -> "更新源返回 HTTP ${e.code}"
+    /** GitHub 把「匿名限额耗尽」藏在 403 + 响应头里，必须先于 401/403 文案判定。 */
+    private fun rateLimited(conn: HttpURLConnection, code: Int): Boolean =
+        AppUpdate.isRateLimited(code, conn.getHeaderField("X-RateLimit-Remaining"))
+
+    private fun describe(e: Throwable, hasToken: Boolean): String = when (e) {
+        is HttpFailure -> AppUpdate.httpMessage(e.code, e.rateLimited, hasToken)
         else -> "检查失败：${e.message ?: e.javaClass.simpleName}"
     }
 
