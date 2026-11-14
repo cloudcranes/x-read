@@ -25,12 +25,14 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -70,11 +72,11 @@ private const val MaxAutoLoadBooks = 120
 internal const val RecommendationChunkSize = 60
 
 /**
- * 发现页（方案 B「主笔甄选流」）：只做小说。
+ * 发现页（方案 B「主笔甄选流」）：以小说为主，保留一个短剧剧场入口。
  *
  * 一张「今日主笔力荐」折页大卡定调，热榜/新书/各榜单收成一条纯封面横滑带，
  * 推荐区走三列竖版海报流。数据仍来自 ranked / newBooks / boards / recommended，
- * 业务回调（onRank / onCategory / onAudio / onBoard / onMore / onOpen）一个不改。
+ * 业务回调（onRank / onCategory / onAudio / onDrama / onBoard / onMore / onOpen）一个不改。
  */
 @Composable
 fun DiscoverScreen(
@@ -91,6 +93,7 @@ fun DiscoverScreen(
     onRank: () -> Unit,
     onCategory: () -> Unit,
     onAudio: () -> Unit = {},
+    onDrama: () -> Unit = {},
     onBoard: (Int) -> Unit,
     onMore: () -> Unit,
     onOpen: (Book) -> Unit,
@@ -165,6 +168,9 @@ fun DiscoverScreen(
                     )
                 }
             }
+
+            /* -------------------- 短剧剧场入口 -------------------- */
+            item { DramaTheatreEntry(onClick = onDrama) }
 
             /* -------------------- 01 飙升与完本 -------------------- */
             if (stripBooks.isNotEmpty()) {
@@ -297,7 +303,7 @@ private fun DiscoverHeader(onRefresh: () -> Unit) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "拾页精选 · 纯粹小说阅读",
+                    text = "拾页精选 · 小说与短剧",
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
                     color = ink3,
@@ -461,6 +467,62 @@ private fun HeroFeatureCard(book: Book, onClick: () -> Unit) {
 }
 
 /* --------------------------- 快捷入口卡 --------------------------- */
+
+@Composable
+private fun DramaTheatreEntry(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.xs)
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) { contentDescription = "短剧剧场" },
+        shape = RoundedCornerShape(Radius.sm),
+        color = Color(0xFF1E1E1E),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.md, vertical = Space.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFF2C55)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(Space.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "短剧剧场",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                )
+                Text(
+                    text = "热播短剧 · 动态漫剧 · 弹幕互动",
+                    fontSize = 11.sp,
+                    color = Color(0xFFBDBDBD),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            Text(
+                text = "进入",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFFFF2C55),
+            )
+        }
+    }
+}
 
 @Composable
 private fun DiscoverTile(

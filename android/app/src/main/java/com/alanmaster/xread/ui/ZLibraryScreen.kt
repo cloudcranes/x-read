@@ -56,7 +56,7 @@ import com.alanmaster.xread.data.ZLibrarySession
  * 不挡搜索——先让用户能搜到书，再提示登录。
  */
 @Composable
-fun ZLibraryScreen(
+fun ZLibrarySection(
     results: List<ZLibraryBook>,
     loading: Boolean,
     moreLoading: Boolean,
@@ -66,7 +66,6 @@ fun ZLibraryScreen(
     session: ZLibrarySession?,
     loginLoading: Boolean,
     importing: String,
-    onBack: () -> Unit,
     onSearch: (String) -> Unit,
     onLoadMore: () -> Unit,
     onLogin: (String, String) -> Unit,
@@ -77,25 +76,17 @@ fun ZLibraryScreen(
     var keyword by rememberSaveable { mutableStateOf(query) }
     var showLogin by remember { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            XReadTopBar(
-                title = "Z-Library",
-                onBack = onBack,
-                subtitle = if (session == null) "未登录 · 只能搜索" else "已登录",
-                actions = {
-                    TextButton(onClick = onPickLocal) {
-                        Text("本地导入", fontSize = 13.sp)
-                    }
-                    TextButton(onClick = { showLogin = true }) {
-                        Text(if (session == null) "登录" else "账号", fontSize = 13.sp)
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = Space.gutter),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onPickLocal) { Text("本地导入", fontSize = 13.sp) }
+            TextButton(onClick = { showLogin = true }) {
+                Text(if (session == null) "登录" else "账号", fontSize = 13.sp)
+            }
+        }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = Space.gutter, vertical = Space.sm),
                 verticalAlignment = Alignment.CenterVertically,
@@ -182,7 +173,6 @@ fun ZLibraryScreen(
                 }
             }
         }
-    }
 
     if (showLogin) {
         ZLibraryLoginDialog(

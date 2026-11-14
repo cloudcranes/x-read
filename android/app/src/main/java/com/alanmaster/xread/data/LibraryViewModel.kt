@@ -244,6 +244,17 @@ data class UiState(
     val shelfMediaType: String = "all",
     val recentDramas: List<DramaSeries> = emptyList(),
     val dramaFavorites: List<DramaSeries> = emptyList(),
+    /** 短剧剧评（与书评热评同一条上游链路）。 */
+    val dramaComments: List<BookHotReview> = emptyList(),
+    val dramaCommentTotal: Int = 0,
+    val dramaCommentsLoading: Boolean = false,
+    val dramaCommentsHasMore: Boolean = false,
+    val dramaCommentsCursor: String = "",
+    val dramaCommentsError: String = "",
+    val dramaCommentSending: Boolean = false,
+    /** 当前短剧的相关推荐。 */
+    val dramaRelated: List<DramaSeries> = emptyList(),
+    val dramaRelatedLoading: Boolean = false,
     // ---------------- Z-Library 电子书导入 ----------------
     /** 搜索到的电子书（EAPI 搜 / 详都不需要登录）。 */
     val zlibResults: List<ZLibraryBook> = emptyList(),
@@ -2656,7 +2667,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     fun closeDramaPlayer() {
-        update { it.copy(currentDrama = null, currentEpisode = null, currentVideoSource = null, danmakuList = emptyList(), dramaVideoError = "") }
+        update { it.copy(
+            currentDrama = null, currentEpisode = null, currentVideoSource = null,
+            danmakuList = emptyList(), dramaVideoError = "",
+            dramaComments = emptyList(), dramaCommentTotal = 0, dramaCommentsHasMore = false,
+            dramaCommentsCursor = "", dramaCommentsError = "",
+            dramaRelated = emptyList(),
+        ) }
     }
 
     fun loadDramaFeed() {
@@ -2707,7 +2724,14 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     fun loadDramaDetail(seriesId: String, isMotionComic: Boolean = false, autoPlayFirst: Boolean = false) {
         viewModelScope.launch {
-            update { it.copy(dramaDetailLoading = true) }
+            update {
+                it.copy(
+                    dramaDetailLoading = true,
+                    dramaComments = emptyList(), dramaCommentTotal = 0,
+                    dramaCommentsHasMore = false, dramaCommentsCursor = "", dramaCommentsError = "",
+                    dramaRelated = emptyList(),
+                )
+            }
             try {
                 val parsed = api.dramaDetail(seriesId, isMotionComic)
                 val feedItem = _state.value.dramaFeed.firstOrNull { it.seriesId == parsed.seriesId }
@@ -2725,6 +2749,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     if (persisted.isNotEmpty()) persisted
                     else (listOf(drama) + _state.value.recentDramas.filterNot { it.seriesId == drama.seriesId }).take(20)
                 update { it.copy(currentDrama = drama, dramaDetailLoading = false, recentDramas = updatedRecent) }
+                loadDramaRelated(drama.seriesId)
                 if (autoPlayFirst && drama.episodes.isNotEmpty()) {
                     playDramaEpisode(drama.episodes.first())
                 }
@@ -2799,6 +2824,108 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     state.copy(danmakuList = state.danmakuList.filterNot { it.id == optimistic.id })
                 }
                 notify(danmakuSendFailure(e.message.orEmpty()))
+            }
+        }
+    }
+
+    fun loadDramaRelated(seriesId: String) {
+        if (seriesId.isBlank()) return
+        viewModelScope.launch {
+            update { it.copy(dramaRelatedLoading = true) }
+            try {
+                val related = api.dramaRelated(seriesId)
+                update { it.copy(dramaRelated = related, dramaRelatedLoading = false) }
+            } catch (_: Exception) {
+                // 相关推荐是锦上添花，失败不打扰播放。
+                update { it.copy(dramaRelatedLoading = false) }
+            }
+        }
+    }
+
+    fun loadDramaComments(seriesId: String, reset: Boolean = true) {
+        if (seriesId.isBlank()) return
+        val snapshot = _state.value
+        if (!reset && (snapshot.dramaCommentsLoading || !snapshot.dramaCommentsHasMore)) return
+        viewModelScope.launch {
+            update {
+                it.copy(
+                    dramaCommentsLoading = true,
+                    dramaCommentsError = "",
+                    dramaComments = if (reset) emptyList() else it.dramaComments,
+                    dramaCommentsCursor = if (reset) "" else it.dramaCommentsCursor,
+                    dramaCommentTotal = if (reset) 0 else it.dramaCommentTotal,
+                )
+            }
+            try {
+                val cursor = if (reset) "" else _state.value.dramaCommentsCursor
+                val page = api.dramaComments(seriesId, cursor = cursor)
+                update { cur ->
+                    val merged = if (reset) page.items else (cur.dramaComments + page.items).distinctBy { it.id }
+                    cur.copy(
+                        dramaComments = merged,
+                        dramaCommentTotal = page.total,
+                        dramaCommentsHasMore = page.hasMore,
+                        dramaCommentsCursor = page.cursor,
+                        dramaCommentsLoading = false,
+                    )
+                }
+            } catch (e: Exception) {
+                update {
+                    it.copy(
+                        dramaCommentsLoading = false,
+                        dramaCommentsError = readableFailure(e.message.orEmpty()),
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadMoreDramaComments(seriesId: String) = loadDramaComments(seriesId, reset = false)
+
+    fun toggleDramaCommentDigg(comment: BookHotReview) {
+        val series = _state.value.currentDrama ?: return
+        val liked = !comment.userLiked
+        update { state ->
+            state.copy(
+                dramaComments = state.dramaComments.map {
+                    if (it.id == comment.id) it.copy(
+                        userLiked = liked,
+                        digg = (it.digg + if (liked) 1 else -1).coerceAtLeast(0),
+                    ) else it
+                }
+            )
+        }
+        viewModelScope.launch {
+            try {
+                val ok = api.diggDramaComment(series.seriesId, comment.id, liked)
+                if (!ok) throw ApiException("点赞失败")
+            } catch (e: Exception) {
+                update { state ->
+                    state.copy(
+                        dramaComments = state.dramaComments.map {
+                            if (it.id == comment.id) it.copy(userLiked = comment.userLiked, digg = comment.digg) else it
+                        }
+                    )
+                }
+                notify(readableFailure(e.message.orEmpty()))
+            }
+        }
+    }
+
+    fun sendDramaComment(text: String) {
+        val series = _state.value.currentDrama ?: return
+        if (text.isBlank() || _state.value.dramaCommentSending) return
+        update { it.copy(dramaCommentSending = true) }
+        viewModelScope.launch {
+            try {
+                val ok = api.sendDramaComment(series.seriesId, text.trim())
+                if (!ok) throw ApiException("上游没有确认接收")
+                notify("剧评已发送")
+                loadDramaComments(series.seriesId)
+            } catch (e: Exception) {
+                notify(readableFailure(e.message.orEmpty()))
+            } finally {
+                update { it.copy(dramaCommentSending = false) }
             }
         }
     }

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,8 +38,10 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalLibrary
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -48,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
@@ -66,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -75,8 +80,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.alanmaster.xread.data.Book
 import com.alanmaster.xread.data.BookStatus
+import com.alanmaster.xread.data.DramaSeries
 import com.alanmaster.xread.data.ShelfGrouping
 import com.alanmaster.xread.data.ShelfItem
 
@@ -96,6 +103,13 @@ fun ShelfScreen(
     totalCount: Int = 0,
     shelfMediaType: String = "all",
     onSelectMediaType: (String) -> Unit = {},
+    /** 短剧收藏与追剧记录：都落在 OfflineRepo，进程重启后仍在。 */
+    recentDramas: List<DramaSeries> = emptyList(),
+    dramaFavorites: List<DramaSeries> = emptyList(),
+    onOpenDrama: (DramaSeries) -> Unit = {},
+    onOpenFavoriteDrama: (DramaSeries) -> Unit = {},
+    onToggleFavoriteDrama: (DramaSeries) -> Unit = {},
+    onDiscoverDrama: (() -> Unit)? = null,
     updates: Map<String, Int>,
     /** 整轮刷新是否在跑（重读书架 + 查新章）；页头图标转圈并防连点。 */
     refreshing: Boolean,
@@ -120,7 +134,6 @@ fun ShelfScreen(
     /** 长按菜单里的「书籍详情」：书架点按是继续读，详情要显式选。 */
     onDetail: (Book) -> Unit = {},
     onContinue: (Book) -> Unit = {},
-    /** 短剧收藏与追剧记录：都落在 OfflineRepo，进程重启后仍在。 */
     /** 批量操作：多选模式下一次性处理选中的书。 */
     onBatchGroup: (List<Book>) -> Unit = {},
     onBatchRemove: (List<Book>) -> Unit = {},
@@ -224,31 +237,81 @@ fun ShelfScreen(
                                 horizontal = Space.gutter, vertical = Space.sm,
                             ),
                         )
-                    } else ShelfToolbar(
-                        sort = shelfSort,
-                        group = shelfGroup,
-                        groups = shelfGroups,
-                        builtinGroups = builtinGroups,
-                        onSort = onSort,
-                        onGroupFilter = onGroupFilter,
-                        listView = listView,
-                        onToggleView = {
-                            listView = !listView
-                            viewPrefs.edit().putBoolean("list", listView).apply()
-                        },
-                        sortable = true,
-                    )
+                    } else {
+                        ShelfMediaTabs(
+                            selected = shelfMediaType,
+                            onSelect = onSelectMediaType,
+                        )
+                        ShelfToolbar(
+                            sort = shelfSort,
+                            group = shelfGroup,
+                            groups = shelfGroups,
+                            builtinGroups = builtinGroups,
+                            onSort = onSort,
+                            onGroupFilter = onGroupFilter,
+                            listView = listView,
+                            onToggleView = {
+                                listView = !listView
+                                viewPrefs.edit().putBoolean("list", listView).apply()
+                            },
+                            sortable = shelfMediaType != "drama",
+                        )
+                    }
                 }
 
                 /* -------------------- 个人标记 -------------------- */
                 // 与媒体类型分两行：一行管「这是什么书」，一行管「我读到哪一步」，
                 // 混在一行里 chip 会多到需要横向滚两次才看得全。
-                if (!selecting) {
+                if (!selecting && shelfMediaType != "drama") {
                     item(key = "status-filter") {
                         StatusFilterRow(selected = shelfStatus, onSelect = onStatusFilter)
                     }
                 }
 
+                if (shelfMediaType == "drama") {
+                    /* -------------------- 短剧：收藏 + 追剧记录 -------------------- */
+                    item { ShelfSectionTitle("我的收藏", if (dramaFavorites.isEmpty()) "还没有收藏" else "${dramaFavorites.size} 部") }
+                    if (dramaFavorites.isEmpty()) {
+                        item {
+                            ShelfEmpty(
+                                onDiscover = onDiscoverDrama ?: onDiscover,
+                                title = "还没有收藏短剧",
+                                description = "在短剧播放页点一下星标，收藏就会出现在这里。",
+                                primaryLabel = "去发现短剧",
+                            )
+                        }
+                    } else {
+                        items(dramaFavorites, key = { "drama-fav-${it.seriesId}" }) { drama ->
+                            RecentDramaCard(
+                                drama = drama,
+                                onClick = { onOpenFavoriteDrama(drama) },
+                                onToggleFavorite = { onToggleFavoriteDrama(drama) },
+                            )
+                        }
+                    }
+                    item { ShelfSectionTitle("追剧记录", if (recentDramas.isEmpty()) "还没有记录" else "${recentDramas.size} 部") }
+                    if (recentDramas.isEmpty()) {
+                        item {
+                            ShelfEmpty(
+                                onDiscover = onDiscoverDrama ?: onDiscover,
+                                title = "还没有追剧记录",
+                                description = "去「发现」的短剧板块挑一部，播放过的短剧会出现在这里。",
+                                primaryLabel = "去发现短剧",
+                            )
+                        }
+                    } else {
+                        val favoriteIds = dramaFavorites.mapTo(mutableSetOf()) { it.seriesId }
+                        items(recentDramas, key = { "drama-recent-${it.seriesId}" }) { drama ->
+                            RecentDramaCard(
+                                drama = drama,
+                                onClick = { onOpenDrama(drama) },
+                                onToggleFavorite = if (drama.seriesId in favoriteIds) {
+                                    { onToggleFavoriteDrama(drama) }
+                                } else null,
+                            )
+                        }
+                    }
+                } else {
                     /* -------------------- 我的书架 -------------------- */
                     // 「在架 N 本 · 查更新」这一行删掉了：分类已经在上面那排 chip 里，
                     // 本数挪进了页头标题，刷新（含查新章）挪进了页头图标，书架直接接在工具栏下面。
@@ -327,6 +390,7 @@ fun ShelfScreen(
                         }
                     } else {
                         item { Loading() }
+                    }
                     }
             }
         }
@@ -715,6 +779,151 @@ private fun ShelfHeader(
     }
 }
 
+
+/* --------------------------- 短剧书架 --------------------------- */
+
+@Composable
+private fun ShelfMediaTabs(selected: String, onSelect: (String) -> Unit) {
+    val tabs = listOf("all" to "全部", "novel" to "小说", "drama" to "短剧")
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp),
+        contentPadding = PaddingValues(horizontal = Space.gutter),
+        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items(tabs, key = { it.first }) { (key, label) ->
+            SelectChip(
+                label = label,
+                selected = selected == key,
+                onClick = { onSelect(key) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShelfSectionTitle(title: String, hint: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = Space.gutter, end = Space.gutter, top = Space.md, bottom = Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(text = hint, fontSize = 11.sp, color = ink3)
+    }
+}
+
+@Composable
+private fun RecentDramaCard(
+    drama: DramaSeries,
+    onClick: () -> Unit,
+    onToggleFavorite: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Space.gutter, vertical = Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(56.dp)
+                .aspectRatio(0.72f)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            if (drama.coverUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = drama.coverUrl,
+                    contentDescription = drama.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Movie,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.Center),
+                    tint = MaterialTheme.colorScheme.outline,
+                )
+            }
+        }
+        Spacer(Modifier.width(Space.md))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = drama.title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (drama.isMotionComic) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiary,
+                        shape = RoundedCornerShape(2.dp),
+                    ) {
+                        Text(
+                            text = "漫剧",
+                            fontSize = 10.sp,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+            }
+            Text(
+                text = if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            if (drama.intro.isNotBlank()) {
+                Text(
+                    text = drama.intro,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(Space.sm))
+        if (onToggleFavorite != null) {
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "取消收藏",
+                    tint = Color(0xFFFFC107),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        OutlinedButton(
+            onClick = onClick,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(4.dp),
+        ) {
+            Text("播放", fontSize = 12.sp)
+        }
+    }
+}
 
 /* --------------------------- 板块与排序 --------------------------- */
 

@@ -22,8 +22,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.LocalLibrary
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -76,13 +78,15 @@ import com.alanmaster.xread.ui.ShelfScreen
 import com.alanmaster.xread.ui.ToolsPage
 import com.alanmaster.xread.ui.ToolsScreen
 import com.alanmaster.xread.ui.XReadTheme
-import com.alanmaster.xread.ui.ZLibraryScreen
+import com.alanmaster.xread.ui.ZLibraryPage
 import org.json.JSONObject
 
-/** 底栏三个入口。图标与文字在这里定死，选中态只影响展开与配色。 */
+/** 底栏五个入口。图标与文字在这里定死，选中态只影响展开与配色。 */
 private val mainNavItems = listOf(
     FloatingNavItem(Icons.Filled.LocalLibrary, "书架"),
     FloatingNavItem(Icons.Filled.Explore, "发现"),
+    FloatingNavItem(Icons.Filled.Movie, "短剧"),
+    FloatingNavItem(Icons.AutoMirrored.Filled.MenuBook, "Z-Library"),
     FloatingNavItem(Icons.Filled.Person, "我的"),
 )
 
@@ -360,7 +364,9 @@ private fun App(
         }
     }
     LaunchedEffect(screen) {
-        if (screen is Screen.Shelf || screen is Screen.Discover || screen is Screen.Tools) {
+        if (screen is Screen.Shelf || screen is Screen.Discover ||
+            screen is Screen.ZLibrary || screen is Screen.Tools
+        ) {
             mainTab = screen
         }
     }
@@ -643,7 +649,6 @@ private fun App(
                 screen is Screen.Search -> screen = mainTab
                 screen is Screen.Marks -> screen = Screen.Tools
                 screen is Screen.Report -> screen = Screen.Tools
-                screen is Screen.ZLibrary -> screen = Screen.Tools
                 // 「我的」子页先回总览，别一按返回就跳回书架。
                 screen == Screen.Tools && toolsPage != ToolsPage.Overview -> toolsPage = ToolsPage.Overview
                 screen == Screen.Discover || screen == Screen.Tools -> screen = Screen.Shelf
@@ -657,6 +662,7 @@ private fun App(
         }
     }
     val isMainTab = screen == Screen.Shelf || screen == Screen.Discover ||
+            screen == Screen.ZLibrary ||
             (screen == Screen.Tools && toolsPage == ToolsPage.Overview)
     Scaffold { innerPadding ->
         Box(
@@ -675,6 +681,18 @@ private fun App(
                     totalCount = state.shelfAll.size,
                     shelfMediaType = state.shelfMediaType,
                     onSelectMediaType = { vm.setShelfMediaType(it) },
+                    recentDramas = state.recentDramas,
+                    dramaFavorites = state.dramaFavorites,
+                    onOpenDrama = { drama ->
+                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
+                        screen = Screen.Drama
+                    },
+                    onOpenFavoriteDrama = { drama ->
+                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
+                        screen = Screen.Drama
+                    },
+                    onToggleFavoriteDrama = { vm.toggleDramaFavorite(it) },
+                    onDiscoverDrama = { screen = Screen.DramaSwipe },
                     shelfStatus = state.shelfStatusFilter,
                     onStatusFilter = { vm.setShelfStatusFilter(it) },
                     updates = state.shelfUpdates,
@@ -746,6 +764,10 @@ private fun App(
                         vm.loadAudioFeed()
                         screen = Screen.AudioFeed
                     },
+                    onDrama = {
+                        if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
+                        screen = Screen.DramaSwipe
+                    },
                     onRank = { vm.loadRankings(); screen = Screen.Rank },
                     onCategory = { vm.loadCategories(); screen = Screen.Category },
                     onBoard = { algo -> vm.loadRankings(algo, "0"); screen = Screen.Rank },
@@ -790,6 +812,19 @@ private fun App(
                     },
                     favorites = state.dramaFavorites,
                     onToggleFavorite = { vm.toggleDramaFavorite(it) },
+                    related = state.dramaRelated,
+                    comments = state.dramaComments,
+                    commentTotal = state.dramaCommentTotal,
+                    commentsLoading = state.dramaCommentsLoading,
+                    commentsHasMore = state.dramaCommentsHasMore,
+                    commentSending = state.dramaCommentSending,
+                    onLoadComments = { state.currentDrama?.let { vm.loadDramaComments(it.seriesId) } },
+                    onLoadMoreComments = { state.currentDrama?.let { vm.loadMoreDramaComments(it.seriesId) } },
+                    onSendComment = { vm.sendDramaComment(it) },
+                    onToggleCommentDigg = { vm.toggleDramaCommentDigg(it) },
+                    onSelectRelated = { item ->
+                        vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = true)
+                    },
                 )
 
                 Screen.DramaDouyin -> DramaDouyinScreen(
@@ -868,6 +903,7 @@ private fun App(
         Screen.Search -> SearchScreen(
             initialQuery = query,
             results = state.results,
+            dramaResults = state.dramaResults,
             loading = state.loading,
             searched = state.searched,
             error = state.searchError,
@@ -907,6 +943,10 @@ private fun App(
                 } else {
                     openDetail(b)
                 }
+            },
+            onOpenDrama = { drama ->
+                vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
+                screen = Screen.Drama
             },
         )
 
@@ -1226,7 +1266,8 @@ private fun App(
             },
         )
 
-        Screen.ZLibrary -> ZLibraryScreen(
+
+        Screen.ZLibrary -> ZLibraryPage(
             results = state.zlibResults,
             loading = state.zlibLoading,
             moreLoading = state.zlibMoreLoading,
@@ -1236,10 +1277,9 @@ private fun App(
             session = state.zlibSession,
             loginLoading = state.zlibLoginLoading,
             importing = state.zlibImporting,
-            onBack = { screen = Screen.Tools },
             onSearch = { vm.zlibrarySearch(it) },
             onLoadMore = { vm.zlibraryLoadMore() },
-            onLogin = { email, password -> vm.zlibraryLogin(email, password) },
+            onLogin = { email, pw -> vm.zlibraryLogin(email, pw) },
             onLogout = { vm.zlibraryLogout() },
             onImport = { vm.zlibraryImport(it) },
             onPickLocal = {
@@ -1250,7 +1290,7 @@ private fun App(
 
         Screen.Tools -> ToolsScreen(
             page = toolsPage,
-            onPage = { toolsPage = it },
+            onPage = { if (it == ToolsPage.ZLibrary) vm.loadZLibrarySession(); toolsPage = it },
             offlineBooks = state.offlineBooks,
             resumable = state.resumable,
             download = download,
@@ -1323,10 +1363,27 @@ private fun App(
                         }
                 }
             },
+            zlibResults = state.zlibResults,
+            zlibLoading = state.zlibLoading,
+            zlibMoreLoading = state.zlibMoreLoading,
+            zlibHasNext = state.zlibHasNext,
+            zlibError = state.zlibError,
+            zlibQuery = state.zlibQuery,
+            zlibSession = state.zlibSession,
+            zlibLoginLoading = state.zlibLoginLoading,
+            zlibImporting = state.zlibImporting,
+            onZlibSearch = { vm.zlibrarySearch(it) },
+            onZlibLoadMore = { vm.zlibraryLoadMore() },
+            onZlibLogin = { email, pass -> vm.zlibraryLogin(email, pass) },
+            onZlibLogout = { vm.zlibraryLogout() },
+            onZlibImport = { vm.zlibraryImport(it) },
+            onZlibPickLocal = {
+                runCatching { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }
+                    .onFailure { vm.notify("系统里没有可用的文件选择器") }
+            },
             ttsRunning = ttsSpeaking,
             onBack = null,
             onSettings = { showSettings = true },
-            onOpenZLibrary = { vm.loadZLibrarySession(); screen = Screen.ZLibrary },
             onOpen = { b -> vm.openOfflineBook(b); screen = Screen.Reader },
             onExportBook = { b -> vm.exportBookText(b) },
             onDelete = { b -> vm.deleteOfflineBook(b.bookId) },
@@ -1439,7 +1496,9 @@ private fun App(
                     selectedIndex = when (screen) {
                         Screen.Shelf -> 0
                         Screen.Discover -> 1
-                        Screen.Tools -> 2
+                        Screen.Drama, Screen.DramaDouyin, Screen.DramaSwipe -> 2
+                        Screen.ZLibrary -> 3
+                        Screen.Tools -> 4
                         else -> 1
                     },
                     onSelect = { index ->
@@ -1451,6 +1510,14 @@ private fun App(
                                     vm.loadFeed()
                                 }
                                 screen = Screen.Discover
+                            }
+                            2 -> {
+                                if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
+                                screen = Screen.DramaSwipe
+                            }
+                            3 -> {
+                                vm.loadZLibrarySession()
+                                screen = Screen.ZLibrary
                             }
                             else -> {
                                 vm.flushStats(force = true)

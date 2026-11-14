@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Highlight
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Storage
@@ -77,6 +76,8 @@ import com.alanmaster.xread.data.OfflineRepo
 import com.alanmaster.xread.data.ReadingGoal
 import com.alanmaster.xread.data.ReadingReminder
 import com.alanmaster.xread.data.ReplaceRule
+import com.alanmaster.xread.data.ZLibraryBook
+import com.alanmaster.xread.data.ZLibrarySession
 import org.json.JSONObject
 
 /** 字节数转人类可读；工具页与书架提示共用。 */
@@ -90,10 +91,10 @@ internal fun formatBytes(bytes: Long): String {
 }
 
 /** 「我的」页分组：总览只放入口，具体区块按组进入独立子页。 */
-enum class ToolsPage { Overview, Downloads, Reading, Content, Backup }
+enum class ToolsPage { Overview, Downloads, Reading, Content, Backup, ZLibrary }
 
 @Composable
-private fun ToolsOverview(onPage: (ToolsPage) -> Unit, onOpenZLibrary: () -> Unit) {
+private fun ToolsOverview(onPage: (ToolsPage) -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -123,12 +124,6 @@ private fun ToolsOverview(onPage: (ToolsPage) -> Unit, onOpenZLibrary: () -> Uni
             title = "备份与恢复",
             hint = "导入导出、自动备份、WebDAV 同步",
             onClick = { onPage(ToolsPage.Backup) },
-        )
-        ToolsEntryCard(
-            icon = Icons.AutoMirrored.Filled.MenuBook,
-            title = "Z-Library 电子书",
-            hint = "搜电子书、下载 EPUB、导入书架",
-            onClick = onOpenZLibrary,
         )
     }
 }
@@ -238,7 +233,21 @@ fun ToolsScreen(
     page: ToolsPage = ToolsPage.Overview,
     onPage: (ToolsPage) -> Unit = {},
     onSettings: () -> Unit = {},
-    onOpenZLibrary: () -> Unit = {},
+    zlibResults: List<ZLibraryBook> = emptyList(),
+    zlibLoading: Boolean = false,
+    zlibMoreLoading: Boolean = false,
+    zlibHasNext: Boolean = false,
+    zlibError: String = "",
+    zlibQuery: String = "",
+    zlibSession: ZLibrarySession? = null,
+    zlibLoginLoading: Boolean = false,
+    zlibImporting: String = "",
+    onZlibSearch: (String) -> Unit = {},
+    onZlibLoadMore: () -> Unit = {},
+    onZlibLogin: (String, String) -> Unit = { _, _ -> },
+    onZlibLogout: () -> Unit = {},
+    onZlibImport: (ZLibraryBook) -> Unit = {},
+    onZlibPickLocal: () -> Unit = {},
     onOpen: (Book) -> Unit,
     onExportBook: (Book) -> Unit,
     onDelete: (Book) -> Unit,
@@ -302,6 +311,7 @@ fun ToolsScreen(
         ToolsPage.Reading -> "阅读管理"
         ToolsPage.Content -> "内容与朗读"
         ToolsPage.Backup -> "备份与恢复"
+        ToolsPage.ZLibrary -> "Z-Library 电子书"
     }
     val pageSubtitle = when (page) {
         ToolsPage.Overview -> "本地书架、下载、备份与朗读"
@@ -309,6 +319,7 @@ fun ToolsScreen(
         ToolsPage.Reading -> "目标、统计、回顾与每日提醒"
         ToolsPage.Content -> "正文替换、书摘与朗读"
         ToolsPage.Backup -> "导入导出、自动备份与 WebDAV"
+        ToolsPage.ZLibrary -> if (zlibSession == null) "未登录 · 只能搜索" else "已登录"
     }
     val backAction: (() -> Unit)? = if (page == ToolsPage.Overview) {
         onBack
@@ -329,13 +340,33 @@ fun ToolsScreen(
             )
         },
     ) { padding ->
-        LazyColumn(
+        if (page == ToolsPage.ZLibrary) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                ZLibrarySection(
+                    results = zlibResults,
+                    loading = zlibLoading,
+                    moreLoading = zlibMoreLoading,
+                    hasNext = zlibHasNext,
+                    error = zlibError,
+                    query = zlibQuery,
+                    session = zlibSession,
+                    loginLoading = zlibLoginLoading,
+                    importing = zlibImporting,
+                    onSearch = onZlibSearch,
+                    onLoadMore = onZlibLoadMore,
+                    onLogin = onZlibLogin,
+                    onLogout = onZlibLogout,
+                    onImport = onZlibImport,
+                    onPickLocal = onZlibPickLocal,
+                )
+            }
+        } else LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = Space.navFloat),
         ) {
 
             if (page == ToolsPage.Overview) {
-                item { ToolsOverview(onPage, onOpenZLibrary) }
+                item { ToolsOverview(onPage) }
             }
             if (page == ToolsPage.Downloads) {
 

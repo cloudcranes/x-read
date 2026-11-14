@@ -721,6 +721,110 @@ class Api(context: Context) {
         message == "success" || resp.optJSONObject("data") != null
     }
 
+    /**
+     * 短剧剧评列表。
+     *
+     * 与书评热评同一条上游链路（/novel/commentapi/comment/list/{id}/v1/），
+     * 响应里 data.data_list 的结构一致，直接复用 SocialParser.bookHotReviews。
+     */
+    suspend fun dramaComments(
+        seriesId: String,
+        cursor: String = "",
+        count: Int = 20,
+        sort: Int = 1,
+    ): BookHotReviewPage = withContext(Dispatchers.IO) {
+        checkId(seriesId)
+        val q = buildString {
+            append("count=").append(count.coerceIn(1, 50))
+            append("sort=").append(if (sort == 3) 3 else 1)
+            if (cursor.isNotBlank()) append("&cursor=").append(enc(cursor))
+        }
+        SocialParser.bookHotReviews(content("series/$seriesId/comments", q))
+    }
+
+    /** 短剧剧评回复列表。 */
+    suspend fun dramaCommentReplies(
+        seriesId: String,
+        commentId: String,
+        cursor: String = "",
+        count: Int = 20,
+    ): CommentReplyPage = withContext(Dispatchers.IO) {
+        checkId(seriesId); checkId(commentId)
+        val q = buildString {
+            append("count=").append(count.coerceIn(1, 50))
+            if (cursor.isNotBlank()) append("&cursor=").append(enc(cursor))
+        }
+        SocialParser.commentReplies(content("series/$seriesId/comments/$commentId/replies", q))
+    }
+
+    /** 发短剧剧评；需要番茄登录态，未登录时上游会返回 103006。 */
+    suspend fun sendDramaComment(
+        seriesId: String,
+        text: String,
+        videoId: String = "",
+    ): Boolean = withContext(Dispatchers.IO) {
+        val trimmed = text.trim()
+        require(trimmed.isNotEmpty()) { "剧评内容不能为空" }
+        checkId(seriesId)
+        val q = buildString {
+            append("text=").append(enc(trimmed))
+            if (videoId.isNotBlank()) append("&vid=").append(enc(videoId))
+        }
+        val resp = NativeCore.request(app, "/api/v1/series/$seriesId/comments/add", q, "POST", "")
+        val code = resp.optInt("code", -1)
+        if (code != 0 && code != 200) {
+            throw ApiException(resp.optString("message").ifEmpty { "剧评发送失败（$code）" })
+        }
+        resp.optString("message") == "success" || resp.optJSONObject("data") != null
+    }
+
+    /** 短剧剧评点赞/取消点赞。 */
+    suspend fun diggDramaComment(
+        seriesId: String,
+        commentId: String,
+        liked: Boolean,
+    ): Boolean = withContext(Dispatchers.IO) {
+        checkId(seriesId); checkId(commentId)
+        val q = "liked=$liked&target_type=1&book_id=${enc(seriesId)}"
+        val resp = NativeCore.request(app, "/api/v1/comments/$commentId/digg", q, "POST", "")
+        resp.optInt("code", -1) == 0 || resp.optString("message") == "success" ||
+            resp.optJSONObject("data") != null
+    }
+
+    /** 回复某条短剧剧评。 */
+    suspend fun replyDramaComment(
+        seriesId: String,
+        commentId: String,
+        text: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val trimmed = text.trim()
+        require(trimmed.isNotEmpty()) { "回复内容不能为空" }
+        checkId(seriesId); checkId(commentId)
+        val q = buildString {
+            append("text=").append(enc(trimmed))
+            append("&series_id=").append(enc(seriesId))
+            append("&reply_to_comment_id=").append(enc(commentId))
+        }
+        val resp = NativeCore.request(app, "/api/v1/comments/$commentId/reply", q, "POST", "")
+        val code = resp.optInt("code", -1)
+        if (code != 0 && code != 200) {
+            throw ApiException(resp.optString("message").ifEmpty { "回复发送失败（$code）" })
+        }
+        resp.optString("message") == "success" || resp.optJSONObject("data") != null
+    }
+
+    /** 短剧相关推荐。 */
+    suspend fun dramaRelated(seriesId: String): List<DramaSeries> = withContext(Dispatchers.IO) {
+        checkId(seriesId)
+        DramaParser.dramaFeed(content("series/$seriesId/related"))
+    }
+
+    /** 短剧服务端分享信息。 */
+    suspend fun dramaShare(seriesId: String): ShareInfo = withContext(Dispatchers.IO) {
+        checkId(seriesId)
+        ContentParser.shareInfo(content("series/$seriesId/share"))
+    }
+
     suspend fun saveProgress(source: String, bookId: String, chapterId: String, offset: Int) = withContext(Dispatchers.IO) {
         checkSource(source); checkId(bookId); checkId(chapterId)
         check(offline.saveProgress(bookId, chapterId, offset)) { "阅读进度保存失败" }

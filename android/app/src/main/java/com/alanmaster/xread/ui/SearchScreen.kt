@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -57,6 +60,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import com.alanmaster.xread.data.Book
+import com.alanmaster.xread.data.DramaSeries
 import com.alanmaster.xread.data.ReadCountFormat
 import com.alanmaster.xread.data.TextHit
 import kotlinx.coroutines.delay
@@ -78,6 +82,7 @@ import kotlinx.coroutines.delay
 fun SearchScreen(
     initialQuery: String,
     results: List<Book>,
+    dramaResults: List<DramaSeries> = emptyList(),
     loading: Boolean,
     /** 是否已经搜过一次；false 时显示历史与提示，而不是「没有结果」。 */
     searched: Boolean = false,
@@ -108,6 +113,7 @@ fun SearchScreen(
     onClearHistory: () -> Unit = {},
     onRemoveHistory: (String) -> Unit = {},
     onOpen: (Book) -> Unit,
+    onOpenDrama: (DramaSeries) -> Unit = {},
 ) {
     // 以 initialQuery 为 key：从书架换关键词再进来时要跟着更新
     var query by remember(initialQuery) { mutableStateOf(initialQuery) }
@@ -123,7 +129,7 @@ fun SearchScreen(
         onLibrarySearch(query)
     }
 
-    val placeholder = "书名、作者、主角"
+    val placeholder = if (searchTabType == 11) "搜索短剧名、演员" else "书名、作者、主角"
 
     Scaffold(
         topBar = {
@@ -158,6 +164,7 @@ fun SearchScreen(
             val searchTabs = listOf(
                 "综合" to 1,
                 "小说" to 3,
+                "短剧" to 11,
             )
             LazyRow(
                 contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.xs),
@@ -196,6 +203,24 @@ fun SearchScreen(
                 )
                 loading -> Loading()
                 error.isNotEmpty() -> SearchErrorState(error) { onSearch(query) }
+                searchTabType == 11 && dramaResults.isNotEmpty() -> {
+                    SectionHeader("短剧结果", "${dramaResults.size} 部", index = "DRAMA")
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(
+                            start = Space.gutter,
+                            end = Space.gutter,
+                            bottom = Space.xxl,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                        verticalArrangement = Arrangement.spacedBy(Space.sm),
+                    ) {
+                        gridItems(dramaResults, key = { it.seriesId }) { drama ->
+                            DramaCard(drama = drama, onClick = { onOpenDrama(drama) })
+                        }
+                    }
+                }
                 results.isNotEmpty() -> {
                     val sectionHint = when (searchTabType) {
                         1 -> "综合结果"

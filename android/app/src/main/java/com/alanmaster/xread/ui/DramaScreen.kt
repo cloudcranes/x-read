@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +28,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -47,6 +49,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -80,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
+import com.alanmaster.xread.data.BookHotReview
 import com.alanmaster.xread.data.DanmakuItem
 import com.alanmaster.xread.data.DramaEpisode
 import com.alanmaster.xread.data.DramaPlaySource
@@ -110,6 +114,17 @@ fun DramaScreen(
     onSwitchToDouyin: () -> Unit = {},
     favorites: List<DramaSeries> = emptyList(),
     onToggleFavorite: (DramaSeries) -> Unit = {},
+    related: List<DramaSeries> = emptyList(),
+    comments: List<BookHotReview> = emptyList(),
+    commentTotal: Int = 0,
+    commentsLoading: Boolean = false,
+    commentsHasMore: Boolean = false,
+    commentSending: Boolean = false,
+    onLoadComments: () -> Unit = {},
+    onLoadMoreComments: () -> Unit = {},
+    onSendComment: (String) -> Unit = {},
+    onToggleCommentDigg: (BookHotReview) -> Unit = {},
+    onSelectRelated: (DramaSeries) -> Unit = {},
 ) {
     if (currentDrama == null) {
         // ------------------ 剧场广场列表模式 ------------------
@@ -206,6 +221,17 @@ fun DramaScreen(
             onSwitchToDouyin = onSwitchToDouyin,
             isFavorited = favorites.any { it.seriesId == drama.seriesId },
             onToggleFavorite = { onToggleFavorite(drama) },
+            related = related,
+            comments = comments,
+            commentTotal = commentTotal,
+            commentsLoading = commentsLoading,
+            commentsHasMore = commentsHasMore,
+            commentSending = commentSending,
+            onLoadComments = onLoadComments,
+            onLoadMoreComments = onLoadMoreComments,
+            onSendComment = onSendComment,
+            onToggleCommentDigg = onToggleCommentDigg,
+            onSelectRelated = onSelectRelated,
         )
     }
 }
@@ -322,6 +348,17 @@ private fun DramaPlayerScreen(
     onSwitchToDouyin: () -> Unit = {},
     isFavorited: Boolean = false,
     onToggleFavorite: () -> Unit = {},
+    related: List<DramaSeries> = emptyList(),
+    comments: List<BookHotReview> = emptyList(),
+    commentTotal: Int = 0,
+    commentsLoading: Boolean = false,
+    commentsHasMore: Boolean = false,
+    commentSending: Boolean = false,
+    onLoadComments: () -> Unit = {},
+    onLoadMoreComments: () -> Unit = {},
+    onSendComment: (String) -> Unit = {},
+    onToggleCommentDigg: (BookHotReview) -> Unit = {},
+    onSelectRelated: (DramaSeries) -> Unit = {},
 ) {
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
@@ -330,6 +367,10 @@ private fun DramaPlayerScreen(
     var showControls by remember { mutableStateOf(true) }
     var danmakuEnabled by remember { mutableStateOf(true) }
     var inputText by remember { mutableStateOf("") }
+    var showComments by remember { mutableStateOf(false) }
+
+    // 从「相关推荐」切到另一部剧时，先把上一部剧的剧评弹层收起来，避免展示旧列表。
+    LaunchedEffect(drama.seriesId) { showComments = false }
 
     // 播放位置轮询更新
     LaunchedEffect(videoViewRef, isPlaying) {
@@ -360,6 +401,12 @@ private fun DramaPlayerScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = {
+                        showComments = true
+                        onLoadComments()
+                    }) {
+                        Text("剧评")
+                    }
                     // 收藏：另两个播放页都有，这里补上，不然在这个剧场页收藏不了这部剧。
                     IconButton(
                         onClick = { onToggleFavorite() },
@@ -669,6 +716,218 @@ private fun DramaPlayerScreen(
                         }
                     }
                 }
+
+                // 剧评入口
+                item {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Space.gutter)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                showComments = true
+                                onLoadComments()
+                            }
+                            .padding(horizontal = Space.sm, vertical = Space.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text("剧评", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (commentTotal > 0) "${formatCount(commentTotal)} 条" else "看看大家怎么说",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                // 相关推荐
+                if (related.isNotEmpty()) {
+                    item {
+                        Text(
+                            "相关推荐",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.sm),
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = Space.gutter),
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                        ) {
+                            items(related, key = { it.seriesId }) { item ->
+                                Box(Modifier.width(120.dp)) {
+                                    DramaCard(drama = item, onClick = { onSelectRelated(item) })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showComments) {
+                DramaCommentsSheet(
+                    comments = comments,
+                    total = commentTotal,
+                    loading = commentsLoading,
+                    hasMore = commentsHasMore,
+                    sending = commentSending,
+                    onDismiss = { showComments = false },
+                    onLoadMore = onLoadMoreComments,
+                    onSend = onSendComment,
+                    onToggleDigg = onToggleCommentDigg,
+                )
+            }
+        }
+    }
+}
+
+/** 短剧剧评弹层：列表、点赞与发评。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DramaCommentsSheet(
+    comments: List<BookHotReview>,
+    total: Int,
+    loading: Boolean,
+    hasMore: Boolean,
+    sending: Boolean,
+    onDismiss: () -> Unit,
+    onLoadMore: () -> Unit,
+    onSend: (String) -> Unit,
+    onToggleDigg: (BookHotReview) -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.72f)
+                .padding(horizontal = Space.gutter),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("剧评", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (total > 0) "${formatCount(total)} 条" else "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(Space.xs))
+            if (loading && comments.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (comments.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Text("还没有剧评，来说两句吧", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Space.sm),
+                    contentPadding = PaddingValues(vertical = Space.sm),
+                ) {
+                    itemsIndexed(comments) { _, comment ->
+                        Row(Modifier.fillMaxWidth()) {
+                            Box(
+                                Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (comment.avatar.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = comment.avatar,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else {
+                                    Text(
+                                        comment.user.take(1).ifEmpty { "友" },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(Space.sm))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    comment.user.ifEmpty { "匿名用户" },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(comment.text, style = MaterialTheme.typography.bodySmall)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { onToggleDigg(comment) }) {
+                                        Text(
+                                            if (comment.userLiked) "已赞 ${formatCount(comment.digg)}" else "赞 ${formatCount(comment.digg)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (comment.userLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    if (comment.replyCount > 0) {
+                                        Text(
+                                            "${comment.replyCount} 回复",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.outline,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (hasMore) {
+                        item {
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                TextButton(onClick = onLoadMore) { Text("加载更多") }
+                            }
+                        }
+                    }
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Space.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.sm),
+            ) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (input.isEmpty()) {
+                        Text("写条剧评...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                    BasicTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                TextButton(
+                    enabled = input.isNotBlank() && !sending,
+                    onClick = {
+                        val text = input.trim()
+                        if (text.isNotEmpty()) {
+                            onSend(text)
+                            input = ""
+                        }
+                    },
+                ) { Text(if (sending) "发送中" else "发送") }
             }
         }
     }

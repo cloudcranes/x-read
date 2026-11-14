@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| 版本 | `4.5.4-standalone`（versionCode 29，应用内名称「拾页」） |
+| 版本 | `4.5.5-standalone`（versionCode 30，应用内名称「拾页」） |
 | 包名 | `com.alanmaster.xread.standalone` |
 | 适配 | minSdk 24 / targetSdk 34，仅 arm64-v8a |
 | 体积 | release 约 11 MB（10.5 MiB）：原生 `.so` 5.7 MB（APK 内不再压缩）、三套阅读字体压缩后 2.7 MB、DEX 2.0 MB |
@@ -39,9 +39,10 @@
 
 **发现**
 
-- 搜索：综合 / 小说 / 漫画 / 听书 / 短剧，搜索历史，热度词只在聚焦搜索框时出现。
+- 搜索：综合 / 小说 / 短剧，搜索历史，热度词只在聚焦搜索框时出现。
 - 排行榜、分类浏览与筛选、书评广场。
 - 短剧：滑动刷剧、追剧记录与收藏。
+- Z-Library：底部独立 Tab，搜电子书、登录下载 EPUB 并导入书架。
 - 有声书榜单与真人音频播放，支持进度、倍速与定时停止。
 
 **提醒与统计**
@@ -107,7 +108,7 @@ android/
   app/src/main/java/com/alanmaster/xread/
     MainActivity.kt     导航与页面切换
     data/               内容核心桥、解析、本地库、下载、预取、TTS、提醒、统计、更新
-    ui/                 Compose 页面：书架 / 发现 / 阅读 / 目录 / 详情 / 书评 / 短剧 / 设置
+    ui/                 Compose 页面：书架 / 发现 / 短剧 / Z-Library / 阅读 / 目录 / 详情 / 书评 / 设置
   app/src/test/         Kotlin 单测（48 个文件，纯 JVM）
   native-core/          Rust 内容核心：fqapi_core（GPL-3.0，vendored）+ JNI 适配层
 scripts/                build_native_core.sh / build_apk.sh / verify_apk.sh
