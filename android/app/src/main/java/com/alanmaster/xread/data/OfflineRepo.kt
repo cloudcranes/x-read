@@ -132,6 +132,10 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             .put("title", book.title)
             .put("author", book.author)
             .put("coverUrl", book.coverUrl)
+            // 本地导入的电子书要记住来源与简介，否则离线书列表会把它们当成番茄书。
+            .put("source", book.source)
+            .put("description", book.description)
+            .put("category", book.category)
             .put("updated", System.currentTimeMillis())
         val arr = JSONArray()
         chapters.forEach { arr.put(JSONObject().put("id", it.id).put("title", it.title)) }
@@ -169,6 +173,24 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         }
         return ok
     }
+
+    /**
+     * 把封面字节写进书目录，返回能给 Coil 直接加载的 `file://` 地址。
+     *
+     * 导入的电子书封面在 EPUB 里（原始字节），不落盘的话离线书架只能显示首字占位；
+     * 扩展名来自 EPUB 的 manifest，丢了下游按图片内容猜格式会失败。
+     */
+    fun putCover(bookId: String, bytes: ByteArray, extension: String): String? = runCatching {
+        val ext = extension.lowercase().filter { it.isLetterOrDigit() }.ifBlank { "jpg" }
+        val dir = bookDir(bookId)
+        if (!dir.isDirectory && !dir.mkdirs()) return null
+        val file = File(dir, "cover.$ext")
+        file.outputStream().use { out ->
+            out.write(bytes)
+            out.flush()
+        }
+        "file://${file.absolutePath}"
+    }.getOrNull()
 
     /* ---------- 自动预取标记 ---------- */
 
@@ -284,10 +306,14 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             if (!f.isFile) return@mapNotNull null
             val meta = runCatching { JSONObject(f.readText()) }.getOrNull() ?: return@mapNotNull null
             Book(
+                // 老版本写的 meta.json 没有 source，回落成番茄书，行为与以前一致。
+                source = meta.optString("source").ifBlank { "fanqie" },
                 bookId = meta.optString("bookId"),
                 title = meta.optString("title"),
                 author = meta.optString("author"),
+                description = meta.optString("description"),
                 coverUrl = meta.optString("coverUrl"),
+                category = meta.optString("category"),
                 chapterCount = chapterCount(meta.optString("bookId")),
             )
         }.sortedBy { it.title }
@@ -648,6 +674,24 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
 
     fun saveUpdateMirror(key: String) = mutate(settingsFile) { s ->
         s.put("updateMirror", AppUpdate.mirrorOf(key).key)
+    }
+
+    /** Z-Library 账号会话（`remix_userid` / `remix_userkey`）；null 表示没登录。 */
+    fun zlibrarySession(): ZLibrarySession? = runCatching {
+        val settings = loadObject(settingsFile)
+        val id = settings.optString("zlibraryUserId")
+        val key = settings.optString("zlibraryUserKey")
+        if (id.isBlank() || key.isBlank()) null else ZLibrarySession(id, key)
+    }.getOrNull()
+
+    fun saveZlibrarySession(session: ZLibrarySession?) = mutate(settingsFile) { s ->
+        if (session == null) {
+            s.remove("zlibraryUserId")
+            s.remove("zlibraryUserKey")
+        } else {
+            s.put("zlibraryUserId", session.userId)
+            s.put("zlibraryUserKey", session.userKey)
+        }
     }
 
     fun lastUpdateCheckAt(): Long = runCatching {

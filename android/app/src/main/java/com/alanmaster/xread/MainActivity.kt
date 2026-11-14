@@ -76,6 +76,7 @@ import com.alanmaster.xread.ui.ShelfScreen
 import com.alanmaster.xread.ui.ToolsPage
 import com.alanmaster.xread.ui.ToolsScreen
 import com.alanmaster.xread.ui.XReadTheme
+import com.alanmaster.xread.ui.ZLibraryScreen
 import org.json.JSONObject
 
 /** 底栏三个入口。图标与文字在这里定死，选中态只影响展开与配色。 */
@@ -236,6 +237,7 @@ private sealed interface Screen {
     data object Reader : Screen
     data object Marks : Screen
     data object Tools : Screen
+    data object ZLibrary : Screen
     data object Report : Screen
     data object Reviews : Screen
     data object Author : Screen
@@ -303,6 +305,30 @@ private fun App(
     // 自动备份：目录授权一次长期有效，设置面板与启动检查共用同一份快照
     var backupUi by remember { mutableStateOf(backupUiState(hostContext)) }
     val backupScope = rememberCoroutineScope()
+    // 本地 EPUB 导入：系统文件选择器只给临时读权限，选完立刻读成字节交给 ViewModel
+    val importScope = rememberCoroutineScope()
+    val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            importScope.launch {
+                val picked = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val name = hostContext.contentResolver
+                            .query(uri, null, null, null, null)
+                            ?.use { cursor ->
+                                if (cursor.moveToFirst()) {
+                                    cursor.getString(cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
+                                } else null
+                            }
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "本地电子书.epub"
+                        name to hostContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    }.getOrNull()
+                }
+                val bytes = picked?.second
+                if (bytes == null) vm.notify("读取文件失败，换一个 EPUB 再试") else vm.importLocalEpub(picked.first, bytes)
+            }
+        }
+    }
     val backupDirPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             // 不持久化授权的话，进程一重启就写不进这个目录了。
@@ -617,6 +643,7 @@ private fun App(
                 screen is Screen.Search -> screen = mainTab
                 screen is Screen.Marks -> screen = Screen.Tools
                 screen is Screen.Report -> screen = Screen.Tools
+                screen is Screen.ZLibrary -> screen = Screen.Tools
                 // 「我的」子页先回总览，别一按返回就跳回书架。
                 screen == Screen.Tools && toolsPage != ToolsPage.Overview -> toolsPage = ToolsPage.Overview
                 screen == Screen.Discover || screen == Screen.Tools -> screen = Screen.Shelf
@@ -1199,6 +1226,28 @@ private fun App(
             },
         )
 
+        Screen.ZLibrary -> ZLibraryScreen(
+            results = state.zlibResults,
+            loading = state.zlibLoading,
+            moreLoading = state.zlibMoreLoading,
+            hasNext = state.zlibHasNext,
+            error = state.zlibError,
+            query = state.zlibQuery,
+            session = state.zlibSession,
+            loginLoading = state.zlibLoginLoading,
+            importing = state.zlibImporting,
+            onBack = { screen = Screen.Tools },
+            onSearch = { vm.zlibrarySearch(it) },
+            onLoadMore = { vm.zlibraryLoadMore() },
+            onLogin = { email, password -> vm.zlibraryLogin(email, password) },
+            onLogout = { vm.zlibraryLogout() },
+            onImport = { vm.zlibraryImport(it) },
+            onPickLocal = {
+                runCatching { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream")) }
+                    .onFailure { vm.notify("系统里没有可用的文件选择器") }
+            },
+        )
+
         Screen.Tools -> ToolsScreen(
             page = toolsPage,
             onPage = { toolsPage = it },
@@ -1277,6 +1326,7 @@ private fun App(
             ttsRunning = ttsSpeaking,
             onBack = null,
             onSettings = { showSettings = true },
+            onOpenZLibrary = { vm.loadZLibrarySession(); screen = Screen.ZLibrary },
             onOpen = { b -> vm.openOfflineBook(b); screen = Screen.Reader },
             onExportBook = { b -> vm.exportBookText(b) },
             onDelete = { b -> vm.deleteOfflineBook(b.bookId) },

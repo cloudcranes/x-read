@@ -244,6 +244,21 @@ data class UiState(
     val shelfMediaType: String = "all",
     val recentDramas: List<DramaSeries> = emptyList(),
     val dramaFavorites: List<DramaSeries> = emptyList(),
+    // ---------------- Z-Library 电子书导入 ----------------
+    /** 搜索到的电子书（EAPI 搜 / 详都不需要登录）。 */
+    val zlibResults: List<ZLibraryBook> = emptyList(),
+    val zlibQuery: String = "",
+    val zlibLoading: Boolean = false,
+    val zlibMoreLoading: Boolean = false,
+    val zlibHasNext: Boolean = false,
+    val zlibPage: Int = 0,
+    /** 搜索/登录/导入的错误文案；空串表示没有错误。 */
+    val zlibError: String = "",
+    /** 本地保存的账号会话；null 表示没登录（能搜不能下）。 */
+    val zlibSession: ZLibrarySession? = null,
+    val zlibLoginLoading: Boolean = false,
+    /** 正在导入的书 id；空串表示空闲。 */
+    val zlibImporting: String = "",
 )
 
 /**
@@ -521,6 +536,134 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun setDramaCategory(category: String) {
         update { it.copy(dramaCategory = category) }
     }
+
+    // ---------- Z-Library 电子书 ----------
+
+    /** 读一次本地保存的 z-library 会话；进页面时调，避免在 composition 里读盘。 */
+    fun loadZLibrarySession() = viewModelScope.launch {
+        val session = withContext(Dispatchers.IO) { offline.zlibrarySession() }
+        update { it.copy(zlibSession = session) }
+    }
+
+    fun zlibraryLogin(email: String, password: String) = viewModelScope.launch {
+        if (email.isBlank() || password.isBlank()) {
+            update { it.copy(zlibError = "请填写 Z-Library 的邮箱和密码") }
+            return@launch
+        }
+        update { it.copy(zlibLoginLoading = true, zlibError = "") }
+        runCatching { withContext(Dispatchers.IO) { ZLibraryClient().login(email.trim(), password) } }
+            .onSuccess { session ->
+                withContext(Dispatchers.IO) { offline.saveZlibrarySession(session) }
+                update { it.copy(zlibLoginLoading = false, zlibSession = session, message = "已登录 Z-Library") }
+            }
+            .onFailure { e ->
+                update { it.copy(zlibLoginLoading = false, zlibError = e.message ?: "登录失败") }
+            }
+    }
+
+    fun zlibraryLogout() = viewModelScope.launch {
+        withContext(Dispatchers.IO) { offline.saveZlibrarySession(null) }
+        update { it.copy(zlibSession = null, message = "已退出 Z-Library 账号") }
+    }
+
+    fun zlibrarySearch(query: String) = viewModelScope.launch {
+        val keyword = query.trim()
+        if (keyword.isEmpty()) return@launch
+        update {
+            it.copy(
+                zlibLoading = true, zlibError = "", zlibQuery = keyword,
+                zlibResults = emptyList(), zlibPage = 0, zlibHasNext = false,
+            )
+        }
+        runCatching { withContext(Dispatchers.IO) { zlibClient().search(keyword, page = 1) } }
+            .onSuccess { page ->
+                update {
+                    it.copy(
+                        zlibLoading = false,
+                        zlibResults = page.books,
+                        zlibPage = page.page,
+                        zlibHasNext = page.hasNext,
+                    )
+                }
+            }
+            .onFailure { e ->
+                update { it.copy(zlibLoading = false, zlibResults = emptyList(), zlibError = e.message ?: "搜索失败") }
+            }
+    }
+
+    fun zlibraryLoadMore() = viewModelScope.launch {
+        val st = _state.value
+        if (st.zlibLoading || st.zlibMoreLoading || !st.zlibHasNext || st.zlibQuery.isBlank()) return@launch
+        update { it.copy(zlibMoreLoading = true) }
+        runCatching { withContext(Dispatchers.IO) { zlibClient().search(st.zlibQuery, page = st.zlibPage + 1) } }
+            .onSuccess { page ->
+                val seen = _state.value.zlibResults.mapTo(mutableSetOf()) { it.id }
+                update {
+                    it.copy(
+                        zlibMoreLoading = false,
+                        zlibResults = it.zlibResults + page.books.filter { b -> seen.add(b.id) },
+                        zlibPage = page.page,
+                        zlibHasNext = page.hasNext,
+                    )
+                }
+            }
+            .onFailure { e ->
+                update { it.copy(zlibMoreLoading = false, zlibHasNext = false, zlibError = e.message ?: "加载更多失败") }
+            }
+    }
+
+    /**
+     * 导入一本 z-library 电子书：下载 EPUB → 解包分章 → 写本地书 → 进书架。
+     *
+     * 下载文件本体必须带账号会话；没登录就直接提示，不发请求。
+     * 只支持 EPUB：mobi/azw3 要另一套解析器，不能假装能读。
+     */
+    fun zlibraryImport(raw: ZLibraryBook) = viewModelScope.launch {
+        if (_state.value.zlibImporting.isNotBlank() || raw.extension.lowercase() != "epub") return@launch
+        val session = _state.value.zlibSession ?: withContext(Dispatchers.IO) { offline.zlibrarySession() }
+        if (session == null) {
+            update { it.copy(zlibError = "下载电子书要先登录 Z-Library 账号（搜索和详情不需要登录）") }
+            return@launch
+        }
+        update { it.copy(zlibImporting = raw.id, zlibError = "") }
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val client = ZLibraryClient(session = session)
+                val link = client.downloadUrl(raw.id, raw.hash)
+                val bytes = client.download(link)
+                ZLibraryImporter(offline, api).import(raw, bytes)
+            }
+        }.onSuccess { book ->
+            update { it.copy(zlibImporting = "", message = "《${book.title}》已导入书架，共 ${book.chapterCount} 章") }
+            refreshShelf()
+        }.onFailure { e ->
+            update { it.copy(zlibImporting = "", zlibError = e.message ?: "导入失败") }
+        }
+    }
+
+    /**
+     * 导入本机选中的 EPUB 文件（不经过 z-library，不需要账号）。
+     *
+     * 和从 z-library 导入走同一条落库路径，只是书号/书名从文件名兜。
+     */
+    fun importLocalEpub(fileName: String, bytes: ByteArray) = viewModelScope.launch {
+        if (_state.value.zlibImporting.isNotBlank()) return@launch
+        update { it.copy(zlibImporting = "local", zlibError = "") }
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val title = fileName.substringBeforeLast('.').ifBlank { "本地电子书" }
+                val raw = ZLibraryBook(id = "", hash = title, title = title, author = "", extension = "epub")
+                ZLibraryImporter(offline, api).import(raw, bytes)
+            }
+        }.onSuccess { book ->
+            update { it.copy(zlibImporting = "", message = "《${book.title}》已导入书架，共 ${book.chapterCount} 章") }
+            refreshShelf()
+        }.onFailure { e ->
+            update { it.copy(zlibImporting = "", zlibError = e.message ?: "导入失败") }
+        }
+    }
+
+    private fun zlibClient(): ZLibraryClient = ZLibraryClient(session = _state.value.zlibSession)
 
     fun setSearchTabType(tabType: Int, currentQuery: String = "") {
         update { it.copy(searchTabType = tabType) }

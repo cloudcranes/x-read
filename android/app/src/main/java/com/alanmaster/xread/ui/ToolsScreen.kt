@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Highlight
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Storage
@@ -92,7 +93,7 @@ internal fun formatBytes(bytes: Long): String {
 enum class ToolsPage { Overview, Downloads, Reading, Content, Backup }
 
 @Composable
-private fun ToolsOverview(onPage: (ToolsPage) -> Unit) {
+private fun ToolsOverview(onPage: (ToolsPage) -> Unit, onOpenZLibrary: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -122,6 +123,12 @@ private fun ToolsOverview(onPage: (ToolsPage) -> Unit) {
             title = "备份与恢复",
             hint = "导入导出、自动备份、WebDAV 同步",
             onClick = { onPage(ToolsPage.Backup) },
+        )
+        ToolsEntryCard(
+            icon = Icons.AutoMirrored.Filled.MenuBook,
+            title = "Z-Library 电子书",
+            hint = "搜电子书、下载 EPUB、导入书架",
+            onClick = onOpenZLibrary,
         )
     }
 }
@@ -231,6 +238,7 @@ fun ToolsScreen(
     page: ToolsPage = ToolsPage.Overview,
     onPage: (ToolsPage) -> Unit = {},
     onSettings: () -> Unit = {},
+    onOpenZLibrary: () -> Unit = {},
     onOpen: (Book) -> Unit,
     onExportBook: (Book) -> Unit,
     onDelete: (Book) -> Unit,
@@ -327,7 +335,7 @@ fun ToolsScreen(
         ) {
 
             if (page == ToolsPage.Overview) {
-                item { ToolsOverview(onPage) }
+                item { ToolsOverview(onPage, onOpenZLibrary) }
             }
             if (page == ToolsPage.Downloads) {
 

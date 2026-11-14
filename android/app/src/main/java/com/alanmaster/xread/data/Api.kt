@@ -116,6 +116,20 @@ class Api(context: Context) {
         checkSource(source); checkId(bookId); library.remove(bookId)
     }
 
+    /**
+     * 把本地导入的书（如 Z-Library 下载的 EPUB）放进书架。
+     *
+     * 这类书没有上游书源，不能走 [checkSource]；它的目录与正文都在 [OfflineRepo] 里，
+     * 阅读时 [book]/[chapters]/[chapter] 会因「书源不存在」失败，正好落进
+     * ViewModel 的离线兜底分支（`hasOffline → openOfflineBook`）。
+     */
+    suspend fun putLocalBook(book: Book): Book = withContext(Dispatchers.IO) {
+        checkId(book.bookId)
+        library.put(book)
+        bookCache[book.bookId] = book
+        book
+    }
+
     /** 撤销移出：按备份条目写回本地书架，不重新拉书目（离线也能撤销）。 */
     suspend fun restoreToShelf(item: ShelfItem) = withContext(Dispatchers.IO) {
         library.restore(item)
