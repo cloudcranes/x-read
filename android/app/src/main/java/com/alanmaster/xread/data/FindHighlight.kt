@@ -3,7 +3,7 @@ package com.alanmaster.xread.data
 /**
  * 章内查找的命中区间。纯函数，便于离线单测。
  *
- * 与 [ChapterContent.findHits] 口径一致：去首尾空白、区分大小写、允许重叠。
+ * 与 [ChapterContent.findHits] 口径一致 去首尾空白、区分大小写、允许重叠。
  */
 object FindHighlight {
 

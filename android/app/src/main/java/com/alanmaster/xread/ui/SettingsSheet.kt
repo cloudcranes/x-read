@@ -50,11 +50,11 @@ import java.io.File
 /**
  * 全局设置面板。
  *
- * 只留**应用级**的三件事：内容核心与同步、本地数据与存储、关于。
+ * 只留**应用级**的三件事 内容核心与同步、本地数据与存储、关于。
  * 阅读相关项（字号/行距/背景/翻页）已迁到阅读页底部抽屉，
  * 这里不再重复——两处都改同一份偏好会让用户以为有两个开关。
  *
- * 形态是**底部抽屉**而不是弹窗：旧实现用 AlertDialog 装一屏内容，
+ * 形态是**底部抽屉**而不是弹窗 旧实现用 AlertDialog 装一屏内容，
  * 超过可视高度的后半截（背景主题、两个开关）直接被裁掉，用户点不到。
  *
  * @param prefs 阅读偏好。**本面板不再修改它**，仅为保持调用方签名不变而保留。
@@ -78,10 +78,10 @@ fun SettingsSheet(
     val local = rememberLocalStorage()
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        // 抽屉最高 80%：再多就会顶到状态栏，用户看不到标题栏。
+        // 抽屉最高 80% 再多就会顶到状态栏，用户看不到标题栏。
         val sheetMax = maxHeight * 0.8f
         Box(Modifier.fillMaxSize()) {
-            // 遮罩：点它关闭。抽屉本体没有自带遮罩，这里补一层。
+            // 遮罩 点它关闭。抽屉本体没有自带遮罩，这里补一层。
             // 读屏播报时这一层没有文字，所以显式写一个动作说明。
             Box(
                 Modifier
@@ -112,7 +112,7 @@ fun SettingsSheet(
                         item {
                             SettingsSection(index = "01", title = "内容核心与同步", top = Space.md) {
                                 SettingsRow("内容核心", "APK 内置")
-                                SettingsRow("资源加载", "无需服务端 · 无需令牌")
+                                SettingsRow("资源加载", "无需服务端 无需令牌")
                                 Text(
                                     text = "书架、进度、下载、统计、书签与替换规则都保存在本机。",
                                     fontSize = 12.sp,
@@ -219,9 +219,9 @@ fun SettingsSheet(
 /**
  * 通知渠道开关。
  *
- * 每个渠道一行：名称 + 一句说明 + 开关。关掉的是这个渠道本身，
+ * 每个渠道一行 名称 + 一句说明 + 开关。关掉的是这个渠道本身，
  * 后台播放 / 朗读不会因此停止，只是不再显示控制条。
- * 开关状态取自系统，而不是本地偏好：用户在系统设置里改过之后，
+ * 开关状态取自系统，而不是本地偏好 用户在系统设置里改过之后，
  * 回到这里看到的必须是系统的真实状态。
  */
 @Composable
@@ -291,9 +291,9 @@ private fun NotificationChannelRows() {
 }
 
 /**
- * 热更新面板：开关 + 更新源 + 检查/下载/安装。
+ * 热更新面板 开关 + 更新源 + 检查/下载/安装。
  *
- * 做的是整包更新：下载完的 APK 交给系统安装器覆盖安装，applicationId 不变，
+ * 做的是整包更新 下载完的 APK 交给系统安装器覆盖安装，applicationId 不变，
  * 书架、进度、离线正文都在私有目录里，装完不用重新导入。
  */
 @Composable
@@ -544,7 +544,7 @@ private fun UpdatePanel(
 }
 
 /**
- * 区块：`01` 序号 + 衬线标题 + 发丝线，随后是内容。
+ * 区块 `01` 序号 + 衬线标题 + 发丝线，随后是内容。
  *
  * 与全站 SectionHeader 对齐（序号 + 衬线 + 细线），让抽屉里的三段可数、可分。
  */
@@ -584,7 +584,7 @@ private fun SettingsSection(
     }
 }
 
-/** 设置项行：左标签 + 右值，行间只留空白，不加底色。 */
+/** 设置项行 左标签 + 右值，行间只留空白，不加底色。 */
 @Composable
 private fun SettingsRow(label: String, value: String, modifier: Modifier = Modifier) {
     Row(
@@ -609,7 +609,7 @@ private fun SettingsRow(label: String, value: String, modifier: Modifier = Modif
     }
 }
 
-/** 左侧小统计：值在上、标签在下，三段等分。 */
+/** 左侧小统计 值在上、标签在下，三段等分。 */
 @Composable
 private fun SmallStat(value: String, label: String, modifier: Modifier = Modifier) {
     Column(modifier) {
@@ -670,7 +670,7 @@ private fun dirSize(dir: File): Long = runCatching {
     size(dir)
 }.getOrDefault(0L)
 
-/** 书架条目数：解析失败一律按 0，绝不让设置面板因为一个坏文件打不开。 */
+/** 书架条目数 解析失败一律按 0，绝不让设置面板因为一个坏文件打不开。 */
 private fun readShelfCount(ctx: android.content.Context): Int = runCatching {
     val f = File(ctx.filesDir, "library/shelf.json")
     if (!f.isFile) return@runCatching 0

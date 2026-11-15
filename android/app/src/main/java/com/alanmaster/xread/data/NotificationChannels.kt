@@ -76,7 +76,7 @@ object NotificationChannels {
     }
 
     /**
-     * 渠道开 / 关。返回操作后渠道的真实状态：部分机型在用户手动关闭过渠道后
+     * 渠道开 / 关。返回操作后渠道的真实状态 部分机型在用户手动关闭过渠道后
      * 会忽略应用侧的再次开启，这时开关要如实回弹，而不是假装打开。
      */
     fun setEnabled(context: Context, id: String, enabled: Boolean): Boolean {

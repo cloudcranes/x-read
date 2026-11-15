@@ -24,7 +24,7 @@ data class TextHit(
 /**
  * 一次搜索的进度快照。
  *
- * 边扫边发而不是最后一次性返回：一本 900 章的书扫完要一两秒，
+ * 边扫边发而不是最后一次性返回 一本 900 章的书扫完要一两秒，
  * 期间界面得能告诉人「已经翻了 300 章」，否则看起来像卡死。
  */
 data class SearchProgress(
@@ -37,10 +37,10 @@ data class SearchProgress(
 /**
  * 只在**已下载**的正文里做全文检索。
  *
- * 三条边界是有意的：
- * - 不触发网络：搜书是本地动作，扫到一半跳出去拉一章会让人以为应用在自己跑流量；
- * - 搜原文、不套替换规则：替换规则是阅读时的排版偏好，不是书的内容；
- * - 中文不分词：`contains` 已经能覆盖「人名」「地名」「半句话」三种最常见的查法，
+ * 三条边界是有意的
+ * - 不触发网络 搜书是本地动作，扫到一半跳出去拉一章会让人以为应用在自己跑流量；
+ * - 搜原文、不套替换规则 替换规则是阅读时的排版偏好，不是书的内容；
+ * - 中文不分词 `contains` 已经能覆盖「人名」「地名」「半句话」三种最常见的查法，
  *   上分词器要么加依赖（违背零新依赖），要么自己造一份词表（收益远小于维护成本）。
  */
 object FullTextSearch {
@@ -58,7 +58,7 @@ object FullTextSearch {
             return@flow
         }
 
-        // 只取「目录里存在且已落盘」的章节：meta.json 的 chapters 是全量目录，
+        // 只取「目录里存在且已落盘」的章节 meta.json 的 chapters 是全量目录，
         // 真正的缓存命中以 downloadedChapters 为准。
         val plan = repo.offlineBooks().map { book ->
             val cached = repo.downloadedChapters(book.bookId)

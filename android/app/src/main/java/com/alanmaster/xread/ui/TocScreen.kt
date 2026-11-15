@@ -55,7 +55,7 @@ import com.alanmaster.xread.data.OfflineRepo
 import kotlinx.coroutines.launch
 
 /**
- * 章号直达：查询串是纯数字且落在 `1..size` 时，返回该章在**原始目录**里的下标。
+ * 章号直达 查询串是纯数字且落在 `1..size` 时，返回该章在**原始目录**里的下标。
  *
  * 上千章的目录里「滚到第 800 章」要滑几十屏，直接输章号是最短路径。返回 null
  * 有两种情况——不是纯数字（交给标题筛选），或者数字越界（那里没有章节）。
@@ -69,18 +69,18 @@ internal fun chapterJumpIndex(query: String, size: Int): Int? {
 /**
  * 目录页。
  *
- * 上千章的目录不能只靠滚动：打开时定位到当前章，过滤时回到顶部让首个命中进视野。
+ * 上千章的目录不能只靠滚动 打开时定位到当前章，过滤时回到顶部让首个命中进视野。
  * 当前章用主色 + 左侧竖条标出，不只靠文字颜色（色弱用户也要能分辨）。
  *
- * v2 调整：
- * - **正序 / 倒序**切换：本地状态，不动 MainActivity。倒序时章号跟着走，
+ * v2 调整
+ * - **正序 / 倒序**切换 本地状态，不动 MainActivity。倒序时章号跟着走，
  *   列表从最新一章开始——追更的人几乎总是从末尾开始找。
- * - 目录头部**吸顶**：书名 + 章数 + 排序切换始终可见，滚到第 800 章时
+ * - 目录头部**吸顶** 书名 + 章数 + 排序切换始终可见，滚到第 800 章时
  *   还能确认自己看的哪本书。
  * - 行高 48dp，序号右对齐在弱色，当前章强调色 + 左侧 2dp 竖条。
- * - **章号直达**：搜索框里输纯数字（如 `800`）直接滚到第 800 章，不筛列表；
+ * - **章号直达** 搜索框里输纯数字（如 `800`）直接滚到第 800 章，不筛列表；
  *   输文字才按标题过滤。939 章的目录滑到第 800 章要几十屏，这是最短路径。
- * - 右下角悬浮「定位到当前章」胶囊按钮：定位过一次后，用户想回当前位置
+ * - 右下角悬浮「定位到当前章」胶囊按钮 定位过一次后，用户想回当前位置
  *   不必再滚几千行。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,27 +93,27 @@ fun TocScreen(
     onSelect: (String) -> Unit,
     /** 已缓存章节的键（[OfflineRepo.chapterKey]），由 ViewModel 一次扫盘得到。 */
     cached: Set<String> = emptySet(),
-    /** 正在补缓存：未缓存的圆点用主色呼吸，表示「进行中」。 */
+    /** 正在补缓存 未缓存的圆点用主色呼吸，表示「进行中」。 */
     downloading: Boolean = false,
-    /** 长按菜单：缓存本章 / 缓存后 [CACHE_BATCH] 章。 */
+    /** 长按菜单 缓存本章 / 缓存后 [CACHE_BATCH] 章。 */
     onCache: (Chapter, Int) -> Unit = { _, _ -> },
     onUncache: (Chapter) -> Unit = {},
     /** 点「补全」时把当前窗口补齐（前 2 章 ～ 后 N 章）。 */
     onFillWindow: (() -> Unit)? = null,
     /**
-     * 目录刷新完成计数：每重拉一次目录 +1。
+     * 目录刷新完成计数 每重拉一次目录 +1。
      *
      * 与书架下拉同一个理由——布尔在同一帧里翻转会被合帧吃掉，指示器就收不回来。
      */
     tocRefreshDone: Int = 0,
-    /** 下拉重拉目录：追更的书常年在长，读者要知道「有没有新章」。 */
+    /** 下拉重拉目录 追更的书常年在长，读者要知道「有没有新章」。 */
     onRefreshChapters: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
     // 倒序 = 从最新一章往回排；默认正序（与上游目录顺序一致）
     var reversed by remember { mutableStateOf(false) }
 
-    // 章号直达：纯数字直接滚到那一章，不筛列表——上下文的相邻章还在，
+    // 章号直达 纯数字直接滚到那一章，不筛列表——上下文的相邻章还在，
     // 读者能顺势继续翻；只有文字查询才过滤。
     val jump = chapterJumpIndex(query.trim(), chapters.size)
     val matched = remember(chapters, query, jump) {
@@ -135,7 +135,7 @@ fun TocScreen(
         map
     }
 
-    // 呼吸灯：只用于「下载中」的空心圆点，恒定成本，不随列表长度变化
+    // 呼吸灯 只用于「下载中」的空心圆点，恒定成本，不随列表长度变化
     val haptic = rememberHaptic()
     val pulse by rememberInfiniteTransition(label = "toc-pulse").animateFloat(
         initialValue = 0.25f,
@@ -145,15 +145,15 @@ fun TocScreen(
     )
     var menuFor by remember { mutableStateOf<String?>(null) }
 
-    // 已缓存计数只统计目录里真实存在的章：删书后残留的键不算
+    // 已缓存计数只统计目录里真实存在的章 删书后残留的键不算
     val cachedCount = remember(cached, chapters) {
         chapters.count { OfflineRepo.chapterKey(it.id) in cached }
     }
     val listState = rememberLazyListState()
     // 悬浮「定位到当前章」是在 click 回调里滚动，需要显式作用域
     val scope = rememberCoroutineScope()
-    // 打开目录时定位到当前章：上千章的目录每次从第 1 章滚起等于不可用。
-    // 旧实现把 filtered.size 当 key，每输入一个字都重新定位回当前章：
+    // 打开目录时定位到当前章 上千章的目录每次从第 1 章滚起等于不可用。
+    // 旧实现把 filtered.size 当 key，每输入一个字都重新定位回当前章
     // 当前章命中就跳走、不命中就完全不滚，等于筛选时无法看到首个命中。
     LaunchedEffect(currentChapterId, chapters.size) {
         val target = currentChapterId ?: return@LaunchedEffect
@@ -161,7 +161,7 @@ fun TocScreen(
         val idx = ordered.indexOfFirst { it.id == target }
         if (idx >= 0) listState.scrollToItem(idx)
     }
-    // 查询变化后：章号直达滚到那一章，文字筛选回到顶部让首个命中进视野，
+    // 查询变化后 章号直达滚到那一章，文字筛选回到顶部让首个命中进视野，
     // 清空则回到当前章——否则清完筛选会停在全书第 1 章，和上面的 CURRENT 对不上。
     LaunchedEffect(query, reversed) {
         val q = query.trim()
@@ -198,7 +198,7 @@ fun TocScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            // 下拉 = 重拉目录。放在 LazyColumn 外层：空目录（新书还没章节）也得能下拉。
+            // 下拉 = 重拉目录。放在 LazyColumn 外层 空目录（新书还没章节）也得能下拉。
             var pullRefreshing by remember { mutableStateOf(false) }
             LaunchedEffect(tocRefreshDone) { pullRefreshing = false }
             PullToRefreshBox(
@@ -210,7 +210,7 @@ fun TocScreen(
                 modifier = Modifier.fillMaxSize(),
             ) {
             Column(Modifier.fillMaxSize()) {
-                // 工具行：章节总数 + 正序/倒序切换
+                // 工具行 章节总数 + 正序/倒序切换
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -220,8 +220,8 @@ fun TocScreen(
                 ) {
                     Text(
                         text = "共 ${chapters.size} 章" +
-                            if (query.isNotBlank() && jump == null) " · 匹配 ${ordered.size}" else "" +
-                            if (cached.isNotEmpty()) " · 已缓存 $cachedCount" else "",
+                            if (query.isNotBlank() && jump == null) " 匹配 ${ordered.size}" else "" +
+                            if (cached.isNotEmpty()) " 已缓存 $cachedCount" else "",
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                         color = ink3,
@@ -243,7 +243,7 @@ fun TocScreen(
                     placeholder = "章号直达，或筛选章节标题",
                     modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.xs),
                 )
-                // 统计条：把筛选区与长列表切开，同时说明「当前在第几章」
+                // 统计条 把筛选区与长列表切开，同时说明「当前在第几章」
                 val currentOrdinal = ordinals[currentChapterId] ?: 0
                 if (currentOrdinal > 0) {
                     Row(
@@ -261,7 +261,7 @@ fun TocScreen(
                             color = ink3,
                         )
                         Text(
-                            text = "  第 $currentOrdinal 章",
+                            text = " 第 $currentOrdinal 章",
                             fontSize = 11.sp,
                             lineHeight = 15.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -309,7 +309,7 @@ fun TocScreen(
                 }
             }
 
-            // 悬浮「定位到当前章」：定位过一次之后，回到当前位置不必再滚几千行
+            // 悬浮「定位到当前章」 定位过一次之后，回到当前位置不必再滚几千行
             val currentIndex = ordered.indexOfFirst { it.id == currentChapterId }
             if (currentIndex >= 0 && currentIndex > 2) {
                 LocateButton(
@@ -328,12 +328,12 @@ fun TocScreen(
 private const val CACHE_BATCH = 50
 
 /**
- * 目录行：缓存圆点 + 章名 + 右侧章号。
+ * 目录行 缓存圆点 + 章名 + 右侧章号。
  *
- * 当前章：主色文字 + 左侧 2dp 竖条 + 极浅的强调底色。
+ * 当前章 主色文字 + 左侧 2dp 竖条 + 极浅的强调底色。
  * 三重信号（颜色 / 竖条 / 底色）任一失效也还能辨认。
  *
- * 圆点表达缓存状态，用**形状**而不只是颜色区分有无（色弱也分得出）：
+ * 圆点表达缓存状态，用**形状**而不只是颜色区分有无（色弱也分得出）
  * 实心弱色 = 已缓存，空心 = 未缓存，主色呼吸 = 正在补。
  * 长按整行弹菜单，与书架的长按习惯一致，不额外加按钮占行宽。
  */
@@ -419,7 +419,7 @@ private fun TocRow(
     }
 }
 
-/** 行尾 6dp 缓存标记：实心 = 已缓存，空心 = 未缓存，主色呼吸 = 正在补。 */
+/** 行尾 6dp 缓存标记 实心 = 已缓存，空心 = 未缓存，主色呼吸 = 正在补。 */
 @Composable
 private fun CachedDot(cached: Boolean, downloading: Boolean, pulse: Float) {
     val hollow = !cached && !downloading
@@ -439,7 +439,7 @@ private fun CachedDot(cached: Boolean, downloading: Boolean, pulse: Float) {
     )
 }
 
-/** 正序 / 倒序切换：图标 + 文字，48dp 触控区。 */
+/** 正序 / 倒序切换 图标 + 文字，48dp 触控区。 */
 @Composable
 private fun OrderToggle(reversed: Boolean, onToggle: () -> Unit) {
     Row(
@@ -466,7 +466,7 @@ private fun OrderToggle(reversed: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/** 右下角悬浮胶囊：定位到当前章。 */
+/** 右下角悬浮胶囊 定位到当前章。 */
 @Composable
 private fun LocateButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(

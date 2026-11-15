@@ -3,7 +3,7 @@ package com.alanmaster.xread.ui
 import com.alanmaster.xread.data.ChapterContent
 
 /**
- * 连续阅读的列表布局：多章正文接成**一条** LazyColumn。
+ * 连续阅读的列表布局 多章正文接成**一条** LazyColumn。
  *
  * 每章占「页眉 1 项 + 段落 n 项」，章与章首尾相接；读者滚过本章末尾就是下一章正文，
  * 滚回开头就接着上一章正文，不换页、不清屏。
@@ -27,10 +27,10 @@ internal object ReaderFlow {
         return offset
     }
 
-    /** 章 k 的页眉下标：跳章时滚到它就是章首。 */
+    /** 章 k 的页眉下标 跳章时滚到它就是章首。 */
     fun headerOf(flow: List<ChapterContent>, chapter: Int): Int = offsetOf(flow, chapter)
 
-    /** 展开成扁平的列表项：每章「页眉 + 若干段落/图片」。 */
+    /** 展开成扁平的列表项 每章「页眉 + 若干段落/图片」。 */
     fun items(flow: List<ChapterContent>): List<FlowItem> {
         val out = ArrayList<FlowItem>(flow.size * 8)
         for ((k, chapter) in flow.withIndex()) {
@@ -47,7 +47,7 @@ internal object ReaderFlow {
     /**
      * 列表下标 → (章序号, 章内段落/图片下标)。
      *
-     * 页眉项算该章第 0 段：旧实现里页眉就是这么算的（列表下标 0 → 段落 0），
+     * 页眉项算该章第 0 段 旧实现里页眉就是这么算的（列表下标 0 → 段落 0），
      * 书签、朗读高亮、段评都按段落下标走，别改口径。
      */
     fun locate(flow: List<ChapterContent>, listIndex: Int): Pair<Int, Int> {
@@ -63,7 +63,7 @@ internal object ReaderFlow {
             }
             offset += len
         }
-        // 越界（尾部导航项）：落在最后一章的最后一段/最后一张图
+        // 越界（尾部导航项） 落在最后一章的最后一段/最后一张图
         val last = flow.last()
         return flow.lastIndex to (contentSize(last) - 1).coerceAtLeast(0)
     }
@@ -79,7 +79,7 @@ internal object ReaderFlow {
     /**
      * 全书口径的阅读进度（0f..1f）。
      *
-     * 目录只给章 id 与标题，不给每章段数，所以按章等权估算：章长差异大时有偏差，
+     * 目录只给章 id 与标题，不给每章段数，所以按章等权估算 章长差异大时有偏差，
      * 但它连续、单调，跨章时不会像「章内百分比」那样从 100% 跳回 0%。
      */
     fun bookPercent(

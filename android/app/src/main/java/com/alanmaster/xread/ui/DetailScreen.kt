@@ -80,15 +80,15 @@ import com.alanmaster.xread.data.ShelfItem
 /**
  * 书籍详情页。
  *
- * v3 层级：**纸色带 + 封面 / 书名 / 作者 / 简介（同一头部块）→ 三列数字块 → 标签行 →
+ * v3 层级 **纸色带 + 封面 / 书名 / 作者 / 简介（同一头部块）→ 三列数字块 → 标签行 →
  * 同行主次操作（我的标记默认折叠成一行）→ 书评横向卡片流 → 内容**。
  *
- * 硬约束：
- * - 简介紧贴书名与作者，和封面同处一个头部块：不再单独占一节把首屏往下推；
+ * 硬约束
+ * - 简介紧贴书名与作者，和封面同处一个头部块 不再单独占一节把首屏往下推；
  *   上游 &#10; / <br> / &nbsp; 先折成单行再按 3 行截断，展开 / 收起保留全文；
  * - 「我的标记」默认只留一行摘要（状态 / 星级 / 标签数 + 展开箭头），点开才露出
  *   状态 chips / 星级 / 标签编辑；整行 ≥48dp 按钮语义，三项数据操作与弹窗一个不丢；
- * - 「继续阅读 / 开始阅读」与「加入 / 移出书架」并排同一行：主按钮实心 56dp、
+ * - 「继续阅读 / 开始阅读」与「加入 / 移出书架」并排同一行 主按钮实心 56dp、
  *   次按钮描边 56dp，两件事是同一层决策，不再竖排占掉首屏；
  *   下载 / 前 20 章 / 目录 / 书评 / 听书 / 作者仍收在顶栏「更多」菜单，
  *   但书评在页面上是可左右滑动的真实短评卡片流，末尾接「查看全部」；
@@ -97,7 +97,7 @@ import com.alanmaster.xread.data.ShelfItem
  * - 目录预览默认只列前 10 章名称（[TocPreviewCount]），其余走「查看全部」；
  *   锁定章用 [androidx.compose.material.icons.Icons.Filled.Lock] 表示，不用 emoji。
  *
- * `resumeChapterId` / `resumeParagraph` 的语义不变：
+ * `resumeChapterId` / `resumeParagraph` 的语义不变
  * 续读目标章 = 上次读到的章，找不到才退回第一章，绝不因为进详情页就覆盖进度。
  */
 /** 目录预览默认只列前 10 章名称，其余进目录页。 */
@@ -141,7 +141,7 @@ fun DetailScreen(
     reviewsLoading: Boolean = false,
     onLoadReviews: (String) -> Unit = {},
 ) {
-    // 上游 related 常只回 1–2 本（且可能含当前书的听书版：同 id 不同标题）。
+    // 上游 related 常只回 1–2 本（且可能含当前书的听书版 同 id 不同标题）。
     // 去重口径必须与列表 key 一致——都按 bookId，否则同一 id 会生成两个 key 崩溃。
     val recommendations = remember(related, book.bookId) {
         related.filter { it.bookId.isNotBlank() && it.bookId != book.bookId }
@@ -153,7 +153,7 @@ fun DetailScreen(
     // 误触后重新加入也拿不回来，所以必须先问一句。
     var confirmRemove by remember(book.bookId) { mutableStateOf(false) }
 
-    // 卡片流要显示真实短评：复用书评页的 loadComments，不复制数据、不新增接口。
+    // 卡片流要显示真实短评 复用书评页的 loadComments，不复制数据、不新增接口。
     // 按 bookId 触发，切书时重取；loadComments 自己会按当前书守卫迟到响应。
     LaunchedEffect(book.bookId) {
         if (book.bookId.isNotBlank()) onLoadReviews(book.bookId)
@@ -188,7 +188,7 @@ fun DetailScreen(
                 .padding(padding),
             contentPadding = PaddingValues(bottom = Space.navFloat),
         ) {
-            /* ---------- 头部：封面 + 书名/作者 + 简介，同一个 item ---------- */
+            /* ---------- 头部 封面 + 书名/作者 + 简介，同一个 item ---------- */
             item {
                 Column(Modifier.fillMaxWidth()) {
                     DetailCoverSection(book = book)
@@ -204,7 +204,7 @@ fun DetailScreen(
                         val byline = listOfNotNull(
                             book.author.takeIf { it.isNotBlank() },
                             book.category.takeIf { it.isNotBlank() },
-                        ).joinToString(" · ")
+                        ).joinToString(" ")
                         if (byline.isNotEmpty()) {
                             Text(
                                 text = byline,
@@ -214,7 +214,7 @@ fun DetailScreen(
                                 modifier = Modifier.padding(top = Space.xs),
                             )
                         }
-                        // 简介与封面、书名同块：上游常带 &#10; / <br> / &nbsp;，
+                        // 简介与封面、书名同块 上游常带 &#10; / <br> / &nbsp;，
                         // 折成单行再按 3 行截断，展开后给全文。
                         val intro = bookDescription(book.description)
                         if (intro.isNotEmpty()) {
@@ -253,7 +253,7 @@ fun DetailScreen(
             }
 
             /* -------------------- 三列数字块 -------------------- */
-            // 评分 / 字数 / 章数：三列等宽数字块，竖发丝线分隔。
+            // 评分 / 字数 / 章数 三列等宽数字块，竖发丝线分隔。
             // 分类是字符串不是数字，放到下面的标签行。
             item {
                 Row(
@@ -262,7 +262,7 @@ fun DetailScreen(
                         .padding(horizontal = Space.gutter, vertical = Space.lg),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 三个数字都来自真实字段：在读人数（榜单接口会给）、
+                    // 三个数字都来自真实字段 在读人数（榜单接口会给）、
                     // 章数（目录）、字数（详情接口）。缺哪个就显示「—」。
                     MetaStat(
                         value = if (book.readCount > 0) ReadCountFormat.short(book.readCount) else "—",
@@ -294,7 +294,7 @@ fun DetailScreen(
                         .padding(horizontal = Space.gutter),
                     horizontalArrangement = Arrangement.spacedBy(Space.sm),
                 ) {
-                    // 标签只放「数字块里没说过」的东西：分类、连载状态、评分。
+                    // 标签只放「数字块里没说过」的东西 分类、连载状态、评分。
                     // 章数/字数已经在上面三列里，重复印一遍只会让人怀疑哪个才是准的。
                     if (book.category.isNotBlank()) {
                         Tag(book.category, emphasized = true)
@@ -308,7 +308,7 @@ fun DetailScreen(
 
             /* -------------------- 主行动 -------------------- */
             item {
-                // 续读目标：上次读到的章，找不到才退回第一章。
+                // 续读目标 上次读到的章，找不到才退回第一章。
                 // 旧实现固定 chapters.first()，读到第 50 章回详情页点「开始阅读」
                 // 会把唯一一条进度覆盖成第 1 章。
                 val resume = remember(chapters, resumeChapterId) {
@@ -317,7 +317,7 @@ fun DetailScreen(
                 val resumeIndex = chapters.indexOfFirst { it.id == resumeChapterId }
                 val hasProgress = resumeChapterId.isNotEmpty() && resumeIndex >= 0
                 val label = if (hasProgress) "继续阅读" else "开始阅读"
-                // 同行后按钮里放不下「· 第 N 章」，完整进度交给读屏播报。
+                // 同行后按钮里放不下「  第 N 章」，完整进度交给读屏播报。
                 val spokenLabel = if (hasProgress && resumeParagraph > 0) {
                     "继续阅读，上次读到第 ${resumeIndex + 1} 章"
                 } else label
@@ -326,14 +326,14 @@ fun DetailScreen(
                         .fillMaxWidth()
                         .padding(horizontal = Space.gutter, vertical = Space.lg),
                 ) {
-                    // 「继续阅读」与「加入 / 移出书架」并排：两件事是同一层决策，
+                    // 「继续阅读」与「加入 / 移出书架」并排 两件事是同一层决策，
                     // 竖排成两行会把书评与目录都挤到首屏之外。
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(Space.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // 唯一主操作：实心，56dp。
+                        // 唯一主操作 实心，56dp。
                         Button(
                             onClick = { resume?.let(onRead) },
                             enabled = resume != null,
@@ -355,8 +355,8 @@ fun DetailScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        // 次操作：描边，与主按钮等高 56dp。
-                        // 文案写「移出书架」而不是「已在书架」：后者读起来像状态标签，
+                        // 次操作 描边，与主按钮等高 56dp。
+                        // 文案写「移出书架」而不是「已在书架」 后者读起来像状态标签，
                         // 点下去却会把书从书架删掉，用户不知道这一下是破坏性的。
                         SecondaryButton(
                             text = if (inShelf) "移出书架" else "加入书架",
@@ -375,7 +375,7 @@ fun DetailScreen(
                             modifier = Modifier.padding(top = Space.xs),
                         )
                     }
-                    // 标记只在架内出现：不在书架的书没有「我读到哪一步」这回事，
+                    // 标记只在架内出现 不在书架的书没有「我读到哪一步」这回事，
                     // 先让人把书收进来，标记才有落点。
                     if (inShelf) {
                         ShelfMarkBlock(
@@ -391,7 +391,7 @@ fun DetailScreen(
                 }
             }
 
-            /* -------------------- 读者书评：横向卡片流 -------------------- */
+            /* -------------------- 读者书评 横向卡片流 -------------------- */
             item {
                 ReviewCarousel(
                     reviews = reviews,
@@ -404,7 +404,7 @@ fun DetailScreen(
             if (download.message.isNotEmpty()) {
                 item {
                     Text(
-                        "${download.message}  ${if (download.total > 0) "${download.done}/${download.total}" else ""}",
+                        "${download.message} ${if (download.total > 0) "${download.done}/${download.total}" else ""}",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.xs),
@@ -413,7 +413,7 @@ fun DetailScreen(
             }
 
             /* -------------------- 相关推荐 -------------------- */
-            // 相关推荐放在目录之前：目录动辄上千章，放后面等于看不见。
+            // 相关推荐放在目录之前 目录动辄上千章，放后面等于看不见。
             if (recommendations.isNotEmpty()) {
                 item { SectionHeader("相关推荐", "${recommendations.size} 本") }
                 item {
@@ -509,9 +509,9 @@ fun DetailScreen(
 /* --------------------------- 头部 --------------------------- */
 
 /**
- * 头部：24dp 纸色带 + 居中封面 + 压在色带上的返回/分享/更多三个图标。
+ * 头部 24dp 纸色带 + 居中封面 + 压在色带上的返回/分享/更多三个图标。
  *
- * 色带是纯色块而不是模糊大图：省内存，也更「纸」。
+ * 色带是纯色块而不是模糊大图 省内存，也更「纸」。
  * 三个图标用负偏移压在色带上，因此 Scaffold 不再单独占一个顶栏高度。
  */
 @Composable
@@ -587,7 +587,7 @@ private fun DetailCoverSection(book: Book) {
 }
 
 /**
- * 「更多」菜单：目录 / 书评 / 听书 / 作者 / 下载。
+ * 「更多」菜单 目录 / 书评 / 听书 / 作者 / 下载。
  *
  * 这些入口一个都不能丢；书评在页面上另有显眼卡片，菜单里保留一份快捷入口。
  */
@@ -641,10 +641,10 @@ private fun DetailMenu(
     }
 }
 
-/* --------------------------- 读者书评：横向卡片流 --------------------------- */
+/* --------------------------- 读者书评 横向卡片流 --------------------------- */
 
 /**
- * 详情页首屏只做「可左右移动」的短评展示：
+ * 详情页首屏只做「可左右移动」的短评展示
  * - 原生 [LazyRow] 承担横向手势，不与外层竖向 LazyColumn 抢事件；
  * - 数据直接来自 ViewModel 的评论快照（与书评页同一份 loadComments 结果），
  *   详情页不复制、不缓存、不新增接口；
@@ -686,7 +686,7 @@ private fun ReviewCarousel(
             )
             Spacer(Modifier.weight(1f))
             Text(
-                if (reviewTotal > 0) "共 $reviewTotal 条 · 左右滑动" else "左右滑动 · 查看全部",
+                if (reviewTotal > 0) "共 $reviewTotal 条 左右滑动" else "左右滑动 查看全部",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -731,7 +731,7 @@ private fun ReviewCard(index: Int, comment: BookComment, onClick: () -> Unit) {
             .height(ReviewCardHeight)
             .clickable(onClick = onClick, role = Role.Button)
             .semantics(mergeDescendants = true) {
-                contentDescription = "第 ${index + 1} 条短评，读者 ${comment.user}：${snippet}，点击查看全部书评"
+                contentDescription = "第 ${index + 1} 条短评，读者 ${comment.user} ${snippet}，点击查看全部书评"
             },
         shape = RoundedCornerShape(Radius.sm),
         color = MaterialTheme.colorScheme.surface,
@@ -890,9 +890,9 @@ private fun reviewSnippet(raw: String): String = raw
 /* --------------------------- 目录标题 --------------------------- */
 
 /**
- * 目录区标题：左侧可点的「目录」，右侧「共 N 章」。
+ * 目录区标题 左侧可点的「目录」，右侧「共 N 章」。
  *
- * 单独写而不是用 [SectionHeader]：SectionHeader 的右位要么是弱说明、要么是动作，
+ * 单独写而不是用 [SectionHeader] SectionHeader 的右位要么是弱说明、要么是动作，
  * 这里要的是「右位显示章数 + 点标题进目录页」。
  */
 @Composable
@@ -944,9 +944,9 @@ private fun ShelfMarkBlock(
     var editingTags by remember { mutableStateOf(false) }
     val summary = buildString {
         append(ShelfItem.labelOf(status))
-        append(" · ")
+        append(" ")
         append(if (rating > 0) "$rating 星" else "未评分")
-        if (tags.isNotEmpty()) append(" · ${tags.size} 个标签")
+        if (tags.isNotEmpty()) append(" ${tags.size} 个标签")
     }
 
     Surface(
@@ -956,7 +956,7 @@ private fun ShelfMarkBlock(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column {
-            // 折叠态只有这一行：整行 ≥48dp、按钮语义、读屏能播报当前标记摘要。
+            // 折叠态只有这一行 整行 ≥48dp、按钮语义、读屏能播报当前标记摘要。
             Row(
                 Modifier
                     .fillMaxWidth()

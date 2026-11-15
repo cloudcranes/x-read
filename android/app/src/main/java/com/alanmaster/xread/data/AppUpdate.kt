@@ -8,7 +8,7 @@ import java.security.MessageDigest
 /**
  * 一个可安装的版本。
  *
- * 三种来源都归一到这个结构：GitHub Release API（`releases/latest`）、
+ * 三种来源都归一到这个结构 GitHub Release API（`releases/latest`）、
  * CI 随包上传的 `update.json` 清单、以及自建服务返回的同名 JSON。
  */
 data class ReleaseInfo(
@@ -24,21 +24,21 @@ data class ReleaseInfo(
 )
 
 /**
- * 下载加速通道：把完整 GitHub 直链拼在前缀后面。
+ * 下载加速通道 把完整 GitHub 直链拼在前缀后面。
  *
  * `key` 存进 `settings.json` 的 `updateMirror`；`prefix` 为空表示直连。
  */
 data class Mirror(val key: String, val label: String, val prefix: String)
 
 /**
- * 热更新里纯计算的那一半：版本比较、清单解析、校验和、节流判断。
+ * 热更新里纯计算的那一半 版本比较、清单解析、校验和、节流判断。
  *
  * 不碰网络也不碰 Android，全部可在 JVM 单测里跑——真正做 IO 的部分在 [AppUpdater]。
  */
 object AppUpdate {
 
     /**
-     * 默认更新源：CI 随每个 `v*` tag 附到 Release 的公开 `update.json` 清单。
+     * 默认更新源 CI 随每个 `v*` tag 附到 Release 的公开 `update.json` 清单。
      *
      * 仓库已公开，这个地址走 Release 资产 CDN，不走 `api.github.com`，
      * 不吃匿名接口每小时 60 次的限额，也不需要令牌；[AppUpdate.parseManifest]
@@ -55,7 +55,7 @@ object AppUpdate {
     fun migrateSource(source: String): String =
         if (source.trim() == LEGACY_DEFAULT_SOURCE) DEFAULT_SOURCE else source
 
-    /** 启动时自动检查的节流：一天最多一次。 */
+    /** 启动时自动检查的节流 一天最多一次。 */
     const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
 
     /**
@@ -86,7 +86,7 @@ object AppUpdate {
         return prefix + url
     }
 
-    /** 自动判别来源：有 `assets` 数组的是 GitHub Release，否则按清单解析。 */
+    /** 自动判别来源 有 `assets` 数组的是 GitHub Release，否则按清单解析。 */
     fun parse(payload: String): ReleaseInfo? {
         val root = runCatching { JSONObject(payload) }.getOrNull() ?: return null
         return if (root.has("assets")) parseGitHub(root) else parseManifest(root)
@@ -95,7 +95,7 @@ object AppUpdate {
     /**
      * GitHub `releases/latest` 的应答。
      *
-     * 一个 Release 往往同时挂着 debug 包、standalone 包和更新清单，必须挑对：
+     * 一个 Release 往往同时挂着 debug 包、standalone 包和更新清单，必须挑对
      * 名字带 `standalone` 的最优先，其次 `arm64`；带 `debug` 或 `unsigned` 的分数为负，
      * 直接跳过——那种包装不到正式版上，白让用户点一次安装。
      */
@@ -122,7 +122,7 @@ object AppUpdate {
         )
     }
 
-    /** 自定义清单：`{"versionName":"3.8.0","versionCode":13,"url":"...","sha256":"..."}`。 */
+    /** 自定义清单 `{"versionName":"3.8.0","versionCode":13,"url":"...","sha256":"..."}`。 */
     fun parseManifest(root: JSONObject): ReleaseInfo? {
         val version = cleanVersion(
             root.optString("versionName").ifBlank { root.optString("version") })
@@ -168,7 +168,7 @@ object AppUpdate {
     fun parts(version: String): List<Int> =
         cleanVersion(version).split('.').map { it.toIntOrNull() ?: 0 }
 
-    /** 逐段比较，缺段按 0 补齐：`3.8` 与 `3.8.0` 相等。 */
+    /** 逐段比较，缺段按 0 补齐 `3.8` 与 `3.8.0` 相等。 */
     fun compareVersions(a: String, b: String): Int {
         val left = parts(a)
         val right = parts(b)
@@ -193,7 +193,7 @@ object AppUpdate {
     }
 
     /**
-     * 缓存的包是否已经没用了：装完系统重启应用，`pendingUpdate` 还指着刚装上的那个版本，
+     * 缓存的包是否已经没用了 装完系统重启应用，`pendingUpdate` 还指着刚装上的那个版本，
      * 面板会一直挂着「点安装」。
      *
      * 记过 versionCode 的按它比；老数据没有这个键，退回文件名里的版本名。
@@ -203,7 +203,7 @@ object AppUpdate {
         return compareVersions(pendingName, installedName) <= 0
     }
 
-    /** 下载文件名：只留安全字符并去掉两端的点与横线，避免版本号里混进分隔符写出目录。 */
+    /** 下载文件名 只留安全字符并去掉两端的点与横线，避免版本号里混进分隔符写出目录。 */
     fun fileName(release: ReleaseInfo): String {
         val safe = release.versionName
             .replace(Regex("[^0-9A-Za-z._-]"), "-")
@@ -212,7 +212,7 @@ object AppUpdate {
         return "x-read-$safe.apk"
     }
 
-    /** 节流：距上次检查不足 [CHECK_INTERVAL_MS] 就跳过；时钟回拨也算到期。 */
+    /** 节流 距上次检查不足 [CHECK_INTERVAL_MS] 就跳过；时钟回拨也算到期。 */
     fun dueForCheck(now: Long, lastCheckAt: Long): Boolean {
         if (lastCheckAt <= 0L) return true
         if (now < lastCheckAt) return true
@@ -229,16 +229,16 @@ object AppUpdate {
     /** 把 HTTP 失败翻成人话；纯函数，全部分支都能在 JVM 单测里覆盖。 */
     fun httpMessage(code: Int, rateLimited: Boolean, hasToken: Boolean): String = when {
         rateLimited ->
-            "GitHub 接口请求次数已用完（$code）：稍后再试，或换用公开清单地址；填有效只读令牌也能提高限额"
+            "GitHub 接口请求次数已用完（$code） 稍后再试，或换用公开清单地址；填有效只读令牌也能提高限额"
         code == 401 ->
-            "令牌无效或已过期（401）：到「更新源」换一个有效的 GitHub 只读令牌；用公开清单地址可以留空"
+            "令牌无效或已过期（401） 到「更新源」换一个有效的 GitHub 只读令牌；用公开清单地址可以留空"
         code == 403 -> if (hasToken) {
-            "令牌没有读 Release 的权限（403）：换成带 contents:read 的只读令牌"
+            "令牌没有读 Release 的权限（403） 换成带 contents:read 的只读令牌"
         } else {
-            "访问被拒绝（403）：检查网络，或在「更新源」里填一个只读令牌"
+            "访问被拒绝（403） 检查网络，或在「更新源」里填一个只读令牌"
         }
         code == 404 ->
-            "更新源 404：地址填错了，或这个版本还没发布 Release / update.json"
+            "更新源 404 地址填错了，或这个版本还没发布 Release / update.json"
         else -> "更新源返回 HTTP $code"
     }
 

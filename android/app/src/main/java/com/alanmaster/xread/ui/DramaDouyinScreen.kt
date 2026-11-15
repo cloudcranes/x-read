@@ -59,6 +59,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Share
@@ -119,6 +121,7 @@ import com.alanmaster.xread.data.DanmakuItem
 import com.alanmaster.xread.data.DramaEpisode
 import com.alanmaster.xread.data.DramaPlaySource
 import com.alanmaster.xread.data.DramaSeries
+import com.alanmaster.xread.data.DramaSubscription
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -134,12 +137,12 @@ private data class HeartBubble(
 )
 
 /**
- * 抖音模式短剧全屏沉浸播放界面：
+ * 抖音模式短剧全屏沉浸播放界面
  * 1. 上下滑动切集 (VerticalPager)。
  * 2. 视频全屏铺满播放、单机播放/暂停、双击浮心点赞、长按2倍速快进。
- * 3. 右侧互动操作栏：封面关注、点赞、选集弹窗、弹幕开关、倍速切换、经典模式切换。
- * 4. 底部沉浸信息：@剧名、集数标题、简介展开、底部细进度条与快捷选集条。
- * 5. 选集抽屉 (ModalBottomSheet)：支持直接切换集数与一键换剧。
+ * 3. 右侧互动操作栏 封面关注、点赞、选集弹窗、弹幕开关、倍速切换、经典模式切换。
+ * 4. 底部沉浸信息 @剧名、集数标题、简介展开、底部细进度条与快捷选集条。
+ * 5. 选集抽屉 (ModalBottomSheet) 支持直接切换集数与一键换剧。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -154,6 +157,8 @@ fun DramaDouyinScreen(
     /** 已收藏的短剧，星标状态由它派生；收藏本身落盘在 OfflineRepo。 */
     favorites: List<DramaSeries> = emptyList(),
     onToggleFavorite: (DramaSeries) -> Unit = {},
+    subscriptions: List<DramaSubscription> = emptyList(),
+    onToggleSubscription: (DramaSeries) -> Unit = {},
     onBack: () -> Unit,
     onSelectEpisode: (DramaEpisode) -> Unit,
     onSelectDrama: (DramaSeries) -> Unit,
@@ -163,7 +168,7 @@ fun DramaDouyinScreen(
     val scope = rememberCoroutineScope()
     val episodes = drama?.episodes.orEmpty()
 
-    // 默认剧集兜底：若暂未选剧但推荐流有内容，自动载入首部剧
+    // 默认剧集兜底 若暂未选剧但推荐流有内容，自动载入首部剧
     LaunchedEffect(drama, feed) {
         if (drama == null && feed.isNotEmpty()) {
             onSelectDrama(feed.first())
@@ -179,17 +184,18 @@ fun DramaDouyinScreen(
     // 弹幕开启状态
     var danmakuEnabled by remember { mutableStateOf(true) }
 
-    // 播放倍速：1.0x, 1.25x, 1.5x, 2.0x
+    // 播放倍速 1.0x, 1.25x, 1.5x, 2.0x
     var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
 
-    // 点赞：上游没有短剧点赞数（digg_cnt 恒为 0，也没有点赞写接口），
+    // 点赞 上游没有短剧点赞数（digg_cnt 恒为 0，也没有点赞写接口），
     // 原来这里显示一个写死的「12.9w」，每部剧都一样。只保留双击红心这个手势反馈。
 
-    // 收藏状态：读 ViewModel 里的收藏列表，收藏与取消都走 onToggleFavorite 落盘。
+    // 收藏状态 读 ViewModel 里的收藏列表，收藏与取消都走 onToggleFavorite 落盘。
     val hostContext = LocalContext.current
     val isFavorited = drama?.seriesId?.let { id -> favorites.any { it.seriesId == id } } ?: false
+    val isSubscribed = drama?.seriesId?.let { id -> subscriptions.any { it.series.seriesId == id } } ?: false
 
-    // 沉浸式全屏：进入抖音模式隐藏系统栏，离开时恢复
+    // 沉浸式全屏 进入抖音模式隐藏系统栏，离开时恢复
     DisposableEffect(hostContext) {
         val window = hostContext.findActivity()?.window
         if (window == null) {
@@ -245,7 +251,7 @@ fun DramaDouyinScreen(
         if (idx >= 0) idx else 0
     }
 
-    // 下一部剧：当前剧滑到末尾后继续上滑，直接切入推荐流里的下一部短剧
+    // 下一部剧 当前剧滑到末尾后继续上滑，直接切入推荐流里的下一部短剧
     val nextDrama = remember(feed, drama?.seriesId) {
         if (feed.size <= 1) {
             null
@@ -297,7 +303,7 @@ fun DramaDouyinScreen(
         }
     }
 
-    // 弹幕逐帧时钟：与播放进度解耦，只驱动弹幕层 graphicsLayer 位移。
+    // 弹幕逐帧时钟 与播放进度解耦，只驱动弹幕层 graphicsLayer 位移。
     LaunchedEffect(videoViewRef, danmakuEnabled, danmakuList.isNotEmpty()) {
         if (!danmakuEnabled || danmakuList.isEmpty()) return@LaunchedEffect
         while (true) {
@@ -309,7 +315,7 @@ fun DramaDouyinScreen(
         }
     }
 
-    // 根容器：黑色背景全屏沉浸
+    // 根容器 黑色背景全屏沉浸
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -321,13 +327,13 @@ fun DramaDouyinScreen(
                 if (videoLoading) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(color = DouyinRed)
-                        Text("剧目加载中...", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                        Text("加载中", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                     }
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(drama?.title ?: "暂无剧目", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(drama?.title ?: "暂无短剧", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         TextButton(onClick = { drama?.let { onSelectDrama(it) } }) {
-                            Text("点击重试", color = DouyinRed)
+                            Text("重试", color = DouyinRed)
                         }
                     }
                 }
@@ -354,7 +360,7 @@ fun DramaDouyinScreen(
                         .pointerInput(Unit) {
                             detectTapGestures(
                                 onTap = {
-                                    // 单击：播放 / 暂停切换
+                                    // 单击 播放 / 暂停切换
                                     videoViewRef?.let { vv ->
                                         if (vv.isPlaying) {
                                             vv.pause()
@@ -366,7 +372,7 @@ fun DramaDouyinScreen(
                                     }
                                 },
                                 onDoubleTap = { offset ->
-                                    // 双击：抖音式红心爆破动效
+                                    // 双击 抖音式红心爆破动效
                                     val bubble = HeartBubble(System.currentTimeMillis(), offset.x, offset.y)
                                     heartBubbles.add(bubble)
                                     scope.launch {
@@ -463,7 +469,7 @@ fun DramaDouyinScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(videoError, color = Color.White, fontSize = 14.sp)
                                 TextButton(onClick = { ep?.let { onSelectEpisode(it) } }) {
-                                    Text("重试播放", color = DouyinRed)
+                                    Text("重试", color = DouyinRed)
                                 }
                             }
                         }
@@ -614,7 +620,7 @@ fun DramaDouyinScreen(
             ) {
                 Icon(
                     Icons.Filled.FitScreen,
-                    contentDescription = "切换常规模式",
+                    contentDescription = "常规模式",
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
@@ -630,7 +636,7 @@ fun DramaDouyinScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 剧集封面小头像。
-            // 原来头像下面挂了一个写着「追剧」的红色加号，但那个加号没有 onClick：
+            // 原来头像下面挂了一个写着「追剧」的红色加号，但那个加号没有 onClick
             // 点下去什么都不会发生，而 App 里也确实没有「关注」这个功能
             // （上游只给 followed_cnt，没有关注写接口）。假的入口比没有入口更误导，
             // 所以把加号删掉，只留下真的能落盘的「收藏」。
@@ -645,6 +651,27 @@ fun DramaDouyinScreen(
             )
 
             Spacer(Modifier.height(4.dp))
+
+            // 订阅按钮（本地持久化，书架「我的订阅」可见）
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(
+                    onClick = { drama?.let(onToggleSubscription) },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        if (isSubscribed) Icons.Filled.NotificationsActive else Icons.Filled.Notifications,
+                        contentDescription = if (isSubscribed) "取消订阅" else "订阅",
+                        tint = if (isSubscribed) Color(0xFF4FC3F7) else Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Text(
+                    if (isSubscribed) "已订阅" else "订阅",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             // 收藏按钮（本地持久化）
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -672,7 +699,7 @@ fun DramaDouyinScreen(
                 IconButton(
                     onClick = {
                         val shareText = "《${drama?.title ?: "短剧"}》第 ${currentEpisodeIndex + 1} 集" +
-                            (currentEpisode?.title?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
+                            (currentEpisode?.title?.takeIf { it.isNotBlank() }?.let { " $it" } ?: "") +
                             "，来拾页一起看"
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
@@ -823,7 +850,7 @@ fun DramaDouyinScreen(
                     Icon(Icons.Filled.Movie, contentDescription = null, tint = DouyinRed, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "选集 · 第 ${currentEpisodeIndex + 1} / ${if ((drama?.episodeCount ?: 0) > 0) drama?.episodeCount else episodes.size} 集 · ${if (drama?.episodeCount == episodes.size && episodes.isNotEmpty()) "已完结" else "连载中"}",
+                        text = "第 ${currentEpisodeIndex + 1} / ${if ((drama?.episodeCount ?: 0) > 0) drama?.episodeCount else episodes.size} 集",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
@@ -850,7 +877,7 @@ fun DramaDouyinScreen(
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (danmakuInputText.isEmpty()) {
-                            Text("发条弹幕互动一下...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                            Text("发弹幕", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                         }
                         BasicTextField(
                             value = danmakuInputText,
@@ -965,8 +992,8 @@ fun DramaDouyinScreen(
     }
 }
 
-/** 选集抽屉内容：支持本剧选集列表与快速一键换剧 */
-/** 当前剧最后一集之后上滑出现的过渡页：展示下一部短剧并自动切入 */
+/** 选集抽屉内容 支持本剧选集列表与快速一键换剧 */
+/** 当前剧最后一集之后上滑出现的过渡页 展示下一部短剧并自动切入 */
 @Composable
 private fun DouyinNextDramaPreview(
     nextDrama: DramaSeries?,
@@ -994,7 +1021,7 @@ private fun DouyinNextDramaPreview(
             modifier = Modifier.padding(horizontal = 32.dp),
         ) {
             CircularProgressIndicator(color = DouyinRed)
-            Text("即将播放下一部", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+            Text("下一部", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
             Text(
                 nextDrama.title,
                 color = Color.White,
@@ -1005,7 +1032,7 @@ private fun DouyinNextDramaPreview(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "共 ${nextDrama.episodeCount} 集 · 上滑继续",
+                "继续上滑",
                 color = Color.White.copy(alpha = 0.65f),
                 fontSize = 12.sp,
             )
@@ -1047,7 +1074,7 @@ private fun DouyinEpisodePickerSheet(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "全 ${episodes.size} 集 · 当前播放第 ${currentEpisodeIndex + 1} 集",
+                    "全 ${episodes.size} 集 第 ${currentEpisodeIndex + 1} 集",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp
                 )
@@ -1059,7 +1086,7 @@ private fun DouyinEpisodePickerSheet(
 
         Spacer(Modifier.height(8.dp))
 
-        // 标签切换：本剧选集 / 换一部剧
+        // 标签切换 本剧选集 / 换一部剧
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
@@ -1074,12 +1101,12 @@ private fun DouyinEpisodePickerSheet(
             Tab(
                 selected = selectedTab == 0,
                 onClick = { selectedTab = 0 },
-                text = { Text("剧集列表 (${episodes.size})", fontWeight = FontWeight.SemiBold) }
+                text = { Text("选集", fontWeight = FontWeight.SemiBold) }
             )
             Tab(
                 selected = selectedTab == 1,
                 onClick = { selectedTab = 1 },
-                text = { Text("换一部剧 (${feed.size})", fontWeight = FontWeight.SemiBold) }
+                text = { Text("换剧", fontWeight = FontWeight.SemiBold) }
             )
         }
 
@@ -1161,7 +1188,7 @@ private fun DouyinEpisodePickerSheet(
                             Text(item.intro.ifEmpty { "全 ${item.episodeCount} 集" }, color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                         Spacer(Modifier.width(8.dp))
-                        Text("播放 >", color = DouyinRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("播放", color = DouyinRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1224,7 +1251,7 @@ private fun formatTime(ms: Long): String {
     val totalSec = (ms / 1000).coerceAtLeast(0)
     val m = totalSec / 60
     val s = totalSec % 60
-    // 固定 Locale.US：默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统，
+    // 固定 Locale.US 默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统，
     // 时长看起来就像乱码。
     return String.format(java.util.Locale.US, "%02d:%02d", m, s)
 }

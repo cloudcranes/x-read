@@ -6,7 +6,7 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * 报告期：某个月（[month] 非空）或某一年（[month] 为 null）。
+ * 报告期 某个月（[month] 非空）或某一年（[month] 为 null）。
  *
  * 只保留「年月」两件事，不存起止时间戳——stats.days 的键本来就是本地日期字符串
  * `yyyy-MM-dd`，用前缀匹配最直接，也不会因为时区偏移把某天算到隔壁月。
@@ -19,11 +19,11 @@ data class ReportPeriod(val year: Int, val month: Int? = null) {
         get() = month?.let { String.format(Locale.US, "%04d-%02d", year, it) }
             ?: String.format(Locale.US, "%04d", year)
 
-    /** 页头用的短标签：`11 月` / `2026 年`。 */
+    /** 页头用的短标签 `11 月` / `2026 年`。 */
     val label: String
         get() = month?.let { "$it 月" } ?: "$year 年"
 
-    /** 画在卡片上的全称：`2026 年 11 月` / `2026 年`。 */
+    /** 画在卡片上的全称 `2026 年 11 月` / `2026 年`。 */
     val longLabel: String
         get() = month?.let { "$year 年 $it 月" } ?: "$year 年"
 
@@ -79,11 +79,11 @@ data class ReportSummary(
 /**
  * 月报 / 年度报告的数据聚合。
  *
- * 只做纯计算，不碰文件也不碰 Compose：`stats.days` 进，[ReportSummary] 出，
+ * 只做纯计算，不碰文件也不碰 Compose `stats.days` 进，[ReportSummary] 出，
  * 这样「闰年二月」「跨年 12 月 → 次年 1 月」「目标中途改过」这些边界都能在
  * 单测里钉死（见 `ReadingReviewTest`）。
  *
- * 与 [GoalMath] 一样不用 `java.time`：minSdk 24 且没开 desugaring，
+ * 与 [GoalMath] 一样不用 `java.time` minSdk 24 且没开 desugaring，
  * 全仓统一走 [Calendar] + [SimpleDateFormat]。
  */
 object ReadingReview {
@@ -137,7 +137,7 @@ object ReadingReview {
     /**
      * 最长连续天数。
      *
-     * 只认「有阅读的日子」而不是「达标的日子」：月报要回答的是
+     * 只认「有阅读的日子」而不是「达标的日子」 月报要回答的是
      * 「这个月有几天连着读」，目标是可以随时改的。
      */
     fun longestStreak(days: List<String>): Int {
@@ -157,7 +157,7 @@ object ReadingReview {
     }
 
     /**
-     * 月视图网格：周一开头，前面补空格让 1 号落在正确的星期列，末尾补到整周。
+     * 月视图网格 周一开头，前面补空格让 1 号落在正确的星期列，末尾补到整周。
      *
      * 返回长度是 7 的倍数（通常是 35 或 42 格），UI 直接按 7 列铺即可，
      * 不需要在 Composable 里再算一次日历。
@@ -168,7 +168,7 @@ object ReadingReview {
             set(year, month - 1, 1)
         }
         val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-        // Calendar.DAY_OF_WEEK：周日=1…周六=7；换成周一=0…周日=6
+        // Calendar.DAY_OF_WEEK 周日=1…周六=7；换成周一=0…周日=6
         val leading = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
         val cells = ArrayList<ReportDay>(leading + daysInMonth + 6)
         repeat(leading) { cells.add(ReportDay("", 0, 0L, inPeriod = false)) }
@@ -189,7 +189,7 @@ object ReadingReview {
         return cells
     }
 
-    /** 年视图：固定 12 根柱，没有记录的日子算 0，界面自己决定要不要画。 */
+    /** 年视图 固定 12 根柱，没有记录的日子算 0，界面自己决定要不要画。 */
     fun yearMonths(days: JSONObject?, year: Int): List<ReportMonth> = (1..12).map { m ->
         val period = ReportPeriod(year, m)
         val entries = readingDays(days, period)

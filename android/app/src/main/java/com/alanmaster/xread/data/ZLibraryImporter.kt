@@ -1,9 +1,9 @@
 package com.alanmaster.xread.data
 
 /**
- * Z-Library 电子书导入：把 EAPI 搜到的书 + 下载到的 EPUB 转成本地书。
+ * Z-Library 电子书导入 把 EAPI 搜到的书 + 下载到的 EPUB 转成本地书。
  *
- * 为什么不把它做成在线书源：z-library 只给整本文件下载，没有按章拉取的接口；
+ * 为什么不把它做成在线书源 z-library 只给整本文件下载，没有按章拉取的接口；
  * 而 x-read 的阅读器已经有一套完整的「目录 + 逐章纯文本」本地书体系
  * （[OfflineRepo.putBook] / [OfflineRepo.putChapter]），把 EPUB 拆成章节写进去，
  * 现有阅读器、进度、书签、段评位置全都能直接用，不用另造一套阅读链路。
@@ -13,7 +13,7 @@ object ZLibraryImportMapper {
     const val SOURCE = "zlibrary"
 
     /**
-     * 本地 bookId：必须是纯数字（[LocalLibrary.put] 与 [Api.checkId] 都只认 `[0-9]{1,24}`）。
+     * 本地 bookId 必须是纯数字（[LocalLibrary.put] 与 [Api.checkId] 都只认 `[0-9]{1,24}`）。
      *
      * z-library 的 id 本身就是数字串，直接用；上游偶尔给空或非数字时，用 hash 兜一个
      * 稳定的正数，保证同一本书重复导入落在同一条目录上（幂等覆盖，不会越导越多）。
@@ -44,10 +44,10 @@ object ZLibraryImportMapper {
         epub.chapters.map { Chapter(id = it.id, title = it.title) }
 
     /**
-     * 一章正文落盘格式：**一行一段**。
+     * 一章正文落盘格式 **一行一段**。
      *
      * [Paragraphs.split] 读的时候按 Unicode 行分隔符切段并丢空行，所以这里是它的逆操作。
-     * 不用空行分段：正文里本来就可能出现空行，用 `\n` 单行分隔才不会读回多余的空白段。
+     * 不用空行分段 正文里本来就可能出现空行，用 `\n` 单行分隔才不会读回多余的空白段。
      */
     fun chapterText(chapter: EpubChapter): String = chapter.paragraphs.joinToString("\n")
 
@@ -84,7 +84,7 @@ object ZLibraryImportMapper {
     }
 }
 
-/** 真正执行导入：解析 EPUB → 写离线目录 → 进书架。所有方法都是阻塞 IO，调用方放 IO 调度器。 */
+/** 真正执行导入 解析 EPUB → 写离线目录 → 进书架。所有方法都是阻塞 IO，调用方放 IO 调度器。 */
 class ZLibraryImporter(private val offline: OfflineRepo, private val api: Api) {
 
     /**

@@ -86,7 +86,7 @@ class LocalLibrary(private val directory: File) {
         }.toList()
     }
 
-    /** 移动分组：空串表示清除分组。 */
+    /** 移动分组 空串表示清除分组。 */
     @Synchronized fun setGroup(bookId: String, group: String): Boolean = runCatching<Boolean> {
         val data = load()
         val o = data.optJSONObject(bookId) ?: return@runCatching false
@@ -144,9 +144,9 @@ class LocalLibrary(private val directory: File) {
     }.getOrDefault(emptyList())
 
     /**
-     * 撤销「移出书架」：按备份条目原样写回。
+     * 撤销「移出书架」 按备份条目原样写回。
      *
-     * 不能只调 [put]：那会把入架时间重置成现在、更新基线归零，撤销后排序与
+     * 不能只调 [put] 那会把入架时间重置成现在、更新基线归零，撤销后排序与
      * 「有新章」判定就跟移出前对不上了。
      */
     @Synchronized fun restore(item: ShelfItem) {

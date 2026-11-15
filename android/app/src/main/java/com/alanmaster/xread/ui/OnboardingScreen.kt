@@ -46,12 +46,12 @@ import kotlin.math.roundToInt
 /**
  * 首启引导。
  *
- * 三步，一屏一步，随时可跳过：
- *  1. 阅读外观：直接写进 ReaderPrefs，读完第一句就是自己的字号。
- *  2. 恢复数据：老用户换机最常问的是「备份怎么导」，所以入口放在这里而不是设置深处。
- *  3. 完成：只讲三条最容易踩到的操作路径，不再重复功能列表。
+ * 三步，一屏一步，随时可跳过
+ *  1. 阅读外观 直接写进 ReaderPrefs，读完第一句就是自己的字号。
+ *  2. 恢复数据 老用户换机最常问的是「备份怎么导」，所以入口放在这里而不是设置深处。
+ *  3. 完成 只讲三条最容易踩到的操作路径，不再重复功能列表。
  *
- * 只出现一次：结束后把 onboarded 写进 settings.json；本地已有书架/进度时根本不进来。
+ * 只出现一次 结束后把 onboarded 写进 settings.json；本地已有书架/进度时根本不进来。
  */
 @Composable
 fun OnboardingScreen(
@@ -111,7 +111,7 @@ fun OnboardingScreen(
     }
 }
 
-/* --------------------------- 第一步：外观 --------------------------- */
+/* --------------------------- 第一步 外观 --------------------------- */
 
 @Composable
 private fun AppearanceStep(
@@ -133,7 +133,7 @@ private fun AppearanceStep(
         ) {
             Column(Modifier.padding(Space.lg)) {
                 Text(
-                    text = "第一章 · 夜航",
+                    text = "第一章 夜航",
                     fontFamily = FontFamily.Serif,
                     fontSize = (prefs.fontSize + 2f).sp,
                     color = palette.title,
@@ -199,7 +199,7 @@ private fun AppearanceStep(
             }
         }
 
-        SectionLabel("字号 · ${prefs.fontSize.roundToInt()}")
+        SectionLabel("字号 ${prefs.fontSize.roundToInt()}")
         Slider(
             value = prefs.fontSize,
             modifier = Modifier.semantics {
@@ -212,7 +212,7 @@ private fun AppearanceStep(
     }
 }
 
-/* --------------------------- 第二步：恢复 --------------------------- */
+/* --------------------------- 第二步 恢复 --------------------------- */
 
 @Composable
 private fun RestoreStep(onImport: () -> Unit) {
@@ -257,7 +257,7 @@ private fun RestoreStep(onImport: () -> Unit) {
     }
 }
 
-/* --------------------------- 第三步：完成 --------------------------- */
+/* --------------------------- 第三步 完成 --------------------------- */
 
 @Composable
 private fun ReadyStep() {

@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,9 +25,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -36,8 +43,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -61,6 +72,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -75,7 +87,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.SolidColor
+import coil.request.ImageRequest
+import coil.imageLoader
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -89,11 +105,12 @@ import com.alanmaster.xread.data.DanmakuItem
 import com.alanmaster.xread.data.DramaEpisode
 import com.alanmaster.xread.data.DramaPlaySource
 import com.alanmaster.xread.data.DramaSeries
+import com.alanmaster.xread.data.DramaSubscription
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 短剧与漫剧剧场界面：剧场广场、剧集选集与视频播放、弹幕浮层与互动。
+ * 短剧与漫剧剧场界面 剧场广场、剧集选集与视频播放、弹幕浮层与互动。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,6 +131,8 @@ fun DramaScreen(
     onSwitchToDouyin: () -> Unit = {},
     favorites: List<DramaSeries> = emptyList(),
     onToggleFavorite: (DramaSeries) -> Unit = {},
+    subscriptions: List<DramaSubscription> = emptyList(),
+    onToggleSubscription: (DramaSeries) -> Unit = {},
     related: List<DramaSeries> = emptyList(),
     comments: List<BookHotReview> = emptyList(),
     commentTotal: Int = 0,
@@ -125,25 +144,81 @@ fun DramaScreen(
     onSendComment: (String) -> Unit = {},
     onToggleCommentDigg: (BookHotReview) -> Unit = {},
     onSelectRelated: (DramaSeries) -> Unit = {},
+    moreLoading: Boolean = false,
+    feedExhausted: Boolean = true,
+    onLoadMore: () -> Unit = {},
+    onSearch: () -> Unit = {},
 ) {
     if (currentDrama == null) {
         // ------------------ 剧场广场列表模式 ------------------
+        val categories = remember(feed) {
+            buildList {
+                add("推荐")
+                add("热播")
+                if (feed.any { !it.isMotionComic }) add("短剧")
+                if (feed.any { it.isMotionComic }) add("漫剧")
+                if (feed.any { it.episodeCount >= 300 }) add("长篇")
+                if (feed.any { it.episodeCount in 1..299 }) add("短篇")
+                feed.flatMap { it.tags }
+                    .filter { it.isNotBlank() && it.length in 2..6 }
+                    .groupingBy { it }
+                    .eachCount()
+                    .entries
+                    .sortedByDescending { it.value }
+                    .take(8)
+                    .forEach { if (!contains(it.key)) add(it.key) }
+            }
+        }
+        var selectedCategory by remember { mutableStateOf(categories.first()) }
+        LaunchedEffect(categories) {
+            if (selectedCategory !in categories) selectedCategory = categories.first()
+        }
+        val visibleFeed = remember(feed, selectedCategory) {
+            when (selectedCategory) {
+                "推荐" -> feed
+                "热播" -> feed.sortedByDescending { it.episodeCount }
+                "短剧" -> feed.filter { !it.isMotionComic }
+                "漫剧" -> feed.filter { it.isMotionComic }
+                "长篇" -> feed.filter { it.episodeCount >= 300 }
+                "短篇" -> feed.filter { it.episodeCount in 1..299 }
+                else -> feed.filter { item ->
+                    item.tags.any { it.contains(selectedCategory) } ||
+                        item.title.contains(selectedCategory) ||
+                        item.intro.contains(selectedCategory)
+                }
+            }
+        }
+        val context = LocalContext.current
+        LaunchedEffect(visibleFeed.take(8)) {
+            val loader = context.imageLoader
+            visibleFeed.take(8).forEach { drama ->
+                if (drama.coverUrl.isNotBlank()) {
+                    loader.enqueue(ImageRequest.Builder(context).data(drama.coverUrl).build())
+                }
+            }
+        }
+        val gridState = rememberLazyStaggeredGridState()
+        val shouldLoadMore by remember {
+            derivedStateOf {
+                val info = gridState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+                last >= info.totalItemsCount - 4
+            }
+        }
+        LaunchedEffect(shouldLoadMore, feedExhausted, moreLoading) {
+            if (shouldLoadMore && !feedExhausted && !moreLoading) onLoadMore()
+        }
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
                         Column {
-                            Text("短剧 · 漫剧剧场", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("短剧", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                             Text(
-                                if (feed.isNotEmpty()) "${feed.size} 部 · 瀑布流浏览" else "热播好剧 · 动态漫剧 · 弹幕互动",
+                                if (feed.isNotEmpty()) "共 ${feed.size} 部" else "",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                         }
                     },
                     actions = {
@@ -173,40 +248,88 @@ fun DramaScreen(
                 )
             }
         ) { padding ->
-            Box(
+            Column(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                if (feedLoading && feed.isEmpty()) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                } else if (feed.isEmpty()) {
-                    Column(
-                        Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(Space.sm),
-                    ) {
-                        Icon(Icons.Filled.Tv, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outline)
-                        Text("暂无剧场推荐内容", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick = onRefreshFeed) {
-                            Text("点击重试")
+                DramaSearchEntry(onClick = onSearch)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = Space.gutter),
+                    horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = Space.sm),
+                ) {
+                    items(categories, key = { it }) { category ->
+                        DramaCategoryChip(
+                            label = category,
+                            selected = category == selectedCategory,
+                            onClick = { selectedCategory = category },
+                        )
+                    }
+                }
+
+                when {
+                    feedLoading && feed.isEmpty() -> {
+                        DramaHomeSkeleton()
+                    }
+
+                    feed.isEmpty() -> {
+                        Column(
+                            Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(Icons.Filled.Tv, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outline)
+                            Text("暂无短剧", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(onClick = onRefreshFeed) {
+                                Text("重试")
+                            }
                         }
                     }
-                } else {
-                    // 媒体墙：两列瀑布流，封面高度随剧集变化，先浏览再进详情。
-                    LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.sm),
-                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
-                        verticalItemSpacing = Space.md,
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        staggeredItems(feed, key = { it.seriesId }) { item ->
-                            DramaCard(
-                                drama = item,
-                                onClick = { onSelectDrama(item) },
-                                coverAspectRatio = dramaCoverAspectRatio(item.seriesId),
-                            )
+
+                    else -> {
+                        val hero = visibleFeed.firstOrNull()
+                        LazyVerticalStaggeredGrid(
+                            state = gridState,
+                            columns = StaggeredGridCells.Fixed(2),
+                            contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                            verticalItemSpacing = Space.md,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            if (hero != null) {
+                                item(span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
+                                    DramaHeroBanner(drama = hero, onClick = { onSelectDrama(hero) })
+                                }
+                            }
+                            staggeredItems(visibleFeed.drop(1), key = { it.seriesId }) { item ->
+                                DramaCard(
+                                    drama = item,
+                                    onClick = { onSelectDrama(item) },
+                                    coverAspectRatio = dramaCoverAspectRatio(item.seriesId),
+                                )
+                            }
+                            item(span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = Space.md),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (moreLoading) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                            Text("加载中", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    } else if (feedExhausted) {
+                                        Text("共 ${visibleFeed.size} 部", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    } else {
+                                        Text("继续上滑", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -230,6 +353,8 @@ fun DramaScreen(
             onSwitchToDouyin = onSwitchToDouyin,
             isFavorited = favorites.any { it.seriesId == drama.seriesId },
             onToggleFavorite = { onToggleFavorite(drama) },
+            isSubscribed = subscriptions.any { it.series.seriesId == drama.seriesId },
+            onToggleSubscription = { onToggleSubscription(drama) },
             related = related,
             comments = comments,
             commentTotal = commentTotal,
@@ -245,7 +370,193 @@ fun DramaScreen(
     }
 }
 
-/** 瀑布流封面比例：按 seriesId 稳定散列到 0.62~0.82，避免相邻卡片高度一致。 */
+/** 红果式搜索入口 点击进入搜索页。 */
+@Composable
+private fun DramaHomeSkeleton() {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = Space.gutter),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(168.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    RoundedCornerShape(12.dp),
+                ),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            repeat(2) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(220.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            RoundedCornerShape(10.dp),
+                        ),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            repeat(2) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(180.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            RoundedCornerShape(10.dp),
+                        ),
+                )
+            }
+        }
+        Text(
+            text = "加载中",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+    }
+}
+
+@Composable
+private fun DramaSearchEntry(onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(21.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Space.gutter, vertical = Space.sm)
+            .height(42.dp)
+            .clip(RoundedCornerShape(21.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Space.xs),
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            Text("搜索短剧", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** 红果式频道 chip。 */
+@Composable
+private fun DramaCategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (selected) Color(0xFFFF2C55) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick),
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+        )
+    }
+}
+
+/** 红果式焦点大图 首部剧集作为推荐位。 */
+@Composable
+private fun DramaHeroBanner(drama: DramaSeries, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(168.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        if (drama.coverUrl.isNotEmpty()) {
+            AsyncImage(
+                model = drama.coverUrl,
+                contentDescription = drama.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.86f))
+                    )
+                )
+        )
+        Surface(
+            color = Color(0xFFFF2C55),
+            shape = RoundedCornerShape(bottomEnd = 10.dp),
+            modifier = Modifier.align(Alignment.TopStart),
+        ) {
+            Text(
+                "推荐",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+            )
+        }
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .padding(end = 112.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = drama.title,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (drama.episodeCount > 0) {
+                    Text(
+                        "全 ${drama.episodeCount} 集",
+                        color = Color.White.copy(alpha = 0.82f),
+                        fontSize = 12.sp,
+                    )
+                }
+                Text(
+                    if (drama.isMotionComic) "动态漫剧" else "热播短剧",
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontSize = 12.sp,
+                )
+            }
+        }
+        Surface(
+            color = Color(0xFFFF2C55),
+            shape = RoundedCornerShape(50),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                Text("播放", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+/** 瀑布流封面比例 按 seriesId 稳定散列到 0.62~0.82，避免相邻卡片高度一致。 */
 private fun dramaCoverAspectRatio(seriesId: String): Float {
     val bucket = (seriesId.hashCode() and 0x7fffffff) % 4
     return when (bucket) {
@@ -256,7 +567,7 @@ private fun dramaCoverAspectRatio(seriesId: String): Float {
     }
 }
 
-/** 广场单部剧集卡片 */
+/** 广场单部剧集卡片 红果式海报卡，标题与集数放在海报下方。 */
 @Composable
 internal fun DramaCard(
     drama: DramaSeries,
@@ -266,15 +577,13 @@ internal fun DramaCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(coverAspectRatio)
-                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
             if (drama.coverUrl.isNotEmpty()) {
@@ -295,61 +604,35 @@ internal fun DramaCard(
                 )
             }
 
-            // 标签（短剧 / 漫剧）
             Surface(
-                color = if (drama.isMotionComic) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(bottomEnd = 6.dp),
+                color = if (drama.isMotionComic) Color(0xFF6C5CE7) else Color(0xFFFF2C55),
+                shape = RoundedCornerShape(bottomEnd = 8.dp),
                 modifier = Modifier.align(Alignment.TopStart),
             ) {
                 Text(
                     text = if (drama.isMotionComic) "漫剧" else "短剧",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
-
-            // 底部集数遮罩
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
-                        )
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                 )
             }
         }
 
-        Column(
-            modifier = Modifier.padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = drama.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (drama.intro.isNotEmpty()) {
-                Text(
-                    text = drama.intro,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        Text(
+            text = drama.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
+        )
+        Text(
+            text = if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp, bottom = 2.dp),
+        )
     }
 }
 
@@ -369,6 +652,8 @@ private fun DramaPlayerScreen(
     onSwitchToDouyin: () -> Unit = {},
     isFavorited: Boolean = false,
     onToggleFavorite: () -> Unit = {},
+    isSubscribed: Boolean = false,
+    onToggleSubscription: () -> Unit = {},
     related: List<DramaSeries> = emptyList(),
     comments: List<BookHotReview> = emptyList(),
     commentTotal: Int = 0,
@@ -391,13 +676,19 @@ private fun DramaPlayerScreen(
     var danmakuEnabled by remember { mutableStateOf(true) }
     var inputText by remember { mutableStateOf("") }
     var showComments by remember { mutableStateOf(false) }
+    var showEpisodePicker by remember(drama.seriesId) { mutableStateOf(false) }
+    var introExpanded by remember(drama.seriesId) { mutableStateOf(false) }
     // AndroidView 的 factory 只执行一次，回调里要读最新的剧集列表与回调，不能捕获首帧闭包。
     val currentEpisodeState by rememberUpdatedState(episode)
     val currentDramaState by rememberUpdatedState(drama)
     val selectEpisodeState by rememberUpdatedState(onSelectEpisode)
 
     // 从「相关推荐」切到另一部剧时，先把上一部剧的剧评弹层收起来，避免展示旧列表。
-    LaunchedEffect(drama.seriesId) { showComments = false }
+    LaunchedEffect(drama.seriesId) {
+        showComments = false
+        showEpisodePicker = false
+        introExpanded = false
+    }
 
     // 播放位置轮询更新（仅用于时间/进度条）
     LaunchedEffect(videoViewRef, isPlaying) {
@@ -413,7 +704,7 @@ private fun DramaPlayerScreen(
         }
     }
 
-    // 弹幕用逐帧时钟：每帧只更新一个 State，DanmakuFlowLayer 在 graphicsLayer 内读取，
+    // 弹幕用逐帧时钟 每帧只更新一个 State，DanmakuFlowLayer 在 graphicsLayer 内读取，
     // 不触发整页重组，弹幕位移才能跟满刷新率。
     LaunchedEffect(videoViewRef, danmakuEnabled, danmakuList.isNotEmpty()) {
         if (!danmakuEnabled || danmakuList.isEmpty()) return@LaunchedEffect
@@ -432,7 +723,7 @@ private fun DramaPlayerScreen(
                 title = {
                     Column {
                         Text(drama.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(episode?.title ?: "选集播放", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(episode?.title ?: "选集", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
@@ -441,13 +732,21 @@ private fun DramaPlayerScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = {
+                    IconButton(onClick = {
                         showComments = true
                         onLoadComments()
                     }) {
-                        Text("剧评")
+                        Icon(Icons.Filled.ChatBubbleOutline, contentDescription = "剧评")
                     }
-                    // 收藏：另两个播放页都有，这里补上，不然在这个剧场页收藏不了这部剧。
+                    // 订阅 上游没有关注写接口，订阅关系落在本机，书架「我的订阅」可查。
+                    IconButton(onClick = { onToggleSubscription() }) {
+                        Icon(
+                            if (isSubscribed) Icons.Filled.NotificationsActive else Icons.Filled.Notifications,
+                            contentDescription = if (isSubscribed) "取消订阅" else "订阅",
+                            tint = if (isSubscribed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    // 收藏 另两个播放页都有，这里补上，不然在这个剧场页收藏不了这部剧。
                     IconButton(
                         onClick = { onToggleFavorite() },
                     ) {
@@ -470,7 +769,7 @@ private fun DramaPlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(Icons.Filled.Tv, contentDescription = null, tint = Color(0xFFFF2C55), modifier = Modifier.size(14.dp))
-                            Text("抖音全屏", color = Color(0xFFFF2C55), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("全屏", color = Color(0xFFFF2C55), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 },
@@ -491,7 +790,19 @@ private fun DramaPlayerScreen(
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
                     .background(Color.Black)
-                    .clickable { showControls = !showControls }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { showControls = !showControls },
+                            onDoubleTap = { offset ->
+                                val delta = if (offset.x < size.width / 2f) -10_000L else 10_000L
+                                val max = durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE
+                                val target = (currentPositionMs + delta).coerceIn(0L, max)
+                                videoViewRef?.seekTo(target.toInt())
+                                currentPositionMs = target
+                                showControls = true
+                            },
+                        )
+                    }
             ) {
                 // 原生 VideoView 播放核心
                 AndroidView(
@@ -561,7 +872,7 @@ private fun DramaPlayerScreen(
                             )
                         }
                         Text(
-                            if (drama.episodes.isEmpty()) "暂无剧集" else "点击播放第 1 集",
+                            if (drama.episodes.isEmpty()) "暂无剧集" else "播放",
                             style = MaterialTheme.typography.labelMedium,
                             color = Color.White,
                         )
@@ -601,7 +912,7 @@ private fun DramaPlayerScreen(
                         ) {
                             Text(error, style = MaterialTheme.typography.bodyMedium, color = Color.White)
                             TextButton(onClick = { episode?.let(onSelectEpisode) }) {
-                                Text("重试播放", color = MaterialTheme.colorScheme.primary)
+                                Text("重试", color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -642,7 +953,7 @@ private fun DramaPlayerScreen(
                             )
                         }
 
-                        // 底部横条：进度条与弹幕开关
+                        // 底部横条 进度条与弹幕开关
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -707,7 +1018,7 @@ private fun DramaPlayerScreen(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     if (inputText.isEmpty()) {
-                        Text("发条弹幕互动一下...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                        Text("发弹幕", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     }
                     BasicTextField(
                         value = inputText,
@@ -756,12 +1067,19 @@ private fun DramaPlayerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text("选集", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            text = "共 ${drama.episodes.size.coerceAtLeast(drama.episodeCount)} 集" +
-                                if (drama.episodes.size > 1) " · 自动续播" else "",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "共 ${drama.episodes.size.coerceAtLeast(drama.episodeCount)} 集" +
+                                    if (drama.episodes.size > 1) " 自动续播" else "",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (drama.episodes.size > 8) {
+                                TextButton(onClick = { showEpisodePicker = true }, contentPadding = PaddingValues(horizontal = Space.sm)) {
+                                    Text("全部", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -795,14 +1113,27 @@ private fun DramaPlayerScreen(
                     ) {
                         Text(drama.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                         if (drama.author.isNotEmpty()) {
-                            Text("主创/作者：${drama.author}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                            Text("作者 ${drama.author}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                         }
                         if (drama.intro.isNotEmpty()) {
                             Text(
                                 drama.intro,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = if (introExpanded) Int.MAX_VALUE else 3,
+                                overflow = TextOverflow.Ellipsis,
                             )
+                            if (drama.intro.length > 80) {
+                                Text(
+                                    if (introExpanded) "收起" else "展开全部",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { introExpanded = !introExpanded }
+                                        .padding(vertical = 2.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -823,11 +1154,21 @@ private fun DramaPlayerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text("剧评", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (commentTotal > 0) "${formatCount(commentTotal)} 条" else "看看大家怎么说",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (commentTotal > 0) {
+                                Text(
+                                    "${formatCount(commentTotal)} 条",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
 
@@ -867,11 +1208,22 @@ private fun DramaPlayerScreen(
                     onToggleDigg = onToggleCommentDigg,
                 )
             }
+            if (showEpisodePicker) {
+                EpisodePickerSheet(
+                    drama = drama,
+                    currentEpisodeId = episode?.episodeId,
+                    onSelect = {
+                        showEpisodePicker = false
+                        onSelectEpisode(it)
+                    },
+                    onDismiss = { showEpisodePicker = false },
+                )
+            }
         }
     }
 }
 
-/** 短剧剧评弹层：列表、点赞与发评。 */
+/** 短剧剧评弹层 列表、点赞与发评。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DramaCommentsSheet(
@@ -912,7 +1264,7 @@ private fun DramaCommentsSheet(
                 }
             } else if (comments.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("还没有剧评，来说两句吧", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    Text("暂无剧评", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                 }
             } else {
                 LazyColumn(
@@ -997,7 +1349,7 @@ private fun DramaCommentsSheet(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     if (input.isEmpty()) {
-                        Text("写条剧评...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                        Text("写剧评", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     }
                     BasicTextField(
                         value = input,
@@ -1018,6 +1370,69 @@ private fun DramaCommentsSheet(
                         }
                     },
                 ) { Text(if (sending) "发送中" else "发送") }
+            }
+        }
+    }
+}
+
+/** 选集全量面板 一屏查看全部集数，避免横向滑动找集。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EpisodePickerSheet(
+    drama: DramaSeries,
+    currentEpisodeId: String?,
+    onSelect: (DramaEpisode) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.72f)
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Space.gutter, vertical = Space.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("选集", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "共 ${drama.episodes.size.coerceAtLeast(drama.episodeCount)} 集",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            val currentIndex = drama.episodes.indexOfFirst { it.episodeId == currentEpisodeId }
+            val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = (currentIndex - 2).coerceAtLeast(0))
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(5),
+                contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.sm),
+                horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                verticalArrangement = Arrangement.spacedBy(Space.sm),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                gridItems(drama.episodes, key = { it.episodeId }) { ep ->
+                    val selected = ep.episodeId == currentEpisodeId
+                    Surface(
+                        onClick = { onSelect(ep) },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = if (selected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier.height(44.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "${ep.episodeIndex}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1055,7 +1470,7 @@ private fun formatTime(ms: Long): String {
     val totalSec = (ms / 1000).coerceAtLeast(0)
     val min = totalSec / 60
     val sec = totalSec % 60
-    // 固定 Locale.US：默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统，
+    // 固定 Locale.US 默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统，
     // 时长看起来就像乱码。
     return String.format(java.util.Locale.US, "%02d:%02d", min, sec)
 }

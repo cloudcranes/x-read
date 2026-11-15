@@ -90,7 +90,7 @@ internal fun formatBytes(bytes: Long): String {
     return String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0)
 }
 
-/** 「我的」页分组：总览只放入口，具体区块按组进入独立子页。 */
+/** 「我的」页分组 总览只放入口，具体区块按组进入独立子页。 */
 enum class ToolsPage { Overview, Downloads, Reading, Content, Backup, ZLibrary }
 
 @Composable
@@ -186,10 +186,10 @@ private fun ToolsEntryCard(
 }
 
 /**
- * 「我的」（工具与离线）页：总览 + 4 个分组子页。
+ * 「我的」（工具与离线）页 总览 + 4 个分组子页。
  *
  * 总览只显示 4 个入口，点进去才是各自独立子页，避免全部堆在一屏；
- * 每个区块仍是一张**白面 + 1dp 发丝线 + 0 阴影**的卡片，顺序固定：
+ * 每个区块仍是一张**白面 + 1dp 发丝线 + 0 阴影**的卡片，顺序固定
  * 下载状态 / 未完成任务 / 下载策略 / 本地已下载 / 存储与残留 /
  * 阅读目标 / 阅读统计 / 每日提醒 / 正文替换 / 书摘 / 备份与恢复 / 朗读。
  *
@@ -283,7 +283,7 @@ fun ToolsScreen(
             stats.optLong("chapters") > 0 ||
             (stats.optJSONObject("days")?.length() ?: 0) > 0
 
-    // 分区序号必须**稳定**：曾经写成 LazyColumn 作用域里的 `var sectionNo` +
+    // 分区序号必须**稳定** 曾经写成 LazyColumn 作用域里的 `var sectionNo` +
     // `nextIndex()` 自增，而 item 的内容会随滚动反复重组，同一个计数器被反复
     // 自增——滚一屏再滚回去，「下载状态」的序号就从 01 变成 16。
     // 现在按固定的渲染顺序一次性算好，滚多远都不会变。
@@ -319,7 +319,7 @@ fun ToolsScreen(
         ToolsPage.Reading -> "目标、统计、回顾与每日提醒"
         ToolsPage.Content -> "正文替换、书摘与朗读"
         ToolsPage.Backup -> "导入导出、自动备份与 WebDAV"
-        ToolsPage.ZLibrary -> if (zlibSession == null) "未登录 · 只能搜索" else "已登录"
+        ToolsPage.ZLibrary -> if (zlibSession == null) "未登录 只能搜索" else "已登录"
     }
     val backAction: (() -> Unit)? = if (page == ToolsPage.Overview) {
         onBack
@@ -401,14 +401,14 @@ fun ToolsScreen(
                     }
                     if (download.total > 0) {
                         Text(
-                            // 拼接顺序有坑：原来的写法是
-                            //   "并发 x/y" + if (失败>0) " · 失败 N" else "" + if (跳过>0) …
+                            // 拼接顺序有坑 原来的写法是
+                            //   "并发 x/y" + if (失败>0) " 失败 N" else "" + if (跳过>0) …
                             // if 是表达式，else 分支吃掉后面整串，
                             // 于是「有失败章」时「跳过 N」永远不显示。
-                            text = "${download.done}/${download.total} 章 · " +
+                            text = "${download.done}/${download.total} 章 " +
                                     "并发 ${download.concurrency}/${download.concurrencyMax}" +
-                                    (if (download.failed > 0) " · 失败 ${download.failed}" else "") +
-                                    (if (download.skipped > 0) " · 跳过 ${download.skipped}" else ""),
+                                    (if (download.failed > 0) " 失败 ${download.failed}" else "") +
+                                    (if (download.skipped > 0) " 跳过 ${download.skipped}" else ""),
                             fontSize = 11.sp,
                             lineHeight = 17.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -463,7 +463,7 @@ fun ToolsScreen(
                                 )
                                 Text(
                                     // done 已经含在 done/total 里，再写一次「本地 N 章」是三重复读
-                                    text = "${task.done}/${task.total} 章 · ${statusLabel(task.status)}",
+                                    text = "${task.done}/${task.total} 章 ${statusLabel(task.status)}",
                                     fontSize = 11.sp,
                                     lineHeight = 17.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -525,7 +525,7 @@ fun ToolsScreen(
                         modifier = Modifier.padding(top = Space.sm),
                     )
                     Text(
-                        text = "后 N 章 · 当前章之前保留 2 章，窗口外的预取章会自动清掉。",
+                        text = "后 N 章 当前章之前保留 2 章，窗口外的预取章会自动清掉。",
                         fontSize = 11.sp,
                         lineHeight = 17.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -573,7 +573,7 @@ fun ToolsScreen(
                 item {
                     ToolCard {
                         Text(
-                            // 详情页没有裸露的「下载」按钮：入口收在右上角「更多」里，
+                            // 详情页没有裸露的「下载」按钮 入口收在右上角「更多」里，
                             // 旧文案会让人在详情页到处找一个不存在的按钮。
                             text = "尚无缓存。打开一本书，点右上角「更多」→「下载全书」或「下载前 20 章」。",
                             fontSize = 12.sp,
@@ -602,8 +602,8 @@ fun ToolsScreen(
                                 Text(
                                     text = buildString {
                                         append("${b.chapterCount} 章")
-                                        if (b.author.isNotBlank()) append(" · ${b.author}")
-                                        if (size > 0) append(" · ${formatBytes(size)}")
+                                        if (b.author.isNotBlank()) append(" ${b.author}")
+                                        if (size > 0) append(" ${formatBytes(size)}")
                                     },
                                     fontSize = 11.sp,
                                     lineHeight = 17.sp,
@@ -678,7 +678,7 @@ fun ToolsScreen(
                     )
                     Text(
                         text = if (leftoverCount > 0)
-                            "残留文件 $leftoverCount 个 · ${formatBytes(leftoverBytes)}（原子写中断与损坏隔离留下）"
+                            "残留文件 $leftoverCount 个 ${formatBytes(leftoverBytes)}（原子写中断与损坏隔离留下）"
                         else "无残留文件",
                         fontSize = 11.sp,
                         lineHeight = 17.sp,
@@ -714,7 +714,7 @@ fun ToolsScreen(
                 val hint = when {
                     metToday && streak > 0 -> "连续 $streak 天达标"
                     metToday -> "今日已达标"
-                    streak > 0 -> "已连续 $streak 天 · 再读 $remainMin 分钟保持"
+                    streak > 0 -> "已连续 $streak 天 再读 $remainMin 分钟保持"
                     else -> "再读 $remainMin 分钟达标"
                 }
                 SectionHeader("阅读目标", index = sectionIndex.getValue("阅读目标"))
@@ -804,7 +804,7 @@ fun ToolsScreen(
                 if (hasStats) {
                     SectionHeader("阅读统计", index = sectionIndex.getValue("阅读统计"))
                     ToolCard {
-                        // 今日与连续天数对所有人都有意义（不要求先开目标）：
+                        // 今日与连续天数对所有人都有意义（不要求先开目标）
                         // 累计数字会越读越麻木，只有「今天」和「没断」这两件事会推着人回来。
                         val todayKey = GoalMath.dayKey()
                         val todayMinutes = GoalMath.daySeconds(days, todayKey) / 60
@@ -841,7 +841,7 @@ fun ToolsScreen(
                             )
                             MetaStatDivider()
                             MetaStat(
-                                // 显式 Locale.US：默认 Locale 在部分地区会把小数点写成逗号
+                                // 显式 Locale.US 默认 Locale 在部分地区会把小数点写成逗号
                                 value = String.format(java.util.Locale.US, "%.1f", words / 10000.0),
                                 label = "万字",
                                 modifier = Modifier.weight(1f),
@@ -975,7 +975,7 @@ fun ToolsScreen(
                 SectionHeader("正文替换", index = sectionIndex.getValue("正文替换"))
                 ToolCard {
                     Text(
-                        text = "每行一条：原文 => 替换；正则写 /模式/ => 替换",
+                        text = "每行一条 原文 => 替换；正则写 /模式/ => 替换",
                         fontSize = 11.sp,
                         lineHeight = 17.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -983,7 +983,7 @@ fun ToolsScreen(
                     OutlinedTextField(
                         value = ruleText,
                         onValueChange = { ruleText = it },
-                        placeholder = { Text("例如：多余空格 => ", fontSize = 12.sp) },
+                        placeholder = { Text("例如 多余空格 => ", fontSize = 12.sp) },
                         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
                         shape = RoundedCornerShape(Radius.sm),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -1112,7 +1112,7 @@ fun ToolsScreen(
                         )
                     }
 
-                    /* --- 自动备份：选目录 + 间隔 --- */
+                    /* --- 自动备份 选目录 + 间隔 --- */
                     Text(
                         text = "自动备份",
                         fontSize = 13.sp,
@@ -1165,7 +1165,7 @@ fun ToolsScreen(
                         }
                     }
 
-                    /* --- WebDAV：可选第二份 --- */
+                    /* --- WebDAV 可选第二份 --- */
                     Text(
                         text = "WebDAV（可选）",
                         fontSize = 13.sp,
@@ -1348,7 +1348,7 @@ fun ToolsScreen(
 /* --------------------------- 卡片内零件 --------------------------- */
 
 /**
- * 工具页的区块卡片：**白面 + 1dp 发丝线 + 0 阴影**。
+ * 工具页的区块卡片 **白面 + 1dp 发丝线 + 0 阴影**。
  *
  * 层级靠卡片与页面的底色差和这根发丝线，不靠投影。
  */
@@ -1373,7 +1373,7 @@ private fun ToolCard(
     }
 }
 
-/** 卡片内的发丝分隔线：把同卡片里的多行切开。 */
+/** 卡片内的发丝分隔线 把同卡片里的多行切开。 */
 @Composable
 private fun ToolDivider(modifier: Modifier = Modifier) {
     Box(
@@ -1385,7 +1385,7 @@ private fun ToolDivider(modifier: Modifier = Modifier) {
 }
 
 /**
- * 开关行：标题 13sp + 说明 11–12sp，整行 ≥48dp。
+ * 开关行 标题 13sp + 说明 11–12sp，整行 ≥48dp。
  *
  * 说明不是可有可无的装饰——「只下未读」和「仅 Wi-Fi」的字面差异太小，
  * 没有一行解释就分不清跳过的是哪一段。
@@ -1427,7 +1427,7 @@ private fun SwitchRow(
     }
 }
 
-/** 图标动作按钮：24dp 图标 + 48dp 触控区，带 contentDescription。 */
+/** 图标动作按钮 24dp 图标 + 48dp 触控区，带 contentDescription。 */
 @Composable
 private fun IconAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1455,7 +1455,7 @@ private val GOAL_CHOICES = listOf(10, 20, 30, 45, 60)
 /**
  * 今日完成度环。
  *
- * 用 Canvas 手绘而不是 CircularProgressIndicator：后者是 indeterminate/带间隙的
+ * 用 Canvas 手绘而不是 CircularProgressIndicator 后者是 indeterminate/带间隙的
  * 进度指示器，作「今日目标」时缺口方向、圆头、粗细都改不动。3px 圆头弧在 64dp
  * 直径上刚好压得住 13sp 的百分比字。
  */
@@ -1683,7 +1683,7 @@ private fun ReviewBlock(days: JSONObject?, onOpenReport: () -> Unit = {}) {
                     "最长的一天 ${bestDay / 60} 分钟。"
                 val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(android.content.Intent.EXTRA_TEXT, "拾页 · $summary")
+                    putExtra(android.content.Intent.EXTRA_TEXT, "拾页 $summary")
                 }
                 context.startActivity(android.content.Intent.createChooser(intent, "分享阅读回顾"))
             },
@@ -1691,7 +1691,7 @@ private fun ReviewBlock(days: JSONObject?, onOpenReport: () -> Unit = {}) {
     }
 }
 
-/** 自动备份间隔的小圆角标签，和搜索页的历史词样式区分开：这里始终带选中态。 */
+/** 自动备份间隔的小圆角标签，和搜索页的历史词样式区分开 这里始终带选中态。 */
 @Composable
 private fun BackupChip(label: String, active: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(999.dp)

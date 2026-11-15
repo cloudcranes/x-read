@@ -55,11 +55,11 @@ import com.alanmaster.xread.data.Chapter
 import com.alanmaster.xread.data.ChapterTimeline
 
 /**
- * 听书（真人音频）：章节列表 + 系统播放器。
+ * 听书（真人音频） 章节列表 + 系统播放器。
  *
  * 音频地址由内容核心直接给出，加密标记如实展示，不假装可播。
  *
- * 播放/暂停用 Material 图标而不是 emoji `⏸` `▶`：emoji 的字形随系统字体走，
+ * 播放/暂停用 Material 图标而不是 emoji `⏸` `▶` emoji 的字形随系统字体走，
  * 在不同机型上大小与基线都不同，按钮框会跳。
  */
 @Composable
@@ -94,7 +94,7 @@ fun AudioScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
             /* -------------------- 音色选择 -------------------- */
             if (tones.size > 1) {
-                // 音色数量不定：用横向滚动，避免超过 3 个就被挤出屏幕点不到
+                // 音色数量不定 用横向滚动，避免超过 3 个就被挤出屏幕点不到
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = Space.gutter),
@@ -176,10 +176,10 @@ fun AudioScreen(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        // 加密提示必须保留：上游加密音频系统播放器可能播不了，
+                        // 加密提示必须保留 上游加密音频系统播放器可能播不了，
                         // 不说清楚用户会以为是 App 坏了。
                         //
-                        // 但只在「本地没有解密副本」时才提示：core 拿到 cache=1
+                        // 但只在「本地没有解密副本」时才提示 core 拿到 cache=1
                         // 会自己下载并 CENC 解密到 /src，实测解密成功后照样能播，
                         // 这时候再挂一个「可能无法播放」就是虚假告警。
                         if (current.needsDecryptWarning) {
@@ -195,7 +195,7 @@ fun AudioScreen(
                                 )
                                 Text(
                                     text = if (current.cacheError.isNotEmpty())
-                                        "音频解密失败：${current.cacheError}"
+                                        "音频解密失败 ${current.cacheError}"
                                     else "该音频经上游加密，系统播放器可能无法直接播放",
                                     fontSize = 11.sp,
                                     lineHeight = 17.sp,
@@ -274,7 +274,7 @@ fun AudioScreen(
     }
 }
 
-/** 逐句时间轴字幕：高亮播放中的当前句、点击跳转进度、平滑居中跟随。 */
+/** 逐句时间轴字幕 高亮播放中的当前句、点击跳转进度、平滑居中跟随。 */
 @Composable
 private fun TimelineList(
     timeline: ChapterTimeline?,
@@ -347,7 +347,7 @@ private fun TimelineList(
     }
 }
 
-/** 章节行：序号 + 标题 + 播放按钮，整行 ≥48dp。 */
+/** 章节行 序号 + 标题 + 播放按钮，整行 ≥48dp。 */
 @Composable
 private fun ChapterRow(
     index: Int,
@@ -396,7 +396,7 @@ private fun ChapterRow(
     }
 }
 
-/** 受控播放器：状态全部来自控制器，UI 不自己持有播放器。 */
+/** 受控播放器 状态全部来自控制器，UI 不自己持有播放器。 */
 @Composable
 private fun AudioControls(
     state: AudioPlayerController.State,
@@ -405,7 +405,7 @@ private fun AudioControls(
     onRate: (Float) -> Unit,
     onSleep: (Int) -> Unit,
 ) {
-    // 拖动期间用本地值驱动滑块：控制器每 500ms 回写位置，直接绑 state 会把拇指拽回去
+    // 拖动期间用本地值驱动滑块 控制器每 500ms 回写位置，直接绑 state 会把拇指拽回去
     var dragPercent by remember { mutableStateOf<Float?>(null) }
     val live = AudioPlayerController.percent(state.positionMs, state.durationMs)
     val shown = dragPercent ?: live.toFloat()
@@ -542,7 +542,7 @@ private fun sleepMinutes(label: String): Int = when (label) {
 /**
  * 当前定时 → 档位名。
  *
- * 只在整点档位上高亮：定时是"到点就停"的一次性设置，
+ * 只在整点档位上高亮 定时是"到点就停"的一次性设置，
  * 剩余分钟数不固定，用剩余时间反推档位会在每分钟都跳档。
  */
 private fun sleepLabel(sleepAtMs: Long): String {

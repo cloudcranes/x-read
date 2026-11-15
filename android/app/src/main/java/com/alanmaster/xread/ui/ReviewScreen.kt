@@ -53,15 +53,15 @@ import com.alanmaster.xread.data.CommentReply
 /**
  * 书评页。
  *
- * 结构：**顶栏 → 汇总数字块 → 书评流 → 加载更多**。
+ * 结构 **顶栏 → 汇总数字块 → 书评流 → 加载更多**。
  *
- * v2 调整：
- * - 汇总从「一句灰字 + 若干「· xx」」改成三个**数字块**（[MetaStat]）：
+ * v2 调整
+ * - 汇总从「一句灰字 + 若干「  xx」」改成三个**数字块**（[MetaStat]）
  *   点评人数 / 书评条数 / 已载入。数字有独立的视觉锚点，扫一眼就知道规模。
- * - 点赞、回复数从 emoji（👍💬）换成 Material 图标 + 数字：
+ * - 点赞、回复数从 emoji（👍💬）换成 Material 图标 + 数字
  *   emoji 在不同系统上字形不同、基线不齐，且在深色底上偏色。
  * - 长评仍收成 6 行，可展开/收起（上游的热评动辄两三百字，全展开会占满一屏）。
- * - 翻页仍然只靠 [onMore]：`hasMore` 为真时列表末尾自动续一页，
+ * - 翻页仍然只靠 [onMore] `hasMore` 为真时列表末尾自动续一页，
  *   手动点「加载更多」是它的兜底。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,7 +92,7 @@ fun ReviewScreen(
             )
         }
     ) { padding ->
-        // 同一页数只发一次续取：放在 lazy item 里会随滚出组合被销毁而反复触发
+        // 同一页数只发一次续取 放在 lazy item 里会随滚出组合被销毁而反复触发
         var moreRequested by remember { mutableIntStateOf(-1) }
         Column(Modifier.fillMaxSize().padding(padding)) {
             CommentSummary(context, raters, total, comments.size)
@@ -104,7 +104,7 @@ fun ReviewScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = Space.xxl),
                 ) {
-                    // key 用「下标 + id」：上游给了重复或空 id 也不撞 key
+                    // key 用「下标 + id」 上游给了重复或空 id 也不撞 key
                     itemsIndexed(comments, key = { i, c -> "$i-${c.id}" }) { _, comment ->
                         CommentRow(
                             comment = comment,
@@ -133,7 +133,7 @@ fun ReviewScreen(
                                 )
                                 hasMore -> TextButton(onClick = onMore) { Text("加载更多") }
                                 else -> Text(
-                                    "已全部加载 · 共 ${comments.size} 条", fontSize = 13.sp,
+                                    "已全部加载 共 ${comments.size} 条", fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -146,7 +146,7 @@ fun ReviewScreen(
 }
 
 /**
- * 顶部汇总：三个数字块。
+ * 顶部汇总 三个数字块。
  *
  * 上游自己给了「19.5万人点评」这种口径，优先用它做点评人数的展示文案，
  * 缺了再按数字拼；条数与已载入数用 [formatCount] 压缩，头部计数不撑破一行。
@@ -185,7 +185,7 @@ private fun CommentSummary(context: String, raters: Int, total: Int, loaded: Int
     }
 }
 
-/** 一条书评：头像 + 用户名 + 评分 + 正文 + 点赞/回复/时间。 */
+/** 一条书评 头像 + 用户名 + 评分 + 正文 + 点赞/回复/时间。 */
 @Composable
 private fun CommentRow(
     comment: BookComment,
@@ -218,7 +218,7 @@ private fun CommentRow(
                     StarLabel(comment.score)
                 }
             }
-            // 长书评先收成 6 行：这本书的热评动辄两三百字，全展开会把一屏占满
+            // 长书评先收成 6 行 这本书的热评动辄两三百字，全展开会把一屏占满
             var expanded by remember(comment.id) { mutableStateOf(false) }
             var overflow by remember(comment.id) { mutableStateOf(false) }
             Text(
@@ -343,7 +343,7 @@ private fun ReplyList(
     }
 }
 
-/** 一条回复：用户名 + 作者标 + 回复对象 + 正文 + 赞数 + 时间。 */
+/** 一条回复 用户名 + 作者标 + 回复对象 + 正文 + 赞数 + 时间。 */
 @Composable
 private fun ReplyRow(
     reply: CommentReply,
@@ -401,7 +401,7 @@ private fun ReplyRow(
     }
 }
 
-/** 「作者」徽标：极浅的强调底 + 主色字。 */
+/** 「作者」徽标 极浅的强调底 + 主色字。 */
 @Composable
 private fun AuthorBadge() {
     Surface(
@@ -420,7 +420,7 @@ private fun AuthorBadge() {
 }
 
 /**
- * 统计小标：图标 + 数字。支持点击交互与主色高亮。
+ * 统计小标 图标 + 数字。支持点击交互与主色高亮。
  */
 @Composable
 private fun StatChip(
@@ -450,7 +450,7 @@ private fun StatChip(
 }
 
 /**
- * 评分：星形图标 + 十分制数字。
+ * 评分 星形图标 + 十分制数字。
  *
  * 旧实现用「★☆」字符拼星号，空心星在部分字体上会掉出基线。
  * 现在图标是矢量图形（不会掉基线），数字另起一列，两者都读得出来。
@@ -476,7 +476,7 @@ private fun StarLabel(score: String) {
     }
 }
 
-/** 头像：34dp 圆形；无图时用用户名首字。 */
+/** 头像 34dp 圆形；无图时用用户名首字。 */
 @Composable
 private fun Avatar(url: String, name: String) {
     Box(
@@ -506,7 +506,7 @@ private fun Avatar(url: String, name: String) {
 /**
  * 52091 → 5.2万，避免头部计数撑破一行。
  *
- * 固定 Locale.US：默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统
+ * 固定 Locale.US 默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统
  * （「٥.٢万」），正文是中文时这套数字看着就像乱码。
  */
 internal fun formatCount(value: Int): String = when {

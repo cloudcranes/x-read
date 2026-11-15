@@ -46,7 +46,7 @@ class OfflineRepoSafetyTest {
         assertNotNull(f)
         val text = f!!.readText()
         assertTrue(text.startsWith("测试书"))
-        assertTrue(text.contains("作者：某某"))
+        assertTrue(text.contains("作者 某某"))
         assertTrue(text.indexOf("正文二") < text.indexOf("正文十"))
     }
 

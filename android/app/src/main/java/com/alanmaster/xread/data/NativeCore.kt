@@ -32,7 +32,7 @@ object NativeCore {
     @JvmStatic external fun nativeCancel(id: String)
 
     private fun unpack(text: String): JSONObject {
-        // 只在 debug 构建里记前 300 字：release 下这就是把章节正文写进 logcat
+        // 只在 debug 构建里记前 300 字 release 下这就是把章节正文写进 logcat
         if (BuildConfig.DEBUG) android.util.Log.i("xread-core", "resp ${text.take(300)}")
         val envelope = JSONObject(text)
         val status = envelope.optInt("status", 500)
@@ -68,7 +68,7 @@ object NativeCore {
             }
             val dir = File(context.applicationContext.filesDir, "content-core")
             if (!dir.isDirectory && !dir.mkdirs()) throw ApiException("内容核心目录创建失败")
-            // 必须在 nativeInit 之前写：core 只在 config.json 缺失时才落默认值，
+            // 必须在 nativeInit 之前写 core 只在 config.json 缺失时才落默认值，
             // 已有配置不会被覆盖，这里写进去的 proxy 才会被读到。
             applySystemProxy(context, dir)
             unpack(nativeInit(dir.absolutePath))

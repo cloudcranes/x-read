@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
 /**
- * 听书控制器：按段落排队朗读，支持倍速、暂停续读、定时关闭、读完自动续下一章。
+ * 听书控制器 按段落排队朗读，支持倍速、暂停续读、定时关闭、读完自动续下一章。
  *
  * 段落逐条入队（QUEUE_ADD），这样进度可精确到段，暂停时也能从当前段继续；
  * 若整章一次性入队，暂停后只能从头再来。
@@ -27,7 +27,7 @@ class TtsController(
 ) {
     private val main = Handler(Looper.getMainLooper())
 
-    /** 朗读状态单一来源：Compose 直接收集，不再自己记一份。 */
+    /** 朗读状态单一来源 Compose 直接收集，不再自己记一份。 */
     private val _speaking = MutableStateFlow(false)
     val speakingFlow: StateFlow<Boolean> = _speaking
     private val _message = MutableStateFlow("")
@@ -54,7 +54,7 @@ class TtsController(
     private var ttsRef: TextToSpeech? = null
 
     /* ---------- 音频焦点 ---------- */
-    // 朗读也是媒体播放：来电或别的播放器起播时应让路，否则两路声音同时响。
+    // 朗读也是媒体播放 来电或别的播放器起播时应让路，否则两路声音同时响。
 
     private val audioManager: AudioManager? by lazy {
         context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -130,9 +130,9 @@ class TtsController(
             val result = runCatching { tts.setLanguage(locale) }.getOrNull() ?: continue
             if (result >= TextToSpeech.LANG_AVAILABLE) { languageOk = true; return true }
             lastError = when (result) {
-                TextToSpeech.LANG_MISSING_DATA -> "语音包缺失：$locale"
-                TextToSpeech.LANG_NOT_SUPPORTED -> "引擎不支持：$locale"
-                else -> "语言设置失败：$result"
+                TextToSpeech.LANG_MISSING_DATA -> "语音包缺失 $locale"
+                TextToSpeech.LANG_NOT_SUPPORTED -> "引擎不支持 $locale"
+                else -> "语言设置失败 $result"
             }
         }
         return false
@@ -207,7 +207,7 @@ class TtsController(
             publish(false, "音频焦点被占用，暂不能朗读")
             return
         }
-        // 注意：不能调用会清掉 sleepAtMillis 的 stopInternal，否则定时关闭在每次起播
+        // 注意 不能调用会清掉 sleepAtMillis 的 stopInternal，否则定时关闭在每次起播
         // 或自动续章时都被静默取消。
         haltPlayback()
         pending = clean
@@ -270,7 +270,7 @@ class TtsController(
     }
 
     fun stop() {
-        // 用户主动停止：不应在焦点恢复后自动续读
+        // 用户主动停止 不应在焦点恢复后自动续读
         resumeOnFocusGain = false
         haltPlayback()
         abandonFocus()
@@ -292,7 +292,7 @@ class TtsController(
         tts.stop()
     }
 
-    /** 倍速：0.5–3.0。语速变化在下一段生效。 */
+    /** 倍速 0.5–3.0。语速变化在下一段生效。 */
     fun setRate(value: Float): Float {
         rate = value.coerceIn(0.5f, 3f)
         tts.setSpeechRate(rate)
@@ -301,7 +301,7 @@ class TtsController(
 
     fun rate(): Float = rate
 
-    /** 定时关闭：minutes<=0 取消。 */
+    /** 定时关闭 minutes<=0 取消。 */
     fun setSleepTimer(minutes: Int) {
         sleepAtMillis = if (minutes <= 0) 0L else System.currentTimeMillis() + minutes * 60_000L
         armSleepTimerIfNeeded()
@@ -346,7 +346,7 @@ class TtsController(
     }
 
     companion object {
-        /** 纯函数便于单测：从 utteranceId 还原 (章标识, 段落下标)。 */
+        /** 纯函数便于单测 从 utteranceId 还原 (章标识, 段落下标)。 */
         fun parseUtteranceId(id: String?): Pair<String, Int>? {
             val raw = id ?: return null
             val at = raw.lastIndexOf('#')

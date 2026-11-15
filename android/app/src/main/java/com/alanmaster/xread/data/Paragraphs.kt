@@ -4,12 +4,12 @@ package com.alanmaster.xread.data
  * 正文段落切分。**纯函数**，不依赖 `android.text.Html`，因此可被 JVM 单测覆盖。
  *
  * 旧实现内联在 `Api.chapter()` 里，用 `split('\n')` + `String.trim()`，
- * 与 Python 侧 `common.py` 的 `splitlines() + strip()` 不一致：
- * - 只含 NBSP（U+00A0）的行：Python 丢掉（`str.strip()` 认它是空白），Android 保留；
- * - U+2028/U+2029：Python 的 splitlines 当换行，Android 不当。
+ * 与 Python 侧 `common.py` 的 `splitlines() + strip()` 不一致
+ * - 只含 NBSP（U+00A0）的行 Python 丢掉（`str.strip()` 认它是空白），Android 保留；
+ * - U+2028/U+2029 Python 的 splitlines 当换行，Android 不当。
  * 两边段落数不同，离线缓存与在线阅读的段落号就会整体错位。
  *
- * 这里对齐 Python 的语义：按 Unicode 行分隔符切分，逐行 trim（含 NBSP），丢空行。
+ * 这里对齐 Python 的语义 按 Unicode 行分隔符切分，逐行 trim（含 NBSP），丢空行。
  */
 object Paragraphs {
 

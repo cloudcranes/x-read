@@ -16,8 +16,8 @@ import kotlinx.coroutines.runBlocking
 /**
  * 新章定时检查。
  *
- * 不引入 WorkManager：构建环境的 Gradle 缓存里没有该依赖，加依赖会打断离线构建。
- * 用 `AlarmManager` 的**非精确**重复闹钟 + 显式广播即可：每天一次、允许系统合并，
+ * 不引入 WorkManager 构建环境的 Gradle 缓存里没有该依赖，加依赖会打断离线构建。
+ * 用 `AlarmManager` 的**非精确**重复闹钟 + 显式广播即可 每天一次、允许系统合并，
  * 不需要 `SCHEDULE_EXACT_ALARM` 权限，也不需要额外 AAR。
  */
 object UpdateScheduler {

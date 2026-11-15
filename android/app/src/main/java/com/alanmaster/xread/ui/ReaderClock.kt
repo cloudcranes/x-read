@@ -7,7 +7,7 @@ import java.util.Locale
 /**
  * 阅读页左下角的钟。
  *
- * 纯函数，不碰 Compose：这样单测能直接断言，不必上 Robolectric。
+ * 纯函数，不碰 Compose 这样单测能直接断言，不必上 Robolectric。
  */
 internal object ReaderClock {
 
@@ -19,7 +19,7 @@ internal object ReaderClock {
     /**
      * 距离下一个整秒还差多少毫秒。
      *
-     * 对齐整秒而不是整分钟：每拍都按当前时刻重算，唤醒抖动不会累积；
+     * 对齐整秒而不是整分钟 每拍都按当前时刻重算，唤醒抖动不会累积；
      * 万一某一拍被吞掉，最长也只差 1 秒就补上，不会像分钟粒度那样整整慢一分钟。
      */
     fun millisToNextSecond(millis: Long): Long = 1_000L - (millis % 1_000L)

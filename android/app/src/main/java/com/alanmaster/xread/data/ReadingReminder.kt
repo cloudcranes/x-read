@@ -18,7 +18,7 @@ import java.util.Locale
 /**
  * 每日阅读提醒。
  *
- * 与新章提醒（[UpdateScheduler]）分开：那是「有内容可看」，这是「该坐下读一会儿了」，
+ * 与新章提醒（[UpdateScheduler]）分开 那是「有内容可看」，这是「该坐下读一会儿了」，
  * 两者触发条件、文案、开关都不同，共用一个闹钟会互相顶掉。
  */
 data class ReadingReminder(
@@ -57,7 +57,7 @@ data class ReadingReminder(
     }
 }
 
-/** 非精确重复闹钟，理由同 [UpdateScheduler]：不需要精确权限，也不需要额外依赖。 */
+/** 非精确重复闹钟，理由同 [UpdateScheduler] 不需要精确权限，也不需要额外依赖。 */
 object ReminderScheduler {
     private const val REQUEST_CODE = 0x7EA4
 

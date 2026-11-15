@@ -2,7 +2,7 @@ package com.alanmaster.xread.data
 
 /**
  * 上游把表情写成 `[思考]` 这类方括号代码，客户端要自己映射成字符。
- * 只换已知代码：正文里的 `[注]`、`[1]` 这类正常方括号不动。
+ * 只换已知代码 正文里的 `[注]`、`[1]` 这类正常方括号不动。
  */
 object Emoji {
     private val MAP = mapOf(

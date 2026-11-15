@@ -16,16 +16,16 @@ data class Book(
     val wordCount: Long = 0,
     val chapterCount: Int = 0,
     val latestChapterTitle: String = "",
-    /** `creation_status`：**"0" 是完本，"1" 是连载**（实测口径，见 [BookStatus]）。 */
+    /** `creation_status` **"0" 是完本，"1" 是连载**（实测口径，见 [BookStatus]）。 */
     val creationStatus: String = "",
     /** 在读人数。上游给字符串；没有就是 0，不猜。 */
     val readCount: Long = 0,
     /** 连载中已发章节数（`serial_count`）；完本时为 0 或缺失。 */
     val serialCount: Int = 0,
     /**
-     * 上游 `book_type`：**"1" 是有声书**，"0" 是文字作品。
+     * 上游 `book_type` **"1" 是有声书**，"0" 是文字作品。
      *
-     * 只有这一位能判定「这是不是有声书」：小说条目同样带 listen_count（甚至数值相近），
+     * 只有这一位能判定「这是不是有声书」 小说条目同样带 listen_count（甚至数值相近），
      * `have_stt_resource` 在小说节点上又经常缺失。综合 tab 会把小说与有声书混在一条列表里，
      * 靠 tab 猜会把有声书当小说打开。
      */
@@ -36,7 +36,7 @@ data class Book(
     /**
      * 用 [fresh] 覆盖自己，但**只覆盖上游真正给了的值**。
      *
-     * 番茄详情接口不是每次都给全字段：同一本书第二次打开可能少了 `word_number`
+     * 番茄详情接口不是每次都给全字段 同一本书第二次打开可能少了 `word_number`
      * 或 `score`，直接替换会让详情页的字数从「320 万字」变成「—」、评分从 9.9 变成空。
      * 空串与 0 在这里一律视为「这次没给」，沿用上一份已知值；给了非空值就以新值为准
      * （章节数会增长、在读人数会变，这些是真实变化，不能锁死）。
@@ -65,7 +65,7 @@ data class Book(
 /**
  * 连载状态。
  *
- * 口径来自实测而非文档：抓 40 条榜单样本交叉核对末章标题——
+ * 口径来自实测而非文档 抓 40 条榜单样本交叉核对末章标题——
  * `creation_status = "0"` 的 7 条末章全是「完结 / 番外 / 大结局」，
  * `"1"` 的 33 条均无完结信号。所以 **0 = 完本，1 = 连载**。
  * 上游没有再给第三种值；未知一律按「连载」处理，避免把在更的书标成完本。
@@ -87,7 +87,7 @@ enum class BookStatus {
 /**
  * 目录里的一章。
  *
- * [version] 是章节正文版本（形如 `0e4a6f22…_1_e4bb696f…`）：
+ * [version] 是章节正文版本（形如 `0e4a6f22…_1_e4bb696f…`）
  * 段评接口（`books/{id}/reviews` + `para_index`）**必须**带上它，
  * 上游缺 book_id / item_version / para_index 任一项都会直接拒为
  * `103001 book_id, item_version, or para_index invalid`。
@@ -105,10 +105,10 @@ data class Chapter(
 /**
  * 应用段落下标与上游段评下标（`para_index`）之间的偏移。
  *
- * 依据（实测，47 章 + 750 余条评论全文比对）：
+ * 依据（实测，47 章 + 750 余条评论全文比对）
  *  - 上游 `chapters/{id}` 正文首行就是章节标题，`paragraphs_num` 不计它；
  *  - 本应用的 [ChapterContent.paragraphs] 第 0 段是那一行标题；
- *  - 所以同一段文字在两边的下标差 1：应用下标 = 上游下标 + 1。
+ *  - 所以同一段文字在两边的下标差 1 应用下标 = 上游下标 + 1。
  */
 object ParagraphOffsets {
     /** 应用第 0 段是标题行，上游从正文段 0 开始数，偏移 1。 */
@@ -126,7 +126,7 @@ data class ChapterContent(
     /**
      * 上游自己认的段落数（`data.paragraphs_num`）；0 表示上游没给。
      *
-     * 它是段评下标换算的**权威校验**：段评气泡的键与 `para_index` 都在这个
+     * 它是段评下标换算的**权威校验** 段评气泡的键与 `para_index` 都在这个
      * 坐标系里（0-based、不计标题），而本应用的 [paragraphs] 第 0 段是章节标题行。
      * 只有当上游报的段落数恰好等于应用段落数减一时，两边才对得上；
      * 拿不到（0）或对不上时**不能猜**，段评一律不给气泡、不发请求。
@@ -142,7 +142,7 @@ data class ChapterContent(
     /**
      * 应用段落下标 → 上游段评下标（`para_index`）；-1 表示换算不出来。
      *
-     * 换算不出来的三种情形：上游没报段落数、应用段落数与上游对不上、
+     * 换算不出来的三种情形 上游没报段落数、应用段落数与上游对不上、
      * 下标越界（标题行本身没有段评，或超出正文末尾）。调用方据此不给气泡。
      */
     fun upstreamParagraphIndex(index: Int): Int {
@@ -155,7 +155,7 @@ data class ChapterContent(
         return upstream
     }
 
-    /** 章内查找：返回命中段落下标，保持顺序。纯函数，便于离线单测。 */
+    /** 章内查找 返回命中段落下标，保持顺序。纯函数，便于离线单测。 */
     fun findHits(query: String): List<Int> {
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
@@ -180,7 +180,7 @@ data class ShelfItem(
     val lastReadAt: Long = 0,
     /** 已读到的章节下标（0 起，来自 progress.json 的 chapterIndex）；-1 表示未知。 */
     val readChapterIndex: Int = -1,
-    /** 用户侧标记：想读 / 在读 / 读完。与 [Book.status]（上游连载/完本）是两回事。 */
+    /** 用户侧标记 想读 / 在读 / 读完。与 [Book.status]（上游连载/完本）是两回事。 */
     val status: String = STATUS_READING,
     /** 个人评分 0–5；0 表示没评。 */
     val rating: Int = 0,
@@ -192,7 +192,7 @@ data class ShelfItem(
         const val STATUS_READING = "reading"
         const val STATUS_DONE = "done"
         val STATUSES = listOf(STATUS_WANT, STATUS_READING, STATUS_DONE)
-        /** 顺序即界面顺序：想读 → 在读 → 读完。 */
+        /** 顺序即界面顺序 想读 → 在读 → 读完。 */
         val STATUS_LABELS = linkedMapOf(
             STATUS_WANT to "想读",
             STATUS_READING to "在读",
@@ -205,7 +205,7 @@ data class ShelfItem(
 }
 
 /**
- * 阅读状态自动推进：只升不降。
+ * 阅读状态自动推进 只升不降。
  *
  * 进了正文就算「在读」，读到末章最后一段就算「读完」。已经标「读完」的书重读不往回退，
  * 否则回头翻一章就把记录抹了。返回 null 表示这次不用改。
@@ -223,7 +223,7 @@ fun JSONObject.str(key: String, fallback: String = ""): String {
 }
 
 /**
- * 上游的布尔标记：值可能是真布尔，也可能是数字字符串。
+ * 上游的布尔标记 值可能是真布尔，也可能是数字字符串。
  *
  * 实测段评气泡的 `hot` 是字符串 `"0"` / `"1"`（不是布尔）。`JSONObject.optBoolean`
  * 只认 `"true"` / `"false"` 这种字符串，遇到 `"1"` 一律返回 false——用它读
@@ -294,7 +294,7 @@ data class AuthorProfile(
     val works: List<Book>,
 )
 
-/** 段评气泡：段落序号 → 条数与是否热评。 */
+/** 段评气泡 段落序号 → 条数与是否热评。 */
 data class ParagraphBubble(val index: Int, val count: Int, val hot: Boolean, val authorCommented: Boolean)
 
 /**
@@ -302,7 +302,7 @@ data class ParagraphBubble(val index: Int, val count: Int, val hot: Boolean, val
  *
  * 走的是全书热评同一条上游链路（`books/{id}/reviews`），只是多带了
  * `para_index` + `item_version`，把结果收敛到单个段落。
- * 条目模型复用 [BookHotReview]：响应形状完全一致（内容在 `common.content.text`，
+ * 条目模型复用 [BookHotReview] 响应形状完全一致（内容在 `common.content.text`，
  * 用户名在 `common.user_info.base_info`，点赞/回复数在 `stat`，评分在 `expand.score`），
  * 没有理由再造一个字段相同的类型。
  *
@@ -322,7 +322,7 @@ data class ParagraphCommentPage(
 /**
  * 书评广场条目，来自 `books/{id}/comments`（老接口）。
  *
- * 与 `books/{id}/reviews` 的区别：老接口用 offset 分页、自带 reply_list、
+ * 与 `books/{id}/reviews` 的区别 老接口用 offset 分页、自带 reply_list、
  * 且不接受 sort 枚举参数（新接口传 int 会被上游拒为 "sort is not smart_hot"）。
  */
 data class BookComment(
@@ -381,7 +381,7 @@ data class BookCommentPage(
 /**
  * 全书热评条目，来自 `books/{id}/reviews`。
  *
- * 与老接口 [BookComment]（`books/{id}/comments`）不是同一条链路：
+ * 与老接口 [BookComment]（`books/{id}/comments`）不是同一条链路
  * 这条的上游响应把内容拆成 `common` / `stat` / `expand` 三组，
  * 用户名与头像还要再往下一层 `user_info.base_info` 里找；
  * 翻页靠 cursor 而不是 offset。
@@ -426,10 +426,10 @@ data class ShareInfo(
     val hasContent: Boolean get() = shareUrl.isNotBlank() || copyLinkText.isNotBlank()
 }
 
-/** 有声版本（音色）：abook_id 才是音频接口要的书 id。 */
+/** 有声版本（音色） abook_id 才是音频接口要的书 id。 */
 data class AudioTone(val abookId: String, val title: String, val iconUrl: String = "")
 
-/** 真人音频章节：core 直接给出可播放的 CDN 地址。 */
+/** 真人音频章节 core 直接给出可播放的 CDN 地址。 */
 data class AudioChapter(
     val chapterId: String,
     val title: String,
@@ -443,7 +443,7 @@ data class AudioChapter(
     /**
      * 要不要提示「加密音频可能播不了」。
      *
-     * 只有拿不到本地解密副本才提示：core 拿到 cache=1 会自己下载并 CENC 解密到
+     * 只有拿不到本地解密副本才提示 core 拿到 cache=1 会自己下载并 CENC 解密到
      * /src，解密成功时照样能播，这时候再挂警告就是虚假告警。
      */
     val needsDecryptWarning: Boolean get() = encrypted && cachedUrl.isEmpty()
@@ -486,6 +486,21 @@ data class DramaSeries(
     val tags: List<String> = emptyList(),
 ) {
     val isMotionComic: Boolean get() = contentType == 1004
+}
+
+/**
+ * 短剧系列订阅（本地功能）。
+ *
+ * 上游没有订阅/关注写接口，订阅关系保存在本机。`lastSeenEpisodeCount` 是用户
+ * 上次打开详情时看到的集数，`latestEpisodeCount` 是 feed 刷新到的最新集数，
+ * 两者差值就是书架「我的订阅」里显示的更新提示。
+ */
+data class DramaSubscription(
+    val series: DramaSeries,
+    val lastSeenEpisodeCount: Int = 0,
+    val latestEpisodeCount: Int = 0,
+) {
+    val newEpisodeCount: Int get() = (latestEpisodeCount - lastSeenEpisodeCount).coerceAtLeast(0)
 }
 
 /** 单集元数据 */

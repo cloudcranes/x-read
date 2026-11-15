@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 真人音频播放器：进度、暂停/继续、拖动、倍速、连播下一集、定时关闭。
+ * 真人音频播放器 进度、暂停/继续、拖动、倍速、连播下一集、定时关闭。
  *
  * 只播 core 解密后的本地文件；加密流若未解密则明确失败，不静默放杂音。
  */
@@ -33,7 +33,7 @@ class AudioPlayerController(
         val rate: Float = 1f,
         val message: String = "",
         val sleepAtMs: Long = 0L,
-        /** 用户正在拖动进度条：此时不要用 ticker 的位置覆盖 UI。 */
+        /** 用户正在拖动进度条 此时不要用 ticker 的位置覆盖 UI。 */
         val seeking: Boolean = false,
     )
 
@@ -56,7 +56,7 @@ class AudioPlayerController(
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS -> {
-                // 永久失去焦点：暂停但不自动恢复
+                // 永久失去焦点 暂停但不自动恢复
                 resumeOnFocusGain = false
                 if (_state.value.playing) pauseInternal()
             }
@@ -114,7 +114,7 @@ class AudioPlayerController(
         if (runCatching { p.isPlaying }.getOrDefault(false)) runCatching { p.pause() }
         _state.value = _state.value.copy(playing = false)
         main.removeCallbacks(ticker)
-        // 不要撤 sleepWatch：定时关闭的语义是「到点就停」，用户暂停或来电打断
+        // 不要撤 sleepWatch 定时关闭的语义是「到点就停」，用户暂停或来电打断
         // 之后定时器仍应生效；撤销只在 release()/stop() 里做。
     }
 
@@ -167,7 +167,7 @@ class AudioPlayerController(
                 message = "该章没有可播放的音频（可能解密失败）")
             return
         }
-        // 起播前先拿到音频焦点：拿不到就不打断别人的音乐
+        // 起播前先拿到音频焦点 拿不到就不打断别人的音乐
         if (!requestFocusIfPossible()) {
             _state.value = State(chapterId = chapterId, title = title,
                 message = "音频焦点被占用，暂不能播放")
@@ -195,7 +195,7 @@ class AudioPlayerController(
             }
             mp.setOnCompletionListener {
                 if (gen != generation) return@setOnCompletionListener
-                // prepared 必须一起复位：PlaybackService 的收尾条件是
+                // prepared 必须一起复位 PlaybackService 的收尾条件是
                 // `!prepared && !playing`，旧实现只清 playing，最后一集播完后
                 // 前台服务与通知永不退场，还一直占着音频焦点。
                 _state.value = _state.value.copy(playing = false, prepared = false,
@@ -214,7 +214,7 @@ class AudioPlayerController(
             mp.prepareAsync()
         }.onFailure {
             _state.value = _state.value.copy(playing = false,
-                message = "播放失败：${it.javaClass.simpleName}")
+                message = "播放失败 ${it.javaClass.simpleName}")
         }
     }
 
@@ -222,7 +222,7 @@ class AudioPlayerController(
         val st = _state.value
         if (!st.prepared) return
         if (st.playing) {
-            // 用户主动暂停：让出音频焦点，别人才能正常出声；
+            // 用户主动暂停 让出音频焦点，别人才能正常出声；
             // 同时清掉「焦点回来就续播」，否则一有焦点就自己响起来。
             resumeOnFocusGain = false
             pauseInternal()
@@ -232,7 +232,7 @@ class AudioPlayerController(
         }
     }
 
-    /** 拖动开始/结束：拖动期间冻结 ticker 回写，避免滑块被拽回。 */
+    /** 拖动开始/结束 拖动期间冻结 ticker 回写，避免滑块被拽回。 */
     fun beginSeek() { _state.value = _state.value.copy(seeking = true) }
 
     fun endSeek(ms: Int) {
@@ -249,7 +249,7 @@ class AudioPlayerController(
         }
     }
 
-    /** 倍速：0.5–2.0。MediaPlayer 的 PlaybackParams 需 API 23+，以下版本忽略。 */
+    /** 倍速 0.5–2.0。MediaPlayer 的 PlaybackParams 需 API 23+，以下版本忽略。 */
     fun setRate(rate: Float): Float {
         val clamped = rate.coerceIn(0.5f, 2f)
         _state.value = _state.value.copy(rate = clamped)
@@ -267,7 +267,7 @@ class AudioPlayerController(
         }
     }
 
-    /** 定时关闭：分钟数，<=0 取消。 */
+    /** 定时关闭 分钟数，<=0 取消。 */
     fun setSleepTimer(minutes: Int) {
         val at = if (minutes <= 0) 0L else System.currentTimeMillis() + minutes * 60_000L
         _state.value = _state.value.copy(sleepAtMs = at,
@@ -338,7 +338,7 @@ class AudioPlayerController(
 
         fun formatTime(ms: Int): String {
             val total = (ms.coerceAtLeast(0)) / 1000
-            // 固定 Locale.US：默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统
+            // 固定 Locale.US 默认 Locale 在 ar/fa/bn 下会把数字换成别的记数系统
             // （例如 ٣:٢٥），时长显示就废了。ToolsScreen/AuthorScreen 已是这个写法。
             return String.format(java.util.Locale.US, "%d:%02d", total / 60, total % 60)
         }

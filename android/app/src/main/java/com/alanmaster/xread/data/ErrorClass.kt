@@ -3,7 +3,7 @@ package com.alanmaster.xread.data
 /**
  * 传输层失败的分类。决定下载器是「降并发退避（可重试）」还是「跳过该章（永久）」。
  *
- * 关键点：上游内容缺失（如 `Missing initial page JSON`）会被服务端包成 502 返回，
+ * 关键点 上游内容缺失（如 `Missing initial page JSON`）会被服务端包成 502 返回，
  * 因此**错误码优先于状态码**——否则一次缺章就会把整池并发拖到 1。
  */
 object ErrorClass {

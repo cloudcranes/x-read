@@ -15,7 +15,7 @@ import com.alanmaster.xread.data.relativeReadLabel
 /**
  * 桌面「继续阅读」小组件。
  *
- * 用平台自带的 AppWidget，不引 Glance：组件只显示本地进度，没有远程视图，
+ * 用平台自带的 AppWidget，不引 Glance 组件只显示本地进度，没有远程视图，
  * 几十行 RemoteViews 就够；新依赖只会白吃 APK 体积和 16KB 对齐的复验成本。
  */
 class ReadingWidgetProvider : AppWidgetProvider() {
@@ -25,7 +25,7 @@ class ReadingWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        // 读盘要离开主线程：进度文件虽小，但 onUpdate 跑在主线程上，
+        // 读盘要离开主线程 进度文件虽小，但 onUpdate 跑在主线程上，
         // 平板首屏正好在刷新桌面。
         val pending = goAsync()
         Thread {
@@ -61,7 +61,7 @@ class ReadingWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        /** 内部广播：进度变了就刷新小组件。 */
+        /** 内部广播 进度变了就刷新小组件。 */
         const val ACTION_REFRESH = "com.alanmaster.xread.ACTION_REFRESH_WIDGET"
 
         /** 主动刷新所有已放置的小组件。 */
@@ -87,7 +87,7 @@ class ReadingWidgetProvider : AppWidgetProvider() {
                 )
                 views.setTextViewText(
                     R.id.widget_subtitle,
-                    listOf(state.author, state.chapterLabel).filter { it.isNotEmpty() }.joinToString(" · "),
+                    listOf(state.author, state.chapterLabel).filter { it.isNotEmpty() }.joinToString(" "),
                 )
                 views.setTextViewText(
                     R.id.widget_hint,

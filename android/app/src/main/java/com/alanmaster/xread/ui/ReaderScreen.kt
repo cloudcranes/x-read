@@ -182,7 +182,7 @@ import kotlin.math.roundToInt
 /**
  * 阅读页（v2「纸间」）。
  *
- * 设计原则：**正文是主角，控件全部让位。**
+ * 设计原则 **正文是主角，控件全部让位。**
  *  - 默认只有正文与一条常显的 2dp 进度线；顶栏 / 底栏 / 查找条都靠点按屏幕中部唤出，
  *    再次点按收起，正文的可视高度不因控件常驻而缩水。
  *  - 正文左右各 [ReaderMetrics.textGutter]（20dp），衬线体、用户字号/行距，
@@ -190,7 +190,7 @@ import kotlin.math.roundToInt
  *  - 阅读底色只认 [ReaderPalette.of]（用户显式挑选的方案），不跟随应用外壳主题；
  *    顶栏、底栏、进度线、设置抽屉全部用 `palette.*` 着色，避免「白底黑字夹深色正文」。
  *
- * 连续阅读：多章正文接成**一条** LazyColumn，章与章首尾相接，滚过本章末尾就是下一章，
+ * 连续阅读 多章正文接成**一条** LazyColumn，章与章首尾相接，滚过本章末尾就是下一章，
  *  滚回本章开头就接着上一章（两头都自动接），不换页、不清屏。每章占
  *  「页眉 1 项 + 段落 n 项」，列表下标 ↔ (章, 章内段落) 的换算全在 [ReaderFlow] 里；
  *  [ReaderProgress] 只保留单章旧口径，不参与跨章换算。
@@ -212,13 +212,13 @@ fun ReaderScreen(
     flowLoading: Boolean = false,
     flowError: String = "",
     onAppendNext: () -> Unit = {},
-    /** 章末既没缓存、请求也失败时的出路：先下后 5 章再续接。 */
+    /** 章末既没缓存、请求也失败时的出路 先下后 5 章再续接。 */
     onCacheNext: () -> Unit = {},
     /** 正在往流头部接上一章。 */
     flowLoadingPrev: Boolean = false,
     /** 滚到流开头时接上一章；上面没有了由调用方自己停手。 */
     onPrependPrev: () -> Unit = {},
-    /** 阅读器外观：背景、行距、翻页方式。字号在 [prefs] 里，避免两个来源打架。 */
+    /** 阅读器外观 背景、行距、翻页方式。字号在 [prefs] 里，避免两个来源打架。 */
     prefs: ReaderPrefs,
     /** 上次读到的段落下标；切章后据此复位。 */
     initialParagraph: Int = 0,
@@ -229,7 +229,7 @@ fun ReaderScreen(
     onSelect: (String) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
-    /** 整份偏好回写：字号、行距、背景、翻页方式都从这里落盘。 */
+    /** 整份偏好回写 字号、行距、背景、翻页方式都从这里落盘。 */
     onPrefs: (ReaderPrefs) -> Unit,
     /** 滚动时回报当前章节与段落，作为阅读进度。 */
     onProgress: (String, Int) -> Unit = { _, _ -> },
@@ -270,7 +270,7 @@ fun ReaderScreen(
     paragraphCommentError: String = "",
     /** 还有没有更多段评。 */
     paragraphCommentsHasMore: Boolean = false,
-    /** 点段末气泡：打开该段的段评。 */
+    /** 点段末气泡 打开该段的段评。 */
     onOpenParagraphComments: (String, Int) -> Unit = { _, _ -> },
     /** 关闭段评面板。 */
     onCloseParagraphComments: () -> Unit = {},
@@ -284,7 +284,7 @@ fun ReaderScreen(
     val listState = rememberLazyGridState()
     val density = LocalDensity.current
 
-    // 常亮：直接改窗口 View 的标志位，比往 Window 里塞 FLAG_KEEP_SCREEN_ON 少一层。
+    // 常亮 直接改窗口 View 的标志位，比往 Window 里塞 FLAG_KEEP_SCREEN_ON 少一层。
     // 离开阅读页必须还原，否则回来时别处也一直亮着。
     val readerView = LocalView.current
     DisposableEffect(prefs.keepAwake) {
@@ -292,7 +292,7 @@ fun ReaderScreen(
         onDispose { readerView.keepScreenOn = false }
     }
 
-    // 屏内亮度：只改本页窗口，退出即交还系统。系统那档亮度过半是给白天用的，
+    // 屏内亮度 只改本页窗口，退出即交还系统。系统那档亮度过半是给白天用的，
     // 夜里关灯读书还得手动拉状态栏，读完再拉回来——这里省掉那一趟。
     val context = LocalContext.current
     DisposableEffect(prefs.brightness) {
@@ -321,14 +321,14 @@ fun ReaderScreen(
     var findCursor by remember { mutableStateOf(0) }
     var markTarget by remember { mutableStateOf<Triple<String, Int, String>?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
-    /** 控件层是否展开：默认全沉浸，点按中央才出现。 */
+    /** 控件层是否展开 默认全沉浸，点按中央才出现。 */
     var chromeVisible by remember { mutableStateOf(false) }
     /** 阅读设置抽屉。 */
     var settingsVisible by remember { mutableStateOf(false) }
     /**
      * 设置面板的底部抽屉状态。
      *
-     * skipPartiallyExpanded = true：只留「展开/收起」两档。
+     * skipPartiallyExpanded = true 只留「展开/收起」两档。
      * material3 的半展开档是按面板高度过半屏才生成的，面板内容过半屏时
      * 半展开档会把下半截内容顶到屏幕外（滚也够不到）。
      * 所以这里不要那一档，改成自己封顶面板高度（见 ReaderSettingsSheet）。
@@ -341,7 +341,7 @@ fun ReaderScreen(
      * 左下角常显时钟。
      *
      * 沉浸阅读最容易忘了时间，左下角挂个小钟（跟右下角百分比同一档字号）。
-     * 每秒一跳、且每拍都按当前墙钟重算延迟：唤醒抖动不会累积，
+     * 每秒一跳、且每拍都按当前墙钟重算延迟 唤醒抖动不会累积，
      * 某一拍被吞掉最迟下一秒就补上，不会像分钟粒度那样整整慢一分钟。
      */
     var clockText by remember { mutableStateOf(ReaderClock.format(System.currentTimeMillis())) }
@@ -389,13 +389,13 @@ fun ReaderScreen(
      *
      * [flow] 会随「触底追加下一章」不断变长，而本 effect 的 key 不能跟着变——
      * 一变就会把读者拽回章首。但闭包捕获的是启动那一刻的 [flow]，如果 collect
-     * 里直接读它，连读到第 10 章时仍在用「只有第 1 章」的老列表换算下标：
+     * 里直接读它，连读到第 10 章时仍在用「只有第 1 章」的老列表换算下标
      * locate 把越界下标一律压到最后一章，于是永远上报打开时那一章，进度停在原地，
      * 退出重进就回到原处。所以必须经 [rememberUpdatedState] 读最新的 flow。
      */
     val liveFlow by rememberUpdatedState(flow)
     val liveOnProgress by rememberUpdatedState(onProgress)
-    // key 只跟「跳章请求」和「流从空变成非空」：往上接一章会让 flow.first() 换人，
+    // key 只跟「跳章请求」和「流从空变成非空」 往上接一章会让 flow.first() 换人，
     // 若把它也算进 key，每接一章都会把读者拽回章首。
     LaunchedEffect(scrollRequest, flow.isEmpty()) {
         if (flow.isEmpty()) return@LaunchedEffect
@@ -436,13 +436,13 @@ fun ReaderScreen(
     /**
      * 自动滚动。
      *
-     * 每帧推进一小段而不是按固定间隔滚一屏：步长小于一屏时，滚动是连续的，
+     * 每帧推进一小段而不是按固定间隔滚一屏 步长小于一屏时，滚动是连续的，
      * 眼睛不用追着力跳。速度按 px/s 记，不足 1px 的余量累计到下一帧——
      * 「慢」档 14px/s 在 90Hz 上每帧才 0.15px，直接取整会一直是 0，等于不动。
      *
-     * 任何触摸、翻页、浮层都会把它置成暂停：读者一旦动手，就是不想被动滚。
+     * 任何触摸、翻页、浮层都会把它置成暂停 读者一旦动手，就是不想被动滚。
      *
-     * 朗读期间一律不自动滚：朗读跟随自己会把该段滚到视野里，
+     * 朗读期间一律不自动滚 朗读跟随自己会把该段滚到视野里，
      * 两套滚动同时开就是每帧互相拽，字会跳。
      */
     val autoSpeed = ReaderPrefs.AUTO_SPEEDS[prefs.autoScroll] ?: 0f
@@ -464,7 +464,7 @@ fun ReaderScreen(
                 if (step > 0) {
                     carry -= step
                     if (!listState.canScrollForward) {
-                        // 到章末就停：续章由上面的触底逻辑负责，这里不能自己拉章节
+                        // 到章末就停 续章由上面的触底逻辑负责，这里不能自己拉章节
                         autoPaused = true
                         break
                     }
@@ -478,7 +478,7 @@ fun ReaderScreen(
     /**
      * 触顶自动接上一章。
      *
-     * 两个条件缺一不可：「第一个可见项就是流的第 0 项且贴到顶」，且「列表正在滚」。
+     * 两个条件缺一不可 「第一个可见项就是流的第 0 项且贴到顶」，且「列表正在滚」。
      * 后一个条件专门用来区分「读者又往上拉」和「刚打开/刚接完一章」——只看前者的话，
      * 接完一章后布局还没重新量过的那个瞬间它仍然成立，会一路把整本书往前扒。
      * 接完一章后 LazyColumn 按 item key 把镜头钉在原来那一项上，它会变成第 N 项，
@@ -531,7 +531,7 @@ fun ReaderScreen(
             findCursor = 0
             return
         }
-        // 与界面上的「章内查找」一致：只查当前章
+        // 与界面上的「章内查找」一致 只查当前章
         val hits = flow[chapIdx].findHits(q).map { p ->
             FindHit(chapIdx, p, ReaderFlow.indexOf(flow, chapIdx, p))
         }
@@ -612,7 +612,7 @@ fun ReaderScreen(
                 .background(palette.background),
         ) {
             // ---------- 正文 ----------
-            // 进度不再占位置：顶部条带撤掉了，只在右下角留一个百分比小字。
+            // 进度不再占位置 顶部条带撤掉了，只在右下角留一个百分比小字。
             when {
                 flow.isEmpty() -> ReaderPlaceholder(
                     loading = loading,
@@ -660,8 +660,8 @@ fun ReaderScreen(
                 )
             }
 
-            // ---------- 顶部：跨章章名 ----------
-            // 只在沉浸态出现：顶栏一出，章名已经在标题栏里了，再浮一层就是重复。
+            // ---------- 顶部 跨章章名 ----------
+            // 只在沉浸态出现 顶栏一出，章名已经在标题栏里了，再浮一层就是重复。
             AnimatedVisibility(
                 visible = chapterToast != null && !chromeVisible && !settingsVisible,
                 enter = fadeIn(),
@@ -687,8 +687,8 @@ fun ReaderScreen(
                 }
             }
 
-            // ---------- 右下角：常显百分比 ----------
-            // 进度线撤了，只在右下角留一个百分比小字：位置最不碍事的地方。
+            // ---------- 右下角 常显百分比 ----------
+            // 进度线撤了，只在右下角留一个百分比小字 位置最不碍事的地方。
             // 底栏/设置/段评浮层展开时收起，免得叠在一起。
             if (!chromeVisible && !settingsVisible && !paragraphCommentOpen) {
                 Text(
@@ -703,7 +703,7 @@ fun ReaderScreen(
                 )
             }
 
-            // ---------- 右下角：自动滚动状态 ----------
+            // ---------- 右下角 自动滚动状态 ----------
             // 只在开了自动滚动时出现；暂停后点一下继续，不必再进设置。
             if (autoSpeed > 0f && !chromeVisible && !settingsVisible && !paragraphCommentOpen) {
                 Surface(
@@ -726,8 +726,8 @@ fun ReaderScreen(
                 }
             }
 
-            // ---------- 左下角：常显时钟 ----------
-            // 与右下角百分比对称：浮层展开时一起收起，不跟底栏抢位置。
+            // ---------- 左下角 常显时钟 ----------
+            // 与右下角百分比对称 浮层展开时一起收起，不跟底栏抢位置。
             if (!chromeVisible && !settingsVisible && !paragraphCommentOpen) {
                 Text(
                     text = clockText,
@@ -741,8 +741,8 @@ fun ReaderScreen(
                 )
             }
 
-            // ---------- 底部：底栏（显隐） ----------
-            // 无 Scaffold 的手工布局必须自己吃导航栏 inset：否则整列会排到导航栏之下，
+            // ---------- 底部 底栏（显隐） ----------
+            // 无 Scaffold 的手工布局必须自己吃导航栏 inset 否则整列会排到导航栏之下，
             // 底栏在真机上直接被裁出可见区（实测 [0,0][0,0]）。
             Column(
                 Modifier
@@ -767,7 +767,7 @@ fun ReaderScreen(
                 }
             }
 
-            // ---------- 顶部：顶栏（显隐）+ 查找条 ----------
+            // ---------- 顶部 顶栏（显隐）+ 查找条 ----------
             Column(
                 Modifier.align(Alignment.TopCenter),
             ) {
@@ -818,8 +818,8 @@ fun ReaderScreen(
                 }
             }
 
-            // ---------- 设置抽屉：可上下滑动的底部面板 ----------
-            // 用 material3 的 ModalBottomSheet：面板高于半屏时自动停在半展开档，
+            // ---------- 设置抽屉 可上下滑动的底部面板 ----------
+            // 用 material3 的 ModalBottomSheet 面板高于半屏时自动停在半展开档，
             // 上下拖动可收起或铺满，不再像以前一打开就糊满整屏。
             if (settingsVisible) {
                 ModalBottomSheet(
@@ -866,7 +866,7 @@ fun ReaderScreen(
                 }
             }
 
-            // ---------- 段评面板：点段末气泡打开 ----------
+            // ---------- 段评面板 点段末气泡打开 ----------
             // 遮罩和面板都用阅读底色，夜色阅读下不会弹出一块刺眼的白板。
             AnimatedVisibility(
                 visible = paragraphCommentOpen,
@@ -994,9 +994,9 @@ private fun ReaderEmpty(palette: ReaderPalette, onRetry: () -> Unit) {
 }
 
 /**
- * 正文字体：四种都随 APK 一起打包（`res/font/`），不再依赖系统字体族或在线字体。
+ * 正文字体 四种都随 APK 一起打包（`res/font/`），不再依赖系统字体族或在线字体。
  *
- * 旧实现走系统族名（`FontFamily.Serif`、`Typeface.create("mitype")`）：MIUI 之外的机型没有
+ * 旧实现走系统族名（`FontFamily.Serif`、`Typeface.create("mitype")`） MIUI 之外的机型没有
  * 「兰亭」，很多 ROM 也没有中文衬线，选完和「默认」长得一模一样。字体随包走以后，
  * 换机、断网、ROM 差异都不影响渲染。
  * 字体只用 GB2312 全字集子集化过（约 7600 字），超出范围的生僻字由系统字体兜底。
@@ -1057,19 +1057,19 @@ private fun ReaderBody(
     onSelect: (String) -> Unit,
     onTapCenter: () -> Unit,
     onLongPress: (chapterId: String, paragraphIndex: Int, text: String) -> Unit,
-    /** 点段末气泡：打开该段的段评面板。 */
+    /** 点段末气泡 打开该段的段评面板。 */
     onOpenParagraphComments: (chapterId: String, paragraphIndex: Int) -> Unit,
-    /** 读者动手了：自动滚动据此暂停，页内其它「被动滚动」逻辑不受影响。 */
+    /** 读者动手了 自动滚动据此暂停，页内其它「被动滚动」逻辑不受影响。 */
     onUserInteraction: () -> Unit = {},
 ) {
-    // 量气泡尺寸用：占位符的宽高只能是 sp/em，dp 尺寸得先量成像素再换算
+    // 量气泡尺寸用 占位符的宽高只能是 sp/em，dp 尺寸得先量成像素再换算
     val textMeasurer = rememberTextMeasurer()
     val pageScope = rememberCoroutineScope()
     // 段间距按行高的倍数换算，系统字体放大时同步变大
     val paragraphGap = with(LocalDensity.current) {
         (prefs.fontSize * prefs.lineHeight * prefs.paragraphGap).sp.toDp()
     }
-    // 段首缩进两个汉字：中文版式的默认排法，可在设置里关掉
+    // 段首缩进两个汉字 中文版式的默认排法，可在设置里关掉
     val bodyStyle = remember(prefs.indent) {
         TextStyle(textIndent = if (prefs.indent) TextIndent(firstLine = 2.em) else TextIndent.None)
     }
@@ -1078,7 +1078,7 @@ private fun ReaderBody(
         WindowInsets.navigationBars.getBottom(this).toDp()
     }
 
-    // 朗读跟随：每读一段滚到该段
+    // 朗读跟随 每读一段滚到该段
     LaunchedEffect(ttsChapterId, ttsParagraph) {
         if (ttsParagraph >= 0 && ttsChapterId.isNotEmpty()) {
             val k = flow.indexOfFirst { it.id == ttsChapterId }
@@ -1089,13 +1089,13 @@ private fun ReaderBody(
         }
     }
 
-    // 仿真翻页进度：0 = 静止，0.5 = 旧页掀到一半（此刻换页），1 = 新页落回
+    // 仿真翻页进度 0 = 静止，0.5 = 旧页掀到一半（此刻换页），1 = 新页落回
     val simTurn = remember { Animatable(0f) }
-    // 翻页方向：1 = 往前，-1 = 往回
+    // 翻页方向 1 = 往前，-1 = 往回
     var turnDir by remember { mutableStateOf(1) }
-    // 滑动翻页的横向位移（px）：拖拽时跟手，翻页时做进出场动画
+    // 滑动翻页的横向位移（px） 拖拽时跟手，翻页时做进出场动画
     var slideX by remember { mutableFloatStateOf(0f) }
-    // 驱动 slideX 的动画器：pointerInput 的受限作用域不能挂起，动画一律从这里发起
+    // 驱动 slideX 的动画器 pointerInput 的受限作用域不能挂起，动画一律从这里发起
     val slideAnim = remember { Animatable(0f) }
 
     /** 把 slideX 从 [from] 动画到 [to]。 */
@@ -1107,7 +1107,7 @@ private fun ReaderBody(
     }
 
     /**
-     * 落点：新页页首顶在内容区顶端。
+     * 落点 新页页首顶在内容区顶端。
      *
      * 三种方式只差过渡动画，落在哪一页都一样。
      * - `none` 直接切
@@ -1144,7 +1144,7 @@ private fun ReaderBody(
     }
 
     /**
-     * 翻页统一入口：点按两侧、横向拖拽与音量键都走这里，三态差异只体现在动画上。
+     * 翻页统一入口 点按两侧、横向拖拽与音量键都走这里，三态差异只体现在动画上。
      *
      * 前进落到「最后一个顶部仍在屏底之上的可见段」的段首；退页按可见段的典型高度
      * 回推一屏，落在段落起点。两种落点都不切在段落中间。
@@ -1176,13 +1176,13 @@ private fun ReaderBody(
     }
 
     val haptic = rememberHaptic()
-    /** 翻页触感：可在设置里关掉；点按、滑动、音量键三种入口共用。 */
+    /** 翻页触感 可在设置里关掉；点按、滑动、音量键三种入口共用。 */
     fun turnHaptic() {
         if (prefs.hapticTurn) haptic.light()
     }
 
 /**
-     * 滑动松手：越过阈值翻一页，没过就弹回原位。
+     * 滑动松手 越过阈值翻一页，没过就弹回原位。
      *
      * 放在 pointerInput 之外是因为那里的协程作用域受限，挂起函数调不动。
      */
@@ -1198,7 +1198,7 @@ private fun ReaderBody(
         }
     }
 
-    // 音量键翻页：Activity 捕获按键后经 ReaderPager 转发过来
+    // 音量键翻页 Activity 捕获按键后经 ReaderPager 转发过来
     LaunchedEffect(prefs.volumeTurn, prefs.turnMode) {
         if (!prefs.volumeTurn) return@LaunchedEffect
         ReaderPager.commands.collect { dir ->
@@ -1208,13 +1208,13 @@ private fun ReaderBody(
     }
 
     /**
-     * 正文手势只有这一处：点按按 x 分三段，长按按 y 反查段落下标。
+     * 正文手势只有这一处 点按按 x 分三段，长按按 y 反查段落下标。
      *
-     * 不用逐段 `combinedClickable`：它会把 down 事件先消费掉，
+     * 不用逐段 `combinedClickable` 它会把 down 事件先消费掉，
      * 外层用于「切 chrome / 翻页」的手势就再也收不到点击——正文中部会变成死区。
      * 这里统一挂在列表上，长按位置经 `layoutInfo` 换算成段落，行为才一致。
      *
-     * 「滑动」模式下额外识别横向拖拽：跟手位移用 [slideShift] 表示，
+     * 「滑动」模式下额外识别横向拖拽 跟手位移用 [slideShift] 表示，
      * 越过阈值松手才翻页，否则回弹——点按仍走 x 分三段的旧逻辑。
      */
     val gestures = Modifier.pointerInput(prefs.tapTurn, prefs.turnMode, flow) {
@@ -1262,12 +1262,12 @@ private fun ReaderBody(
         )
     }
 
-    // 「滑动」模式的横向拖拽：仅在 turnMode == "slide" 时挂上
+    // 「滑动」模式的横向拖拽 仅在 turnMode == "slide" 时挂上
     val swipeModifier = if (prefs.turnMode == "slide") {
         Modifier.pointerInput(flow, prefs.turnMode) {
             val slop = viewConfiguration.touchSlop
             awaitEachGesture {
-                // 整段手势都在 Initial 阶段接：LazyColumn 自带的竖向滚动是内层修饰符，
+                // 整段手势都在 Initial 阶段接 LazyColumn 自带的竖向滚动是内层修饰符，
                 // Main 阶段才轮到它。等它先滚起来，正文已经竖着挪了一点，再叠上横向位移，
                 // 看着就是抖。这里抢在它前面把事件吃掉，它就滚不动了。
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -1285,7 +1285,7 @@ private fun ReaderBody(
                         if (abs(dx) < slop && abs(dy) < slop) continue
                         // 竖向意图明确，整段手势让给 LazyColumn
                         if (abs(dy) >= abs(dx)) break
-                        // 横向意图：从此刻起跟手，位移从 0 重新算，接管瞬间不跳
+                        // 横向意图 从此刻起跟手，位移从 0 重新算，接管瞬间不跳
                         dragging = true
                         originX = change.position.x
                         total = 0f
@@ -1303,8 +1303,8 @@ private fun ReaderBody(
 
     val bodyFont = remember(prefs.font) { readerFontFamily(prefs.font) }
 
-    // 宽屏双栏：平板/横屏下把一屏切成两列，段落按行优先顺序流下去。
-    // 不用分页器：按高度切割必然切断段落，而这段文字的排版是「一段一块」，
+    // 宽屏双栏 平板/横屏下把一屏切成两列，段落按行优先顺序流下去。
+    // 不用分页器 按高度切割必然切断段落，而这段文字的排版是「一段一块」，
     // 用两列网格既能双栏又保证每段完整落在同一格子里。
     // 条漫逐图铺满，不分栏。
     val wide = LocalConfiguration.current.screenWidthDp >= 720 && flow.none { it.isManga }
@@ -1322,7 +1322,7 @@ private fun ReaderBody(
                         // p ≤ 0.5 旧页掀起，p > 0.5 新页落回；fold 是「掀开程度」0..1
                         val p = simTurn.value
                         val fold = if (p <= 0.5f) p * 2f else (1f - p) * 2f
-                        // 往前翻：书脊在左，右边缘朝读者掀起；往回翻则左右互换
+                        // 往前翻 书脊在左，右边缘朝读者掀起；往回翻则左右互换
                         val hinge = if (turnDir > 0) 0f else 1f
                         transformOrigin = TransformOrigin(hinge, 0.5f)
                         rotationY = if (turnDir > 0) -92f * fold else 92f * fold
@@ -1332,7 +1332,7 @@ private fun ReaderBody(
                     }
 
                     "slide" -> {
-                        // 取整到整像素：图层偏移带小数时，文字会被双线性重采样，
+                        // 取整到整像素 图层偏移带小数时，文字会被双线性重采样，
                         // 拖动过程中笔画边缘一直在换 → 看着就是抖。
                         translationX = slideX.roundToInt().toFloat()
                         alpha = 1f
@@ -1347,11 +1347,11 @@ private fun ReaderBody(
             .then(gestures)
             .then(swipeModifier),
         contentPadding = PaddingValues(
-            // 页边距可在设置里调窄/加宽：同一档字号，6.7 寸屏每行能多挤两三个字
+            // 页边距可在设置里调窄/加宽 同一档字号，6.7 寸屏每行能多挤两三个字
             start = prefs.margin.dp,
             end = prefs.margin.dp,
             top = Space.sm,
-            // 底部只留导航栏那一档：右下角那个百分比小字浮在导航栏之上的角上，
+            // 底部只留导航栏那一档 右下角那个百分比小字浮在导航栏之上的角上，
             // 正文末行留出的余量已经够它站。
             bottom = Space.lg + navBarBottom,
         ),
@@ -1366,8 +1366,8 @@ private fun ReaderBody(
             val header = bookTitle.takeIf { it.isNotBlank() }.orEmpty()
 
             item(key = "chapter-header-${chapter.id}", span = { GridItemSpan(maxLineSpan) }) {
-                // 页眉画在标题项内部：不进索引，滚走即隐藏。
-                // 必须包 Column：grid item 默认叠放，不包则页眉与章名重合。
+                // 页眉画在标题项内部 不进索引，滚走即隐藏。
+                // 必须包 Column grid item 默认叠放，不包则页眉与章名重合。
                 Column(Modifier.fillMaxWidth()) {
                     if (header.isNotEmpty()) {
                         Text(
@@ -1465,7 +1465,7 @@ private fun ReaderBody(
                                 color = palette.text,
                             )
                         } else {
-                            // 段评气泡内联在段末。气泡是 inline content：占位符只负责在
+                            // 段评气泡内联在段末。气泡是 inline content 占位符只负责在
                             // 行末留出一块矩形，真正画出来的是 children 里的气泡本体
                             // （Compose 的 ReplacementSpan 不绘制占位文本，alternateText
                             // 只给读屏用）。
@@ -1501,12 +1501,12 @@ private fun ReaderBody(
                         }
                     }
                 }
-                // 段间空行：保留按「段」组织的阅读节奏
+                // 段间空行 保留按「段」组织的阅读节奏
                 Spacer(Modifier.height(paragraphGap))
             }
             }
 
-            // 章末卡片：连续流里两章之间唯一的分界标记。
+            // 章末卡片 连续流里两章之间唯一的分界标记。
             // 之前章与章直接首尾相接，滚过去只看到下一章标题，没有「读完了」的停顿。
             val chapterIndex = chapters.indexOfFirst { it.id == chapter.id }
             val nextInList = chapters.getOrNull(chapterIndex + 1)
@@ -1526,7 +1526,7 @@ private fun ReaderBody(
             }
         }
 
-        // 底部：加载中提示、失败重试、或手动上一章/下一章
+        // 底部 加载中提示、失败重试、或手动上一章/下一章
         if (flowLoading) {
             item(key = "flow-loading", span = { GridItemSpan(maxLineSpan) }) {
                 Box(
@@ -1588,7 +1588,7 @@ private fun ReaderBody(
 }
 
 /**
- * 章末卡片：`本章完` + 下一章标题 + 一个「下一章」按钮。
+ * 章末卡片 `本章完` + 下一章标题 + 一个「下一章」按钮。
  *
  * 连续阅读把多章接成一条流，章末没有任何停顿，读者分不清「这章读完了」
  * 还是「作者断更了」；这张卡就是那条分界线，同时给一个不依赖手势的跳章入口。
@@ -1640,7 +1640,7 @@ private fun ChapterEndCard(
     }
 }
 
-/** 条漫模式图片项：自适应填满屏幕宽度、按原图比例自适应高度、右下角显示轻量半透明页码。 */
+/** 条漫模式图片项 自适应填满屏幕宽度、按原图比例自适应高度、右下角显示轻量半透明页码。 */
 @Composable
 private fun MangaImageItem(
     imgPath: String,
@@ -1689,7 +1689,7 @@ private fun MangaImageItem(
     }
 }
 
-/** 漫画翻页阅读器：左右横滑切页、轻点中心唤出菜单、底部常显章名与页码。 */
+/** 漫画翻页阅读器 左右横滑切页、轻点中心唤出菜单、底部常显章名与页码。 */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MangaPagedReader(
@@ -1764,7 +1764,7 @@ private fun MangaPagedReader(
                 Spacer(Modifier.width(Space.xs))
             }
             Text(
-                text = "${chapter.title}  ${pagerState.currentPage + 1} / ${images.size}",
+                text = "${chapter.title} ${pagerState.currentPage + 1} / ${images.size}",
                 fontSize = 11.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = Space.xs),
@@ -1801,7 +1801,7 @@ private val BubblePaddingH = 5.dp
  * 气泡上下内边距。
  *
  * 气泡是 inline content，占位符的高度会计进所在行的行高。留太多会把整段撑高，
- * 只留 1dp：气泡高度仍小于正文字体的 ascent+descent，行高基本不受影响。
+ * 只留 1dp 气泡高度仍小于正文字体的 ascent+descent，行高基本不受影响。
  */
 private val BubblePaddingV = 1.dp
 
@@ -1809,7 +1809,7 @@ private val BubblePaddingV = 1.dp
  * 气泡里条数文字的样式。
  *
  * 占位符测量与实际渲染必须用**同一个**样式，否则占位出来的矩形和气泡实际尺寸对不上，
- * 气泡会被裁掉。字体也要显式指定：渲染时 material3 的 Text 会把样式合进来，
+ * 气泡会被裁掉。字体也要显式指定 渲染时 material3 的 Text 会把样式合进来，
  * 而测量用的是纯样式，两边字体不一致就会差出几个像素。
  */
 private val BubbleCountStyle = TextStyle(
@@ -1819,7 +1819,7 @@ private val BubbleCountStyle = TextStyle(
 )
 
 /**
- * 段末的段评气泡：可点，点开该段的短评。
+ * 段末的段评气泡 可点，点开该段的短评。
  *
  * 旧实现把它排在正文右缘的一条固定轨道上（整章留 22dp），既挤了正文宽度，
  * 又让人误以为那是一条装饰线。现在内联到段末，跟着句子走。
@@ -1842,14 +1842,14 @@ private fun InlineBubble(
     }
     Row(
         Modifier
-            // 撑满占位符留出的矩形：气泡的底色正好落在文字预留的那块空位上，
+            // 撑满占位符留出的矩形 气泡的底色正好落在文字预留的那块空位上，
             // 点按范围也一并变大（Compose 的 clickable 不带最小触摸区）。
             .fillMaxSize()
             .clip(CircleShape)
             .background(fill)
             .clickable(onClick = onClick)
             .padding(horizontal = BubblePaddingH, vertical = BubblePaddingV)
-            // 整个气泡读作一个节点：「段评 12 条，作者参与，点开查看」。
+            // 整个气泡读作一个节点 「段评 12 条，作者参与，点开查看」。
             // 不加 clearAndSetSemantics 的话读屏会把图标、条数、描述各念一遍。
             .clearAndSetSemantics {
                 contentDescription = desc
@@ -1872,7 +1872,7 @@ private fun InlineBubble(
         )    }
 }
 
-/** 气泡里的条数文案：过 99 就收成「99+」，免得把行末撑开。 */
+/** 气泡里的条数文案 过 99 就收成「99+」，免得把行末撑开。 */
 private val ParagraphBubble.countLabel: String
     get() = if (count > 99) "99+" else count.toString()
 
@@ -1904,7 +1904,7 @@ private fun rememberBubblePlaceholder(
         val widthPx = text.size.width + iconPx + gapPx + padHPx * 2
         val heightPx = max(text.size.height.toFloat(), iconPx) + padVPx * 2
         Placeholder(
-            // 多留 1px：占位符的取整（ceilToInt）与这里的换算可能差一点点，
+            // 多留 1px 占位符的取整（ceilToInt）与这里的换算可能差一点点，
             // 不留余量的话气泡的圆角会被裁掉一像素。
             width = (widthPx + 1f).pxToSp(density),
             height = (heightPx + 1f).pxToSp(density),
@@ -1927,7 +1927,7 @@ private fun Float.pxToSp(density: Density): TextUnit =
  * ================================================================== */
 
 /**
- * 段评面板：某一段的短评列表。
+ * 段评面板 某一段的短评列表。
  *
  * 失败只显示在面板里，**不碰正文**——读者正在看书，一条评论读不出来
  * 不该打断阅读。加载失败时正文照常可读、面板照常可关。
@@ -1979,7 +1979,7 @@ private fun ParagraphCommentSheet(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "第 ${index + 1} 段 · 段评",
+                        text = "第 ${index + 1} 段 段评",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = palette.title,
@@ -2010,7 +2010,7 @@ private fun ParagraphCommentSheet(
             )
 
             when {
-                // 错误优先于空态：读不到评论要说清楚原因，不能只给一句「暂无」
+                // 错误优先于空态 读不到评论要说清楚原因，不能只给一句「暂无」
                 error.isNotEmpty() -> Box(
                     Modifier
                         .fillMaxWidth()
@@ -2084,7 +2084,7 @@ private fun ParagraphCommentSheet(
     }
 }
 
-/** 一条段评：头像 + 用户名 + 时间 + 正文 + 点赞/回复数。 */
+/** 一条段评 头像 + 用户名 + 时间 + 正文 + 点赞/回复数。 */
 @Composable
 private fun ParagraphCommentRow(
     comment: BookHotReview,
@@ -2182,14 +2182,14 @@ private fun ParagraphCommentRow(
     )
 }
 
-/** 段评头像：圆形；没有头像就用用户名首字。 */
+/** 段评头像 圆形；没有头像就用用户名首字。 */
 @Composable
 private fun ParagraphCommentAvatar(url: String, name: String, palette: ReaderPalette) {
     Box(
         Modifier
             .size(28.dp)
             .clip(CircleShape)
-            // 头像底色用发丝线的深一档：跟着阅读底色走，夜色下不会是一块白饼
+            // 头像底色用发丝线的深一档 跟着阅读底色走，夜色下不会是一块白饼
             .background(palette.rule),
         contentAlignment = Alignment.Center,
     ) {
@@ -2211,7 +2211,7 @@ private fun ParagraphCommentAvatar(url: String, name: String, palette: ReaderPal
 }
 
 /**
- * 段评时间：相对时间。
+ * 段评时间 相对时间。
  *
  * 上游给的是**秒级**时间戳（实测 create_timestamp 形如 1783234303），
  * 口径与 [relativeTime] 一致。
@@ -2314,7 +2314,7 @@ private fun ReaderTopBar(
                     modifier = Modifier.size(22.dp),
                 )
             }
-            // 菜单浮在阅读底色上：容器色也换到 palette，否则夜色阅读会弹出一块浅色面板
+            // 菜单浮在阅读底色上 容器色也换到 palette，否则夜色阅读会弹出一块浅色面板
             MaterialTheme(
                 colorScheme = MaterialTheme.colorScheme.copy(
                     surface = palette.background,
@@ -2344,7 +2344,7 @@ private fun ReaderTopBar(
                             },
                         )
                     }
-                    // 阅读页也能收书：从「发现」点开一本书直接读、读着读着想留着，
+                    // 阅读页也能收书 从「发现」点开一本书直接读、读着读着想留着，
                     // 以前只能退回详情页才加得上，这里补一个入口。
                     DropdownMenuItem(
                         text = {
@@ -2538,7 +2538,7 @@ private fun ReaderTocDrawer(
     ) {
         Column(Modifier.fillMaxHeight()) {
             Text(
-                "目录 · ${chapters.size} 章",
+                "目录 ${chapters.size} 章",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = palette.title,
@@ -2549,8 +2549,8 @@ private fun ReaderTocDrawer(
                     bottom = Space.sm,
                 ),
             )
-            // 抽屉目录打开即定位当前章：上千章时从头滚起等于不可用。
-            // 另外给一个输入框：纯数字直接滚到那一章（937 章滑到第 800 章要几十屏），
+            // 抽屉目录打开即定位当前章 上千章时从头滚起等于不可用。
+            // 另外给一个输入框 纯数字直接滚到那一章（937 章滑到第 800 章要几十屏），
             // 输中文则回到按标题筛选。这里的输入框没有复用 CompactSearchField——
             // 它取的是 App 主题色，在夜色阅读配色下会亮成一块白板。
             var tocQuery by remember { mutableStateOf("") }
@@ -2590,7 +2590,7 @@ private fun ReaderTocDrawer(
                     modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.sm),
                 )
             }
-            // state 必须接上：不接的话 scrollToItem 作用在一个没人渲染的
+            // state 必须接上 不接的话 scrollToItem 作用在一个没人渲染的
             // LazyListState 上，它永远等不到布局，目录打开就停在第 1 章。
             LazyColumn(state = tocState, modifier = Modifier.weight(1f)) {
                 itemsIndexed(tocShown, key = { _, c -> c.id }) { _, c ->
@@ -2628,7 +2628,7 @@ private fun ReaderTocDrawer(
 }
 
 /**
- * 目录抽屉里的输入框：纯数字当章号直达，其余当标题筛选。
+ * 目录抽屉里的输入框 纯数字当章号直达，其余当标题筛选。
  *
  * 用 [ReaderPalette] 而不是 App 主题色——夜色配色下主题色会给出一块亮白输入框。
  */
@@ -2667,7 +2667,7 @@ private fun TocJumpField(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        // BasicTextField 没有自带清空：输了三位章号再想筛标题得删三次，给个叉。
+        // BasicTextField 没有自带清空 输了三位章号再想筛标题得删三次，给个叉。
         if (value.isNotEmpty()) {
             IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(36.dp)) {
                 Icon(
@@ -2699,7 +2699,7 @@ private fun ReaderSettingsSheet(
 ) {
     val lineValues = listOf(1.5f, 1.75f, 2.0f)
     val lineLabels = listOf("紧凑", "标准", "宽松")
-    // 旧值可能是 1.6 之类：取最接近的一档做选中态，不擅自改数据
+    // 旧值可能是 1.6 之类 取最接近的一档做选中态，不擅自改数据
     val lineIndex = lineValues.indices.minByOrNull { abs(lineValues[it] - prefs.lineHeight) } ?: 1
     val gapValues = listOf(0.45f, 0.75f, 1.05f)
     val gapLabels = listOf("紧凑", "标准", "宽松")
@@ -2709,7 +2709,7 @@ private fun ReaderSettingsSheet(
     val rateIndex = rateValues.indices.minByOrNull { abs(rateValues[it] - ttsRate) } ?: 0
 
     // ModalBottomSheet 自带 Surface 外壳和拖拽条，这里只放内容。
-    // 高度封顶：设置项再多也只占屏幕下面一块，正文还看得见。
+    // 高度封顶 设置项再多也只占屏幕下面一块，正文还看得见。
     val maxPanelHeight = (LocalConfiguration.current.screenHeightDp * 0.72f).dp
     Column(
         Modifier
@@ -2784,7 +2784,7 @@ private fun ReaderSettingsSheet(
         Spacer(Modifier.height(Space.xs))
 
         if (settingTab == 0) {
-        // 1. 字号：14–30sp（数据模型的上限，不缩窄），步进 1
+        // 1. 字号 14–30sp（数据模型的上限，不缩窄），步进 1
         ReaderSheetRow(label = "字号", palette = palette) {
             ReaderStepButton(
                 text = "A-",
@@ -2841,7 +2841,7 @@ private fun ReaderSettingsSheet(
             }
         }
 
-        // 2. 字体：系统族名，缺失时回落默认；选项顺序即显示顺序
+        // 2. 字体 系统族名，缺失时回落默认；选项顺序即显示顺序
         ReaderSheetRow(label = "字体", palette = palette) {
             ReaderSegmented(
                 options = ReaderPrefs.FONT_LABELS.values.toList(),
@@ -2857,7 +2857,7 @@ private fun ReaderSettingsSheet(
             )
         }
 
-        // 3. 行距：三档，旧值取最近一档
+        // 3. 行距 三档，旧值取最近一档
         ReaderSheetRow(label = "行距", palette = palette) {
             ReaderSegmented(
                 options = lineLabels,
@@ -2871,7 +2871,7 @@ private fun ReaderSettingsSheet(
             )
         }
 
-        // 3b. 段间距：与行距分开，正文节奏更可控
+        // 3b. 段间距 与行距分开，正文节奏更可控
         ReaderSheetRow(label = "段距", palette = palette) {
             ReaderSegmented(
                 options = gapLabels,
@@ -2885,7 +2885,7 @@ private fun ReaderSettingsSheet(
             )
         }
 
-        // 3c. 页边距：同一档字号下，行宽决定了每行几个字
+        // 3c. 页边距 同一档字号下，行宽决定了每行几个字
         ReaderSheetRow(label = "边距", palette = palette) {
             val idx = ReaderPrefs.MARGINS.indices
                 .minByOrNull { abs(ReaderPrefs.MARGINS[it] - prefs.margin) } ?: 1
@@ -2901,7 +2901,7 @@ private fun ReaderSettingsSheet(
             )
         }
 
-        // 3d. 字距：宋体默认偏紧，加一点气口长文更好读
+        // 3d. 字距 宋体默认偏紧，加一点气口长文更好读
         ReaderSheetRow(label = "字距", palette = palette) {
             val idx = ReaderPrefs.TRACKINGS.indices
                 .minByOrNull { abs(ReaderPrefs.TRACKINGS[it] - prefs.letterSpacing) } ?: 0
@@ -2920,7 +2920,7 @@ private fun ReaderSettingsSheet(
         }
 
         if (settingTab == 1) {
-        // 4. 背景：用户显式挑选，色板用各方案自己的底色与正文色
+        // 4. 背景 用户显式挑选，色板用各方案自己的底色与正文色
         ReaderSheetRow(label = "背景", palette = palette) {
             Row(
                 Modifier.weight(1f),
@@ -2940,7 +2940,7 @@ private fun ReaderSettingsSheet(
             }
         }
 
-        // 4b. 屏内亮度：只压本页窗口，退出阅读页还原系统亮度
+        // 4b. 屏内亮度 只压本页窗口，退出阅读页还原系统亮度
         ReaderSheetRow(label = "亮度", palette = palette) {
             val idx = ReaderPrefs.BRIGHTNESSES.indices
                 .minByOrNull { abs(ReaderPrefs.BRIGHTNESSES[it] - prefs.brightness) } ?: 0
@@ -2956,7 +2956,7 @@ private fun ReaderSettingsSheet(
             )
         }
 
-        // 5. 翻页：先选「怎么动」，再管「哪些手势能动」
+        // 5. 翻页 先选「怎么动」，再管「哪些手势能动」
         ReaderSheetRow(label = "翻页", palette = palette) {
             ReaderSegmented(
                 options = ReaderPrefs.TURN_LABELS.values.toList(),
@@ -2999,7 +2999,7 @@ private fun ReaderSettingsSheet(
         }
 
         if (settingTab == 2) {
-        // 自动滚动与常亮成对出现：这两项都是为「放下手读到睡着」准备的
+        // 自动滚动与常亮成对出现 这两项都是为「放下手读到睡着」准备的
         ReaderSheetRow(label = "自动滚动", palette = palette) {
             ReaderSegmented(
                 options = ReaderPrefs.AUTO_LABELS.values.toList(),
@@ -3018,7 +3018,7 @@ private fun ReaderSettingsSheet(
             palette = palette,
         ) { onPrefs(prefs.copy(keepAwake = it)) }
 
-        // 6. 听书：说明 + 受控开关（状态直接反映 ttsSpeaking）
+        // 6. 听书 说明 + 受控开关（状态直接反映 ttsSpeaking）
         ReaderSheetRow(label = "听书", palette = palette) {
             Text(
                 text = ttsMessage.ifBlank { "后台朗读本章，锁屏可继续" },
@@ -3078,7 +3078,7 @@ private fun readerSwitchColors(palette: ReaderPalette) = SwitchDefaults.colors(
     uncheckedBorderColor = palette.rule,
 )
 
-/** 设置行：左 13sp 标签（固定 52dp 列），右控件。整行高 ≥48dp。 */
+/** 设置行 左 13sp 标签（固定 52dp 列），右控件。整行高 ≥48dp。 */
 @Composable
 private fun ReaderSheetRow(
     label: String,
@@ -3131,7 +3131,7 @@ private fun ReaderToggleRow(
     }
 }
 
-/** 分段控制：抽屉内需要 palette 着色与 48dp 触控高度，故不复用外壳版本。 */
+/** 分段控制 抽屉内需要 palette 着色与 48dp 触控高度，故不复用外壳版本。 */
 @Composable
 private fun ReaderSegmented(
     options: List<String>,
@@ -3227,18 +3227,18 @@ private fun Modifier.consumeTaps(): Modifier = pointerInput(Unit) {
 /** 从包装 Context 中取出宿主 Activity，用于改本页窗口亮度。 */
 /**
  * 跨章浮现的章名。上游标题自带「第3章」前缀，剥掉再拼，
- * 否则就成了「第 3 章 · 第3章 写日记的人」。
+ * 否则就成了「第 3 章  第3章 写日记的人」。
  */
 internal fun chapterToastText(chapterIndex: Int, title: String): String? {
     val prefix = chapterHeadingPattern.find(title.trim())
     val name = if (prefix == null) {
         title.trim()
     } else {
-        title.trim().substring(prefix.range.last + 1).trimStart('：', ':', '·', '、', '，', ' ', '　').trim()
+        title.trim().substring(prefix.range.last + 1).trimStart(' ', ':', '\uFF1A', '、', '，', '　').trim()
     }
     return when {
         name.isEmpty() -> if (chapterIndex >= 0) "第 ${chapterIndex + 1} 章" else null
-        chapterIndex >= 0 -> "第 ${chapterIndex + 1} 章 · $name"
+        chapterIndex >= 0 -> "第 ${chapterIndex + 1} 章 $name"
         else -> name
     }
 }

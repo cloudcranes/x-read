@@ -50,17 +50,17 @@ import java.util.Locale
 /**
  * 榜单页（v3「刊」）。
  *
- * 结构：**页头（榜单 / 日期）→ 榜种标签条 → 分类芯片 → 统计条 → 榜行**。
+ * 结构 **页头（榜单 / 日期）→ 榜种标签条 → 分类芯片 → 统计条 → 榜行**。
  *
- * v3 的核心变化是**把后端给的数字摆出来**：每行右侧一列「在读人数」，
- * 用等宽数字右对齐，整屏可以竖着扫读比较。次级信息从「作者 · 分类 · N 章」
- * 换成「作者 · 分类 · 连载/完本」——章数对榜单读者没用，连载状态才有用。
+ * v3 的核心变化是**把后端给的数字摆出来** 每行右侧一列「在读人数」，
+ * 用等宽数字右对齐，整屏可以竖着扫读比较。次级信息从「作者  分类  N 章」
+ * 换成「作者  分类  连载/完本」——章数对榜单读者没用，连载状态才有用。
  *
- * **不做的两件事**（上游确实没有，不能编）：
- *  1. **名次升降**：原生核心 `rank_data` 载荷里没有 `rankPosDiff`/`currentPos`，
+ * **不做的两件事**（上游确实没有，不能编）
+ *  1. **名次升降** 原生核心 `rank_data` 载荷里没有 `rankPosDiff`/`currentPos`，
  *     那是 Python 后端走官网接口才有的字段。所以不画 `↑1` / `↓1`。
- *  2. **分页**：同一载荷里 `has_more=false`、`next_offset=0`，一次给 30 本，客户端拿不到
- *     任何「还有下一页」的信号。更关键的是——**榜单不是稳定列表**：实测同一个 `offset`
+ *  2. **分页** 同一载荷里 `has_more=false`、`next_offset=0`，一次给 30 本，客户端拿不到
+ *     任何「还有下一页」的信号。更关键的是——**榜单不是稳定列表** 实测同一个 `offset`
  *     连取四次，30 本里两两只重叠 0~2 本，顺序也全不同；换个 `offset` 确实会换一批书，
  *     但那只是又一次随机抽样，不是「第 13~42 名」。所以照 `offset` 递增去翻，用户看到的
  *     会是重复与跳变，等于编造一个上游并不存在的分页。统计条只说「已加载 N 本」。
@@ -79,7 +79,7 @@ fun RankScreen(
     onBack: () -> Unit,
     onPick: (Int, String) -> Unit,
     onOpen: (Book) -> Unit,
-    // 滚动位置由调用方持有：从详情页退回来时还停在原来挑到的那一行，
+    // 滚动位置由调用方持有 从详情页退回来时还停在原来挑到的那一行，
     // 而不是从头再翻一遍。换榜种/分类时才回到顶部。
     listState: LazyListState = rememberLazyListState(),
 ) {
@@ -136,7 +136,7 @@ fun RankScreen(
                     },
                 )
             }
-            // 统计条：只说真话——本页给了几本就是几本，没有分页就不提页码。
+            // 统计条 只说真话——本页给了几本就是几本，没有分页就不提页码。
             if (books.isNotEmpty()) {
                 RankStatStrip(count = books.size, category = currentCategory)
             }
@@ -154,7 +154,7 @@ fun RankScreen(
                             title = book.title,
                             coverUrl = book.coverUrl,
                             author = book.author,
-                            // 选了具体分类就不逐行印书的标签：榜的分类来自上游
+                            // 选了具体分类就不逐行印书的标签 榜的分类来自上游
                             // `sub_info_list`，书行上的是 `pure_category_tags`，两套词表
                             // 对不上时会读成「这个榜挂错了书」。只有「全部」才显示书自己的标签。
                             category = if (categoryId == "0") book.category else "",
@@ -171,10 +171,10 @@ fun RankScreen(
 }
 
 /**
- * 页头：栏目字 + 28sp 衬线大标题 + 返回。
+ * 页头 栏目字 + 28sp 衬线大标题 + 返回。
  *
- * 栏目字用「RANKINGS · 10-29」这种刊物眉题，交代这是什么页面、什么时候的榜单。
- * 日期取本机当前日期：这是**打开页面**的时间，不是榜单统计时间
+ * 栏目字用「RANKINGS  10-29」这种刊物眉题，交代这是什么页面、什么时候的榜单。
+ * 日期取本机当前日期 这是**打开页面**的时间，不是榜单统计时间
  * （上游没给统计时间，写了就是编造）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -201,7 +201,7 @@ private fun RankPageHead(
             }
             Column(Modifier.weight(1f).padding(start = Space.xs)) {
                 Text(
-                    text = "RANKINGS · $today",
+                    text = "RANKINGS $today",
                     fontSize = 10.sp,
                     lineHeight = 14.sp,
                     letterSpacing = 1.6.sp,
@@ -229,7 +229,7 @@ private fun RankPageHead(
 }
 
 /**
- * 统计条：`N 本` + 当前分类。
+ * 统计条 `N 本` + 当前分类。
  *
  * 用 `surfaceVariant` 铺一条通栏底，把筛选区和榜单正文切开，
  * 同时也给出「这一屏到底有多少本」的量感。
@@ -251,7 +251,7 @@ private fun RankStatStrip(count: Int, category: String) {
             color = ink3,
         )
         Text(
-            text = "  $count 本",
+            text = " $count 本",
             style = MaterialTheme.typography.labelMedium.copy(
                 fontFeatureSettings = "tnum",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -291,9 +291,9 @@ internal fun visibleCategories(
 }
 
 /**
- * 榜种切换：下划线标签条。
+ * 榜种切换 下划线标签条。
  *
- * 不用胶囊芯片：榜种是页面级的分段（同一时刻只有一个生效），
+ * 不用胶囊芯片 榜种是页面级的分段（同一时刻只有一个生效），
  * 需要和下方的分类筛选在视觉上分层——标签条靠下划线，分类靠芯片。
  */
 @Composable
@@ -340,7 +340,7 @@ private fun RankTabStrip(
 }
 
 /**
- * 分类筛选：胶囊芯片，自动换行（上游的分类表有十几个，一行放不下）。
+ * 分类筛选 胶囊芯片，自动换行（上游的分类表有十几个，一行放不下）。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

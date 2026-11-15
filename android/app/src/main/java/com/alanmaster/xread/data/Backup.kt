@@ -9,7 +9,7 @@ import java.net.URL
 /**
  * 自动备份的偏好。
  *
- * 目录用 SAF 的 tree uri 保存：拿到的是长期可写的授权，换机后只要重新选一次目录
+ * 目录用 SAF 的 tree uri 保存 拿到的是长期可写的授权，换机后只要重新选一次目录
  * 就能继续写，不需要申请存储权限，也不用猜别的厂商把外部目录放在哪。
  */
 object BackupPrefs {
@@ -97,7 +97,7 @@ fun backupUiState(c: Context): BackupUiState {
 /**
  * 把备份写进用户选定的目录或 WebDAV。
  *
- * 没有引第三方 WebDAV 库：备份是一个几十 KB 的 JSON，一次 PUT 就够，
+ * 没有引第三方 WebDAV 库 备份是一个几十 KB 的 JSON，一次 PUT 就够，
  * 引一个库反而多一份要维护的依赖和证书信任面。
  */
 object BackupManager {
@@ -130,7 +130,7 @@ object BackupManager {
             }
         }
 
-        // 覆盖要显式用 "wt"：默认的 "w" 不清空旧内容，备份变短时会留下尾巴。
+        // 覆盖要显式用 "wt" 默认的 "w" 不清空旧内容，备份变短时会留下尾巴。
         val target = existing ?: DocumentsContract.createDocument(
             resolver,
             root,
@@ -178,7 +178,7 @@ object BackupManager {
     /**
      * 到点就备份一次。返回结果文案，null 表示这次不需要动。
      *
-     * 没有引入 WorkManager：备份是一个几 KB 的写盘动作，交给系统调度反而要处理
+     * 没有引入 WorkManager 备份是一个几 KB 的写盘动作，交给系统调度反而要处理
      * 后台限制与唤醒失败。应用每次启动/回前台时检查一次「距上次备份多久」，
      * 对阅读器这种使用节奏足够准时，也不会因为省电策略整个失效。
      */
@@ -193,9 +193,9 @@ object BackupManager {
         val tree = BackupPrefs.treeUri(context)
         if (tree.isNotEmpty()) {
             writeToTree(context, tree, json).onSuccess { BackupPrefs.setLastAt(context, now) }
-                .onFailure { return "自动备份失败：${it.message}" }
+                .onFailure { return "自动备份失败 ${it.message}" }
         }
-        // WebDAV 是第二份副本：目录写失败也已经返回了，不会误报成功
+        // WebDAV 是第二份副本 目录写失败也已经返回了，不会误报成功
         if (BackupPrefs.davEnabled(context)) {
             uploadWebDav(BackupPrefs.davUrl(context), BackupPrefs.davUser(context), BackupPrefs.davPass(context), json)
                 .onSuccess { BackupPrefs.setDavLastAt(context, now) }

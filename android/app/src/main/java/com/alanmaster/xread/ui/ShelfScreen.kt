@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -84,11 +86,12 @@ import coil.compose.AsyncImage
 import com.alanmaster.xread.data.Book
 import com.alanmaster.xread.data.BookStatus
 import com.alanmaster.xread.data.DramaSeries
+import com.alanmaster.xread.data.DramaSubscription
 import com.alanmaster.xread.data.ShelfGrouping
 import com.alanmaster.xread.data.ShelfItem
 
 /**
- * 书架页：用户的个人藏书、阅读进度、最近阅读与分组管理。
+ * 书架页 用户的个人藏书、阅读进度、最近阅读与分组管理。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,12 +106,15 @@ fun ShelfScreen(
     totalCount: Int = 0,
     shelfMediaType: String = "all",
     onSelectMediaType: (String) -> Unit = {},
-    /** 短剧收藏与追剧记录：都落在 OfflineRepo，进程重启后仍在。 */
+    /** 短剧收藏与追剧记录 都落在 OfflineRepo，进程重启后仍在。 */
     recentDramas: List<DramaSeries> = emptyList(),
     dramaFavorites: List<DramaSeries> = emptyList(),
+    dramaSubscriptions: List<DramaSubscription> = emptyList(),
     onOpenDrama: (DramaSeries) -> Unit = {},
     onOpenFavoriteDrama: (DramaSeries) -> Unit = {},
     onToggleFavoriteDrama: (DramaSeries) -> Unit = {},
+    onOpenSubscription: (DramaSeries) -> Unit = {},
+    onToggleSubscriptionDrama: (DramaSeries) -> Unit = {},
     onDiscoverDrama: (() -> Unit)? = null,
     updates: Map<String, Int>,
     /** 整轮刷新是否在跑（重读书架 + 查新章）；页头图标转圈并防连点。 */
@@ -116,25 +122,25 @@ fun ShelfScreen(
     onSort: (String) -> Unit,
     onGroupFilter: (String) -> Unit,
     /**
-     * 刷新书架：重读条目再查新章。页头图标与下拉手势共用这一个入口——
+     * 刷新书架 重读条目再查新章。页头图标与下拉手势共用这一个入口——
      * 只重读本机 shelf.json 没有意义，用户真正想知道的是「有没有新章」。
      */
     onRefresh: () -> Unit,
     onLongPressBook: (Book) -> Unit,
     /**
-     * 书架数据落库计数：每完成一次刷新 +1。
+     * 书架数据落库计数 每完成一次刷新 +1。
      *
-     * 不用布尔标记：刷新快到同一帧完成时布尔翻转会被合帧吃掉，指示器就再也收不回来。
+     * 不用布尔标记 刷新快到同一帧完成时布尔翻转会被合帧吃掉，指示器就再也收不回来。
      */
     shelfRefreshDone: Int = 0,
     onSearch: () -> Unit,
     onDiscover: () -> Unit,
     /** 追剧空态的「去发现短剧」；未接线时退回 [onDiscover]。 */
     onOpen: (Book) -> Unit,
-    /** 长按菜单里的「书籍详情」：书架点按是继续读，详情要显式选。 */
+    /** 长按菜单里的「书籍详情」 书架点按是继续读，详情要显式选。 */
     onDetail: (Book) -> Unit = {},
     onContinue: (Book) -> Unit = {},
-    /** 批量操作：多选模式下一次性处理选中的书。 */
+    /** 批量操作 多选模式下一次性处理选中的书。 */
     onBatchGroup: (List<Book>) -> Unit = {},
     onBatchRemove: (List<Book>) -> Unit = {},
     onBatchCache: (List<Book>) -> Unit = {},
@@ -157,7 +163,7 @@ fun ShelfScreen(
     )
 
     /*
-     * 多选。状态留在页面里而不是 ViewModel：这是纯粹的界面态，转屏丢失也无所谓
+     * 多选。状态留在页面里而不是 ViewModel 这是纯粹的界面态，转屏丢失也无所谓
      * （真的转屏了，用户重新勾一下比把半截选择状态塞进 UiState 更省心）。
      */
     var selecting by rememberSaveable { mutableStateOf(false) }
@@ -198,11 +204,11 @@ fun ShelfScreen(
             }
         },
     ) { padding ->
-        // material3 1.3 起有官方 PullToRefreshBox：手势、指示器、收起动画都在里面，
+        // material3 1.3 起有官方 PullToRefreshBox 手势、指示器、收起动画都在里面，
         // 不用再自己拼 Box + nestedScroll + 指示器。
-        // 指示器由 isRefreshing 布尔驱动：拉到底它自己置 true，数据回来我们置 false。
+        // 指示器由 isRefreshing 布尔驱动 拉到底它自己置 true，数据回来我们置 false。
         var pullRefreshing by remember { mutableStateOf(false) }
-        // 数据回来了就收起指示器。挂刷新完成计数而不是布尔：刷新快到同一帧完成时，
+        // 数据回来了就收起指示器。挂刷新完成计数而不是布尔 刷新快到同一帧完成时，
         // 布尔翻转会被合帧吃掉，指示器就永远停在屏上收不回来。
         LaunchedEffect(shelfRefreshDone) {
             pullRefreshing = false
@@ -227,10 +233,10 @@ fun ShelfScreen(
                 /* -------------------- 板块与排序 -------------------- */
                 item {
                     if (selecting) {
-                        // 多选是模态的：排序/分组切换会让用户勾中的书从列表里消失，
+                        // 多选是模态的 排序/分组切换会让用户勾中的书从列表里消失，
                         // 所以这里直接不给入口，并写明原因。
                         Text(
-                            text = "多选中 · 排序与查更新暂不可用",
+                            text = "多选中 排序与查更新暂不可用",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(
@@ -260,7 +266,7 @@ fun ShelfScreen(
                 }
 
                 /* -------------------- 个人标记 -------------------- */
-                // 与媒体类型分两行：一行管「这是什么书」，一行管「我读到哪一步」，
+                // 与媒体类型分两行 一行管「这是什么书」，一行管「我读到哪一步」，
                 // 混在一行里 chip 会多到需要横向滚两次才看得全。
                 if (!selecting && shelfMediaType != "drama") {
                     item(key = "status-filter") {
@@ -269,14 +275,50 @@ fun ShelfScreen(
                 }
 
                 if (shelfMediaType == "drama") {
-                    /* -------------------- 短剧：收藏 + 追剧记录 -------------------- */
+                    /* -------------------- 短剧 订阅 + 收藏 + 追剧记录 -------------------- */
+                    item {
+                        val updateCount = dramaSubscriptions.count { it.newEpisodeCount > 0 }
+                        ShelfSectionTitle(
+                            "我的订阅",
+                            when {
+                                dramaSubscriptions.isEmpty() -> "还没有订阅"
+                                updateCount > 0 -> "${dramaSubscriptions.size} 部 $updateCount 部有更新"
+                                else -> "${dramaSubscriptions.size} 部"
+                            },
+                        )
+                    }
+                    if (dramaSubscriptions.isEmpty()) {
+                        item {
+                            ShelfEmpty(
+                                onDiscover = onDiscoverDrama ?: onDiscover,
+                                title = "还没有订阅短剧",
+                                description = "",
+                                primaryLabel = "去发现短剧",
+                            )
+                        }
+                    } else {
+                        items(dramaSubscriptions, key = { "drama-sub-${it.series.seriesId}" }) { sub ->
+                            RecentDramaCard(
+                                drama = sub.series,
+                                onClick = { onOpenSubscription(sub.series) },
+                                onToggleSubscription = { onToggleSubscriptionDrama(sub.series) },
+                                subtitle = if (sub.newEpisodeCount > 0) {
+                                    "更新 ${sub.newEpisodeCount} 集 共 ${sub.series.episodeCount} 集"
+                                } else if (sub.series.episodeCount > 0) {
+                                    "全 ${sub.series.episodeCount} 集"
+                                } else {
+                                    "连载中"
+                                },
+                            )
+                        }
+                    }
                     item { ShelfSectionTitle("我的收藏", if (dramaFavorites.isEmpty()) "还没有收藏" else "${dramaFavorites.size} 部") }
                     if (dramaFavorites.isEmpty()) {
                         item {
                             ShelfEmpty(
                                 onDiscover = onDiscoverDrama ?: onDiscover,
                                 title = "还没有收藏短剧",
-                                description = "在短剧播放页点一下星标，收藏就会出现在这里。",
+                                description = "",
                                 primaryLabel = "去发现短剧",
                             )
                         }
@@ -295,7 +337,7 @@ fun ShelfScreen(
                             ShelfEmpty(
                                 onDiscover = onDiscoverDrama ?: onDiscover,
                                 title = "还没有追剧记录",
-                                description = "去「发现」的短剧板块挑一部，播放过的短剧会出现在这里。",
+                                description = "",
                                 primaryLabel = "去发现短剧",
                             )
                         }
@@ -313,11 +355,11 @@ fun ShelfScreen(
                     }
                 } else {
                     /* -------------------- 我的书架 -------------------- */
-                    // 「在架 N 本 · 查更新」这一行删掉了：分类已经在上面那排 chip 里，
+                    // 「在架 N 本  查更新」这一行删掉了 分类已经在上面那排 chip 里，
                     // 本数挪进了页头标题，刷新（含查新章）挪进了页头图标，书架直接接在工具栏下面。
                     if (shelf.isNotEmpty()) {
                         if (columns == 2) {
-                            // 宽屏两列：卡片宽度交给 weight，间距交给 Row 的 spacedBy，
+                            // 宽屏两列 卡片宽度交给 weight，间距交给 Row 的 spacedBy，
                             // 每行左右只留页面留白，中间不再各加一份 gutter。
                             items(shelf.chunked(columns), key = { "shelf-row-${it.first().book.bookId}" }) { row ->
                                 Row(
@@ -381,7 +423,7 @@ fun ShelfScreen(
                                         onSelectMediaType("all")
                                     },
                                     title = "这一栏还没有书",
-                                    description = "当前筛选条件下没有书，换成「全部」就能看到整架。",
+                                    description = "",
                                     primaryLabel = "看全部",
                                 )
                             }
@@ -394,7 +436,7 @@ fun ShelfScreen(
                     }
             }
         }
-            // 长按菜单挂在页面根部而不是列表项里：列表项会随滚动回收，
+            // 长按菜单挂在页面根部而不是列表项里 列表项会随滚动回收，
             // 面板一旦跟着 item 走，滑一下就会自己消失。
             val actionItem = shelf.firstOrNull { it.book.bookId == menuFor }
             if (actionItem != null) {
@@ -444,7 +486,7 @@ fun ShelfScreen(
  *
  * 顶部是这本书本身（封面 + 书名 + 一行元信息），下面才是动作——先确认「我对谁操作」，
  * 再选做什么，比一列没有上下文的文字安全。动作按「常用 → 管理 → 危险」分组，
- * 每条都有图标、主文案和一句副文案：只写「设置分组」四个字没人知道分组是干什么用的。
+ * 每条都有图标、主文案和一句副文案 只写「设置分组」四个字没人知道分组是干什么用的。
  */
 @Composable
 private fun ShelfBookActionsSheet(
@@ -461,14 +503,14 @@ private fun ShelfBookActionsSheet(
         book.author.takeIf { it.isNotBlank() },
         shelfSeriesMeta(book),
         shelfReadInfo(item).takeIf { it != "未阅读" },
-    ).joinToString(" · ")
+    ).joinToString(" ")
 
     Column(
         Modifier
             .fillMaxWidth()
             .padding(bottom = Space.xl),
     ) {
-        // 头部：这本书。封面用统一的 BookCover，没有封面时退回书名首字。
+        // 头部 这本书。封面用统一的 BookCover，没有封面时退回书名首字。
         Row(
             Modifier
                 .fillMaxWidth()
@@ -507,7 +549,7 @@ private fun ShelfBookActionsSheet(
         }
         DividerLine()
 
-        // 个人标记：想读 / 在读 / 读完。三态直接摆在面板上，比藏进二级菜单少一次点击，
+        // 个人标记 想读 / 在读 / 读完。三态直接摆在面板上，比藏进二级菜单少一次点击，
         // 也是「手动移入待读」唯一的入口——详情页里同样的三个芯片，学一次就够。
         Column(
             Modifier
@@ -547,7 +589,7 @@ private fun ShelfBookActionsSheet(
         )
         DividerLine()
 
-        // 管理动作：分组与多选属于整理书架，不是阅读本身，所以单独成组。
+        // 管理动作 分组与多选属于整理书架，不是阅读本身，所以单独成组。
         ShelfActionRow(
             icon = Icons.Filled.Category,
             label = "设置分组",
@@ -562,7 +604,7 @@ private fun ShelfBookActionsSheet(
         )
         DividerLine()
 
-        // 危险动作：移出书架会给一次撤销窗口，但仍要和上面的动作拉开距离。
+        // 危险动作 移出书架会给一次撤销窗口，但仍要和上面的动作拉开距离。
         ShelfActionRow(
             icon = Icons.Filled.DeleteOutline,
             label = "移出书架",
@@ -574,7 +616,7 @@ private fun ShelfBookActionsSheet(
 }
 
 /**
- * 面板里的一行动作：左图标、右主副文案。
+ * 面板里的一行动作 左图标、右主副文案。
  *
  * 点击范围铺满整行（48dp 高），不仅仅是有字的地方——这个面板单手拇指操作，
  * 行内留白也算命中区。
@@ -617,7 +659,7 @@ private fun ShelfActionRow(
 /* --------------------------- 多选 --------------------------- */
 
 /**
- * 多选顶栏：替代页头，只保留「已选 N 本 / 全选 / 取消」。
+ * 多选顶栏 替代页头，只保留「已选 N 本 / 全选 / 取消」。
  *
  * 多选期间不显示搜索、刷新——这些都会改变列表内容，
  * 与「我已经勾好这几本」冲突。
@@ -659,7 +701,7 @@ private fun ShelfSelectionHeader(
     }
 }
 
-/** 多选底部动作条：分组 / 缓存 / 读完 / 移出。没有选中时全部禁用。 */
+/** 多选底部动作条 分组 / 缓存 / 读完 / 移出。没有选中时全部禁用。 */
 @Composable
 private fun ShelfSelectionActions(
     count: Int,
@@ -827,6 +869,8 @@ private fun RecentDramaCard(
     drama: DramaSeries,
     onClick: () -> Unit,
     onToggleFavorite: (() -> Unit)? = null,
+    onToggleSubscription: (() -> Unit)? = null,
+    subtitle: String? = null,
 ) {
     Row(
         modifier = Modifier
@@ -888,9 +932,13 @@ private fun RecentDramaCard(
                 }
             }
             Text(
-                text = if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
+                text = subtitle ?: if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (subtitle?.startsWith("更新") == true) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 modifier = Modifier.padding(top = 2.dp),
             )
             if (drama.intro.isNotBlank()) {
@@ -905,6 +953,20 @@ private fun RecentDramaCard(
             }
         }
         Spacer(Modifier.width(Space.sm))
+        if (onToggleSubscription != null) {
+            IconButton(onClick = onToggleSubscription, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    if (subtitle?.startsWith("更新") == true) {
+                        Icons.Filled.NotificationsActive
+                    } else {
+                        Icons.Filled.Notifications
+                    },
+                    contentDescription = "取消订阅",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         if (onToggleFavorite != null) {
             IconButton(onClick = onToggleFavorite, modifier = Modifier.size(36.dp)) {
                 Icon(
@@ -933,7 +995,7 @@ private fun StatusFilterRow(selected: String, onSelect: (String) -> Unit) {
         listOf("all" to "全部", ShelfItem.STATUS_WANT to "想读", ShelfItem.STATUS_READING to "在读", ShelfItem.STATUS_DONE to "读完")
     }
     // 上方类型筛选和这里的状态筛选都带「全部」，两排红底 chip 会撞成上下两块红砖。
-    // 状态改等宽文字 tab：选中只留朱红字 + 底部短线；整格 48dp 可点，选中态走 selectable 语义。
+    // 状态改等宽文字 tab 选中只留朱红字 + 底部短线；整格 48dp 可点，选中态走 selectable 语义。
     Row(
         Modifier
             .fillMaxWidth()
@@ -1000,7 +1062,7 @@ private fun ShelfToolbar(
             .padding(start = Space.gutter, end = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 纯小说阅读器只留一个信息锚：当前分组或「全部藏书」，右侧视图/排序靠右对齐。
+        // 纯小说阅读器只留一个信息锚 当前分组或「全部藏书」，右侧视图/排序靠右对齐。
         Text(
             text = activeGroup.ifBlank { "全部藏书" },
             fontSize = 11.sp,
@@ -1079,7 +1141,7 @@ private fun ShelfToolbar(
                             )
                         }
                     }
-                    // 自动分组排在手工分组之后：它们是现算的，改不了也删不掉，
+                    // 自动分组排在手工分组之后 它们是现算的，改不了也删不掉，
                     // 放在上面会让人以为能编辑。
                     if (builtinGroups.isNotEmpty()) {
                         DividerLine()
@@ -1125,7 +1187,7 @@ private fun ShelfToolbar(
  * 书架卡片视图的列数。
  *
  * 阅读页用 720dp 作为「这是块平板」的判断，书架沿用同一个阈值，
- * 免得同一个设备上阅读页两栏、书架却还是单列。列表视图永远是单列：
+ * 免得同一个设备上阅读页两栏、书架却还是单列。列表视图永远是单列
  * 它的信息密度按整行设计，劈成两半每行只剩几个字。
  */
 internal fun shelfColumns(listView: Boolean, widthDp: Int): Int =
@@ -1134,7 +1196,7 @@ internal fun shelfColumns(listView: Boolean, widthDp: Int): Int =
 /* --------------------------- 单本书 --------------------------- */
 
 /**
- * 一本书的渲染单元：列表视图是纯文字行，卡片视图是带封面的横排卡。
+ * 一本书的渲染单元 列表视图是纯文字行，卡片视图是带封面的横排卡。
  *
  * 抽成独立 composable 是为了让单列与宽屏两列共用同一套点击/多选/长按语义——
  * 早先两处各写一遍，多选时「点按＝勾选」这条规则在某一处漏掉就会变成打开书。
@@ -1226,7 +1288,7 @@ private fun ShelfBookRow(
         book.author.takeIf { it.isNotBlank() },
         meta?.takeIf { it.isNotBlank() },
         status?.takeIf { it.isNotBlank() },
-    ).joinToString(" · ")
+    ).joinToString(" ")
     Column(
         Modifier
             .fillMaxWidth()
@@ -1324,7 +1386,7 @@ private fun ShelfBookRow(
 private fun ShelfEmpty(
     onDiscover: () -> Unit,
     title: String = "书架还是空的",
-    description: String = "去「发现」浏览热门榜单，把想看的书加进来。",
+    description: String = "",
     primaryLabel: String = "去发现",
 ) {
     Surface(
@@ -1355,13 +1417,15 @@ private fun ShelfEmpty(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(top = Space.sm),
             )
-            Text(
-                text = description,
-                fontSize = 12.sp,
-                lineHeight = 19.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Space.xs),
-            )
+            if (description.isNotBlank()) {
+                Text(
+                    text = description,
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Space.xs),
+                )
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(Space.sm),
                 modifier = Modifier.padding(top = Space.xs),
@@ -1376,7 +1440,7 @@ private fun ShelfEmpty(
 
 /* --------------------------- 书架卡片状态 --------------------------- */
 
-/** 「完结/连载 · 共 N 章」，未知的部分直接省略。 */
+/** 「完结/连载  共 N 章」，未知的部分直接省略。 */
 private fun shelfSeriesMeta(book: Book): String? {
     val state = when (book.status) {
         BookStatus.Finished -> "完结"
@@ -1384,7 +1448,7 @@ private fun shelfSeriesMeta(book: Book): String? {
         BookStatus.Unknown -> ""
     }
     val total = if (book.chapterCount > 0) "共 ${book.chapterCount} 章" else ""
-    return listOf(state, total).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null }
+    return listOf(state, total).filter { it.isNotBlank() }.joinToString(" ").ifBlank { null }
 }
 
 /** 阅读进度 0..1；章节总数未知时用最近一次查更新拿到的章数。 */
@@ -1395,7 +1459,7 @@ private fun shelfProgress(item: ShelfItem): Float? {
     return ((index + 1).toFloat() / total).coerceIn(0.01f, 1f)
 }
 
-/** 「已读至第 K 章 · M 章未读」/「未阅读」/「已读完」。 */
+/** 「已读至第 K 章  M 章未读」/「未阅读」/「已读完」。 */
 private fun shelfReadInfo(item: ShelfItem): String? {
     val total = if (item.book.chapterCount > 0) item.book.chapterCount else item.knownChapters
     val index = item.readChapterIndex
@@ -1405,7 +1469,7 @@ private fun shelfReadInfo(item: ShelfItem): String? {
     val readTo = "已读至第 ${index + 1} 章"
     if (total > 0 && index >= total - 1) return "已读完"
     val left = if (total > 0) (total - index - 1).coerceAtLeast(0) else 0
-    return if (left > 0) "$readTo · $left 章未读" else readTo
+    return if (left > 0) "$readTo $left 章未读" else readTo
 }
 
 private fun shelfStatus(item: ShelfItem, newChapters: Int?): String? = when {

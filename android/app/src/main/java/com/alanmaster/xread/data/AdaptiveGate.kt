@@ -6,10 +6,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * 以 [AdaptiveConcurrency.permits] 为窗口的准入闸门：窗口收缩后已在跑的请求不打断，
+ * 以 [AdaptiveConcurrency.permits] 为窗口的准入闸门 窗口收缩后已在跑的请求不打断，
  * 新请求排队等窗口放行。
  *
- * 关键约束：排队的等待者被取消时必须**从队列里摘掉**。否则 [release] 会把许可
+ * 关键约束 排队的等待者被取消时必须**从队列里摘掉**。否则 [release] 会把许可
  * 发给一个再也不会来归还的协程，`active` 只增不减，攒够次数后 [acquire] 永久挂起。
  */
 class AdaptiveGate(val window: AdaptiveConcurrency) {

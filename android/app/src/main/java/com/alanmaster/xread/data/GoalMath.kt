@@ -17,7 +17,7 @@ data class ReadingGoal(
 /**
  * 阅读目标与连续天数的计算。
  *
- * 全部基于 stats.json 里已有的 `days`（本地日期 → 秒），**不另存 streak**：
+ * 全部基于 stats.json 里已有的 `days`（本地日期 → 秒），**不另存 streak**
  * 另存一份就必然出现「天数文件说 5 天、days 里只有 3 天达标」的双份真相。
  * 代价是改目标后历史按新目标重算，这是有意的——目标是「每天读够 N 分钟」，
  * 以前按 10 分钟达标的日子放到 30 分钟口径下本来就不算达标。
@@ -27,7 +27,7 @@ object GoalMath {
     const val MAX_MINUTES = 240
     const val DEFAULT_MINUTES = 30
 
-    /** 往回数的最远天数：防止 days 里出现异常键时死循环。 */
+    /** 往回数的最远天数 防止 days 里出现异常键时死循环。 */
     private const val MAX_LOOKBACK = 3650
 
     private const val PATTERN = "yyyy-MM-dd"
@@ -60,7 +60,7 @@ object GoalMath {
     /**
      * 连续达标天数。
      *
-     * 今天还没达标时**从昨天往回数**：早上打开应用就看到「连续 0 天」会把昨晚的努力
+     * 今天还没达标时**从昨天往回数** 早上打开应用就看到「连续 0 天」会把昨晚的努力
      * 一笔勾销，而实际上今天还没结束。今天达标则包含今天。
      */
     fun streak(days: JSONObject?, goal: ReadingGoal, today: String): Int {

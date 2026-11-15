@@ -8,7 +8,7 @@ import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 本地离线仓库：章节、进度、统计、替换规则、备份。私有目录，不需存储权限。
+ * 本地离线仓库 章节、进度、统计、替换规则、备份。私有目录，不需存储权限。
  *
  * root/exportDir 构造器对同模块（含单测）可见，生产代码请用 [of] 取进程级单例。
  */
@@ -29,6 +29,8 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     private val searchFile = File(root, "search.json")
     private val dramaRecentFile = File(root, "drama-recent.json")
     private val dramaFavFile = File(root, "drama-favorites.json")
+    private val dramaSubFile = File(root, "drama-subscriptions.json")
+    private val dramaFeedFile = File(root, "drama-feed.json")
     /** 书架整理结果（分组、入架时间、更新基线）在 library/shelf.json，备份要一并带上。 */
     private val shelfFile = File(root.parentFile ?: root, "library/shelf.json")
 
@@ -52,7 +54,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
      * - 文件不存在 → 空对象（首次使用）
      * - 文件损坏 → 先另存为 `*.corrupt-<ts>`，再返回空对象，并置 [lastWarning]
      *
-     * 绝不因为一次读取失败就把原数据直接覆盖掉：坏文件一定留在磁盘上可回收。
+     * 绝不因为一次读取失败就把原数据直接覆盖掉 坏文件一定留在磁盘上可回收。
      */
     private fun loadObject(f: File): JSONObject {
         if (!f.isFile) return JSONObject()
@@ -78,7 +80,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }
 
     /**
-     * 原子写：同目录唯一临时文件 → fsync → rename 覆盖。
+     * 原子写 同目录唯一临时文件 → fsync → rename 覆盖。
      *
      * 不使用「rename 失败就直写目标」的退路——那会在写到一半失败时留下截断文件，
      * 而截断文件正是上一次数据被清空的成因。失败时目标文件保持原样。
@@ -112,7 +114,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }
 
     /**
-     * 读-改-写整体加锁。只锁 [write] 是不够的：两个写者可以同时读到同一份旧内容，
+     * 读-改-写整体加锁。只锁 [write] 是不够的 两个写者可以同时读到同一份旧内容，
      * 各改各的再先后覆盖，必然丢键（替换规则或并发值其一消失）。
      */
     private fun mutate(f: File, block: (JSONObject) -> Unit): Boolean = synchronized(lockFor(f)) {
@@ -146,7 +148,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     /**
      * 写入一章正文。
      *
-     * [auto] 标记这一章是「阅读时自动预取」写下的：只有这类章节会被
+     * [auto] 标记这一章是「阅读时自动预取」写下的 只有这类章节会被
      * [trimAutoChapters] 在超出窗口时清掉。用户手动下载的章节永不自动删除。
      */
     fun putChapter(
@@ -197,7 +199,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     /**
      * 每本书一个 `auto.json` 记「哪些章是预取写的」。
      *
-     * 不把标记写进章节 JSON：那要为了判来源把整章正文读出来，939 章就是几十 MB 解析。
+     * 不把标记写进章节 JSON 那要为了判来源把整章正文读出来，939 章就是几十 MB 解析。
      * 小索引文件读一次只要几百字节，删除与判断都便宜。
      */
     private fun autoFile(bookId: String) = File(bookDir(bookId), "auto.json")
@@ -271,7 +273,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
 
     private val downloadedCache = ConcurrentHashMap<String, Set<String>>()
 
-    /** 单章删除：整本 [removeBook] 太重，用户常常只想清掉某一章。 */
+    /** 单章删除 整本 [removeBook] 太重，用户常常只想清掉某一章。 */
     fun removeChapter(bookId: String, chapterId: String): Boolean {
         val f = File(bookDir(bookId), "c_${safe(chapterId)}.json")
         val ok = !f.exists() || f.delete()
@@ -294,7 +296,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         return fmt < CHAPTER_FMT
     }
 
-    /** 只数已落盘的章节：写出中途的 `c_x.json.<rand>.tmp` 不算一章。 */
+    /** 只数已落盘的章节 写出中途的 `c_x.json.<rand>.tmp` 不算一章。 */
     fun chapterCount(bookId: String) =
         bookDir(bookId).listFiles()?.count { it.name.startsWith("c_") && it.name.endsWith(".json") } ?: 0
 
@@ -332,7 +334,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         }
     }.getOrDefault(emptyList())
 
-    /** 下载任务：仅记状态与计数，实际续传以磁盘上已存在的章节文件为准。 */
+    /** 下载任务 仅记状态与计数，实际续传以磁盘上已存在的章节文件为准。 */
     data class DownloadTask(
         val bookId: String,
         val source: String,
@@ -413,7 +415,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }
 
     /**
-     * 磁盘残留：原子写中断留下的 `*.tmp` 与隔离出来的 `*.corrupt-<ts>`。
+     * 磁盘残留 原子写中断留下的 `*.tmp` 与隔离出来的 `*.corrupt-<ts>`。
      * 旧实现只在同进程的 finally 里删 tmp，进程被杀或掉电后就永远留着。
      */
     fun leftovers(): List<File> = buildList {
@@ -442,7 +444,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         val entry = JSONObject().put("chapterId", chapterId).put("offset", offset)
             .put("chapterIndex", index)
             .put("at", System.currentTimeMillis())
-        // 顺手记下书目信息：冷启动要靠这条记录直接还原出 Book，不能只留一个 id
+        // 顺手记下书目信息 冷启动要靠这条记录直接还原出 Book，不能只留一个 id
         // （从发现/榜单点进去读的书不一定在书架里，查不到标题就没法恢复）。
         if (book != null && book.title.isNotEmpty()) {
             entry.put("title", book.title).put("author", book.author)
@@ -456,7 +458,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }
 
     /**
-     * 最近一次阅读记录：`progress.json` 里 `at` 最大的那条，返回 `书 id to 时间戳`。
+     * 最近一次阅读记录 `progress.json` 里 `at` 最大的那条，返回 `书 id to 时间戳`。
      *
      * 冷启动恢复上次阅读位置用。只读盘一次，避免为找「最近一本」把每本书都读一遍。
      */
@@ -665,7 +667,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     /**
      * 下载加速通道的 key，见 [AppUpdate.MIRRORS]；空串表示直连。
      *
-     * 读的时候也过一遍 [AppUpdate.mirrorOf]：手改过的 settings.json 里可能是
+     * 读的时候也过一遍 [AppUpdate.mirrorOf] 手改过的 settings.json 里可能是
      * 已经下线的通道名，这时按直连处理，别让下载卡在一个拼不出来的 URL 上。
      */
     fun updateMirror(): String = runCatching {
@@ -728,7 +730,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     /**
      * 是否该显示首启引导。
      *
-     * 不只看着 onboarded 标记：老用户升级上来没有标记，但书架里已经有书、书里已经有进度，
+     * 不只看着 onboarded 标记 老用户升级上来没有标记，但书架里已经有书、书里已经有进度，
      * 这时弹三步教程只会挡路。只要本地有痕迹就直接当作已经引导过。
      */
     fun needsOnboarding(): Boolean = runCatching {
@@ -835,7 +837,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }
 
     /**
-     * 逐段套用替换规则。**必须先切段再替换**：
+     * 逐段套用替换规则。**必须先切段再替换**
      * 替换文本里若带换行，对整篇正文替换会凭空多出段落，
      * 段评下标、书签与阅读进度都会整体错位。
      * 逐段替换保证段数不变，段号可以照旧对齐上游。
@@ -898,7 +900,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
 
     private fun markJson(mark: Mark) = JSONObject()
         .put("i", mark.paragraph).put("t", mark.text).put("k", mark.kind).put("at", mark.at)
-        // 笔记与标签只在有值时落盘：老版本客户端读这份 marks.json 时不认识这两个键，
+        // 笔记与标签只在有值时落盘 老版本客户端读这份 marks.json 时不认识这两个键，
         // 但不认识也无害；空值不写则让「没写笔记」的条目与旧格式逐字节一致。
         .also { o ->
             if (mark.note.isNotBlank()) o.put("n", mark.note)
@@ -919,7 +921,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     /**
      * 写/改一条书摘的批注与标签。
      *
-     * 按 (段落, 类型) 定位而不是按整条内容找：同一段落的高亮可能被重新摘过，
+     * 按 (段落, 类型) 定位而不是按整条内容找 同一段落的高亮可能被重新摘过，
      * 文本变了但那条批注还是用户写的那条。找不到就返回 false，不凭空插入。
      */
     fun setMarkNote(
@@ -969,7 +971,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         out.filter { it.mark.paragraph >= 0 }.sortedByDescending { it.mark.at }
     }.getOrDefault(emptyList())
 
-    /** 导出用的日期：只到天，跨年时补上年份。 */
+    /** 导出用的日期 只到天，跨年时补上年份。 */
     private fun stampFor(at: Long): String {
         if (at <= 0) return ""
         val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
@@ -984,7 +986,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         entries.groupBy { it.bookId }.forEach { (bookId, group) ->
             sb.append("## ").append(bookTitles[bookId] ?: "作品 $bookId").append("\n\n")
             group.forEach { e ->
-                // 有批注的条目改成引用块：原文与自己的话必须在视觉上分开，
+                // 有批注的条目改成引用块 原文与自己的话必须在视觉上分开，
                 // 否则一年后翻回去会分不清哪句是书里写的。
                 val quoted = e.mark.note.isNotBlank() || e.mark.tags.isNotEmpty()
                 val body = e.mark.text.trim()
@@ -994,16 +996,16 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                     if (e.chapterTitle.isNotEmpty()) sb.append("【").append(e.chapterTitle).append("】")
                     sb.append(" ").append(stampFor(e.mark.at)).append("\n")
                 } else {
-                    // 没有批注的条目保持旧格式：一行一条，读到哪儿都不会错位。
+                    // 没有批注的条目保持旧格式 一行一条，读到哪儿都不会错位。
                     sb.append("- ")
                     if (e.chapterTitle.isNotEmpty()) sb.append("【").append(e.chapterTitle).append("】")
                     sb.append(body).append("\n")
                 }
                 if (e.mark.note.isNotBlank()) {
-                    sb.append("\n笔记：").append(e.mark.note.trim().replace("\n", "\n  ")).append("\n")
+                    sb.append("\n笔记 ").append(e.mark.note.trim().replace("\n", "\n ")).append("\n")
                 }
                 if (e.mark.tags.isNotEmpty()) {
-                    sb.append("\n标签：").append(e.mark.tags.joinToString(" ") { "#$it" }).append("\n")
+                    sb.append("\n标签 ").append(e.mark.tags.joinToString(" ") { "#$it" }).append("\n")
                 }
                 if (quoted) sb.append("\n")
             }
@@ -1046,7 +1048,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         target.bufferedWriter().use { w ->
             w.write(title)
             w.write("\n")
-            if (author.isNotEmpty()) w.write("作者：$author\n")
+            if (author.isNotEmpty()) w.write("作者 $author\n")
             w.write("\n")
             bodies.forEach { (chapterTitle, body) ->
                 w.write("\n")
@@ -1076,7 +1078,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         }.distinct().take(MAX_HISTORY)
     }.getOrDefault(emptyList())
 
-    /** 记一次搜索并返回新列表：同词只留一条且提到最前。 */
+    /** 记一次搜索并返回新列表 同词只留一条且提到最前。 */
     fun pushSearch(query: String): List<String> = runCatching {
         val q = query.trim()
         if (q.isEmpty()) return searchHistory()
@@ -1087,7 +1089,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         merged
     }.getOrDefault(emptyList())
 
-    /** 删掉一条搜索历史并返回新列表：只动这一条，其余顺序不变。 */
+    /** 删掉一条搜索历史并返回新列表 只动这一条，其余顺序不变。 */
     fun removeSearchHistory(query: String): List<String> = runCatching {
         val merged = searchHistory().filter { it != query.trim() }
         val arr = JSONArray()
@@ -1129,7 +1131,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         }.distinctBy { it.seriesId }.take(MAX_DRAMA_RECENT)
     }.getOrDefault(emptyList())
 
-    /** 记一部刚看过的短剧并返回新列表：同一部只留一条且提到最前。 */
+    /** 记一部刚看过的短剧并返回新列表 同一部只留一条且提到最前。 */
     fun pushDramaRecent(series: DramaSeries): List<DramaSeries> = runCatching {
         if (series.seriesId.isEmpty()) return dramaRecent()
         val merged = (listOf(series) + dramaRecent().filter { it.seriesId != series.seriesId })
@@ -1150,6 +1152,60 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         write(dramaRecentFile, JSONObject().put("items", arr).toString())
         merged
     }.getOrDefault(emptyList())
+
+    /**
+     * 短剧媒体墙缓存 上次成功拉到的 feed。
+     *
+     * 冷启动先渲染这份数据，网络刷新在后台完成，避免一进短剧页先看几秒转圈。
+     */
+    fun dramaFeedCache(): List<DramaSeries> = runCatching {
+        val arr = loadObject(dramaFeedFile).optJSONArray("items") ?: return emptyList()
+        buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.str("series_id")
+                if (id.isEmpty()) continue
+                val tags = buildList {
+                    val ta = o.optJSONArray("tags") ?: JSONArray()
+                    for (j in 0 until ta.length()) ta.optString(j).takeIf { it.isNotEmpty() }?.let { add(it) }
+                }
+                add(
+                    DramaSeries(
+                        seriesId = id,
+                        title = o.str("title"),
+                        coverUrl = o.str("cover_url"),
+                        intro = o.str("intro"),
+                        author = o.str("author"),
+                        episodeCount = o.long("episode_count").toInt(),
+                        contentType = o.long("content_type", 1L).toInt(),
+                        tags = tags,
+                    ),
+                )
+            }
+        }.distinctBy { it.seriesId }.take(MAX_DRAMA_FEED)
+    }.getOrDefault(emptyList())
+
+    fun saveDramaFeed(items: List<DramaSeries>) {
+        runCatching {
+            val arr = JSONArray()
+            items.distinctBy { it.seriesId }.take(MAX_DRAMA_FEED).forEach { s ->
+                val tags = JSONArray()
+                s.tags.forEach { tags.put(it) }
+                arr.put(
+                    JSONObject()
+                        .put("series_id", s.seriesId)
+                        .put("title", s.title)
+                        .put("cover_url", s.coverUrl)
+                        .put("intro", s.intro)
+                        .put("author", s.author)
+                        .put("episode_count", s.episodeCount)
+                        .put("content_type", s.contentType)
+                        .put("tags", tags),
+                )
+            }
+            write(dramaFeedFile, JSONObject().put("items", arr).toString())
+        }
+    }
 
     /* ---------- 短剧收藏 ---------- */
 
@@ -1207,6 +1263,125 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         merged
     }.getOrDefault(emptyList())
 
+    /* ---------- 短剧订阅 ---------- */
+
+    /**
+     * 本地订阅的短剧，新的在前。
+     *
+     * 上游没有关注/订阅写接口（只有 followed_cnt 展示字段），所以订阅关系存在本机。
+     * latestEpisodeCount 是 feed 看到的最新集数，lastSeenEpisodeCount 是用户上次
+     * 打开详情时的集数；两者差值用于书架「我的订阅」里的更新角标。
+     */
+    fun dramaSubscriptions(): List<DramaSubscription> = runCatching {
+        val arr = loadObject(dramaSubFile).optJSONArray("items") ?: return emptyList()
+        buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.str("series_id")
+                if (id.isEmpty()) continue
+                val series = DramaSeries(
+                    seriesId = id,
+                    title = o.str("title"),
+                    coverUrl = o.str("cover_url"),
+                    intro = o.str("intro"),
+                    author = o.str("author"),
+                    episodeCount = o.long("episode_count").toInt(),
+                    contentType = o.long("content_type", 1L).toInt(),
+                )
+                add(
+                    DramaSubscription(
+                        series = series,
+                        lastSeenEpisodeCount = o.long("last_seen_episode_count").toInt(),
+                        latestEpisodeCount = maxOf(
+                            o.long("latest_episode_count").toInt(),
+                            series.episodeCount,
+                        ),
+                    ),
+                )
+            }
+        }.distinctBy { it.series.seriesId }.take(MAX_DRAMA_SUBSCRIPTIONS)
+    }.getOrDefault(emptyList())
+
+    fun isDramaSubscribed(seriesId: String): Boolean =
+        seriesId.isNotEmpty() && dramaSubscriptions().any { it.series.seriesId == seriesId }
+
+    /** 订阅/取消订阅，返回订阅后的完整列表（新的在前）。 */
+    fun setDramaSubscription(series: DramaSeries, subscribed: Boolean): List<DramaSubscription> = runCatching {
+        if (series.seriesId.isEmpty()) return dramaSubscriptions()
+        val rest = dramaSubscriptions().filter { it.series.seriesId != series.seriesId }
+        val existing = dramaSubscriptions().firstOrNull { it.series.seriesId == series.seriesId }
+        val merged = if (subscribed) {
+            val entry = DramaSubscription(
+                series = series,
+                // 新订阅以当前集数作为起点 只有从这一刻之后新增的集才算「更新」。
+                lastSeenEpisodeCount = existing?.lastSeenEpisodeCount ?: series.episodeCount,
+                latestEpisodeCount = maxOf(series.episodeCount, existing?.latestEpisodeCount ?: 0),
+            )
+            (listOf(entry) + rest).take(MAX_DRAMA_SUBSCRIPTIONS)
+        } else {
+            rest
+        }
+        writeDramaSubscriptions(merged)
+        merged
+    }.getOrDefault(emptyList())
+
+    /** feed 刷新后同步订阅剧的集数；返回更新后的订阅列表。 */
+    fun refreshDramaSubscriptionEpisodes(feed: List<DramaSeries>): List<DramaSubscription> = runCatching {
+        val byId = feed.associateBy { it.seriesId }
+        val current = dramaSubscriptions()
+        if (current.isEmpty()) return current
+        var changed = false
+        val merged = current.map { sub ->
+            val latest = byId[sub.series.seriesId] ?: return@map sub
+            val count = maxOf(sub.latestEpisodeCount, latest.episodeCount, sub.series.episodeCount)
+            if (count == sub.latestEpisodeCount && latest.title == sub.series.title) {
+                sub
+            } else {
+                changed = true
+                sub.copy(series = latest, latestEpisodeCount = count)
+            }
+        }
+        if (changed) writeDramaSubscriptions(merged)
+        merged
+    }.getOrDefault(emptyList())
+
+    /** 用户打开详情页时记录已看到的最新集数，清掉更新提示。 */
+    fun markDramaSubscriptionSeen(series: DramaSeries): List<DramaSubscription> = runCatching {
+        if (series.seriesId.isEmpty()) return dramaSubscriptions()
+        val current = dramaSubscriptions()
+        val index = current.indexOfFirst { it.series.seriesId == series.seriesId }
+        if (index < 0) return current
+        val count = maxOf(series.episodeCount, current[index].latestEpisodeCount)
+        val updated = current.toMutableList().also {
+            it[index] = it[index].copy(
+                series = series,
+                lastSeenEpisodeCount = maxOf(it[index].lastSeenEpisodeCount, count),
+                latestEpisodeCount = count,
+            )
+        }
+        writeDramaSubscriptions(updated)
+        updated
+    }.getOrDefault(emptyList())
+
+    private fun writeDramaSubscriptions(items: List<DramaSubscription>) {
+        val arr = JSONArray()
+        items.forEach { sub ->
+            arr.put(
+                JSONObject()
+                    .put("series_id", sub.series.seriesId)
+                    .put("title", sub.series.title)
+                    .put("cover_url", sub.series.coverUrl)
+                    .put("intro", sub.series.intro)
+                    .put("author", sub.series.author)
+                    .put("episode_count", sub.series.episodeCount)
+                    .put("content_type", sub.series.contentType)
+                    .put("last_seen_episode_count", sub.lastSeenEpisodeCount)
+                    .put("latest_episode_count", sub.latestEpisodeCount),
+            )
+        }
+        write(dramaSubFile, JSONObject().put("items", arr).toString())
+    }
+
     /* ---------- 备份 ---------- */
 
     fun exportBackup(): File? = runCatching {
@@ -1223,7 +1398,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
      * 都不该先往应用外部目录写一份中间文件。
      */
     fun backupJson(): String? = runCatching {
-        // version 3：marks 里带上了批注（n）与标签（g）。导入不校验版本，
+        // version 3 marks 里带上了批注（n）与标签（g）。导入不校验版本，
         // 老备份缺这两个键时读出即空，所以向下兼容不需要迁移代码。
         val all = JSONObject().put("app", "x-read").put("version", 3)
             .put("exported", System.currentTimeMillis())
@@ -1247,10 +1422,11 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         all.put("shelf", loadObject(shelfFile))
         // 书签与高亮同样是用户产出，备份里不能丢
         all.put("marks", loadObject(marksFile))
-        // 追剧记录与短剧收藏也是用户自己点出来的产物：备份里不带上的话，
+        // 追剧记录与短剧收藏也是用户自己点出来的产物 备份里不带上的话，
         // 换机恢复之后书架「短剧」页会干干净净，用户以为记录丢了。
         all.put("dramaRecent", loadObject(dramaRecentFile))
         all.put("dramaFavorites", loadObject(dramaFavFile))
+        all.put("dramaSubscriptions", loadObject(dramaSubFile))
         all.toString()
     }.getOrNull()
 
@@ -1291,10 +1467,10 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                         val entry = backupShelf.optJSONObject(k) ?: return@forEach
                         val existing = mine.optJSONObject(k)
                         if (existing == null) {
-                            // 备份里有、本地没有：整条补回
+                            // 备份里有、本地没有 整条补回
                             mine.put(k, JSONObject(entry.toString()))
                         } else {
-                            // 两边都有：只补整理字段，不覆盖本地已有分组
+                            // 两边都有 只补整理字段，不覆盖本地已有分组
                             if (!existing.has("group") || existing.optString("group").isEmpty()) {
                                 existing.put("group", entry.optString("group"))
                             }
@@ -1304,7 +1480,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                             if (!existing.has("known_chapters") || existing.optInt("known_chapters") <= 0) {
                                 existing.put("known_chapters", entry.optInt("known_chapters"))
                             }
-                            // 个人标记同理：本地没设过才补，已经整理过的不被备份覆盖
+                            // 个人标记同理 本地没设过才补，已经整理过的不被备份覆盖
                             if (!existing.has("status") || existing.optString("status").isEmpty()) {
                                 existing.put("status", entry.optString("status"))
                             }
@@ -1353,8 +1529,12 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                 if (!ok) failed++
             }
         }
-        // 追剧记录与短剧收藏：按 series_id 去重并入，不覆盖本地已有的同 id 记录。
-        listOf("dramaRecent" to dramaRecentFile, "dramaFavorites" to dramaFavFile).forEach { (key, file) ->
+        // 追剧记录与短剧收藏 按 series_id 去重并入，不覆盖本地已有的同 id 记录。
+        listOf(
+            "dramaRecent" to dramaRecentFile,
+            "dramaFavorites" to dramaFavFile,
+            "dramaSubscriptions" to dramaSubFile,
+        ).forEach { (key, file) ->
             // 导出时写的是 {"items":[…]}，不是裸数组——按对象取，别按 optJSONArray 取。
             val remote = all.optJSONObject(key)?.optJSONArray("items") ?: return@forEach
             val ok = mutate(file) { mine ->
@@ -1382,13 +1562,13 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             }
             if (!saveRules(list)) failed++
         }
-        return if (failed > 0) "导入部分失败：书目 $booksN，进度 $progressN，$failed 项未写入"
-        else "导入完成：书目 $booksN，进度 $progressN"
+        return if (failed > 0) "导入部分失败 书目 $booksN，进度 $progressN，$failed 项未写入"
+        else "导入完成 书目 $booksN，进度 $progressN"
     }
 
     companion object {
         /**
-         * 文件名用的安全键：非字母数字/下划线/短横一律换成 `_`。
+         * 文件名用的安全键 非字母数字/下划线/短横一律换成 `_`。
          *
          * 目录页也要用它计算缓存标记的键，所以放在伴生对象里，保证「文件名」与
          * 「UI 比对的键」永远出自同一段逻辑。
@@ -1405,14 +1585,18 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
 
         /** 追剧记录最多保留多少部。 */
         private const val MAX_DRAMA_RECENT = 20
+        private const val MAX_DRAMA_FEED = 60
 
-        /** 收藏列表上限：再多也没人翻得到底。 */
+        /** 收藏列表上限 再多也没人翻得到底。 */
         private const val MAX_DRAMA_FAVORITES = 100
+
+        /** 订阅列表上限。 */
+        private const val MAX_DRAMA_SUBSCRIPTIONS = 100
 
         /**
          * 章节正文的落盘格式版本。
          *
-         * 1（缺字段）是老的批量下载路径写下的：正文被 `Html.fromHtml` 折叠过，
+         * 1（缺字段）是老的批量下载路径写下的 正文被 `Html.fromHtml` 折叠过，
          * 段落之间的换行变成空格，整章只剩一段。2 起正文保留原生核心给的换行。
          * [chapterNeedsRefresh] 用它挑出旧文件重下。
          */
@@ -1432,7 +1616,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             }
         }
 
-        /** 同一目标文件的跨实例互斥锁（防御性：即使有人绕过 [of] 也不会互相截断）。 */
+        /** 同一目标文件的跨实例互斥锁（防御性 即使有人绕过 [of] 也不会互相截断）。 */
         private val fileLocks = ConcurrentHashMap<String, Any>()
 
         private fun lockFor(f: File): Any =

@@ -1,7 +1,7 @@
 package com.alanmaster.xread.data
 
 /**
- * 自适应并发窗口（AIMD）：
+ * 自适应并发窗口（AIMD）
  * - 连续 [permits] 次成功后 +1（加性增），上限 [max]；
  * - 任一次失败则减半（乘性减），下限 [min]；
  * - 连续失败递增退避，避免在服务端排队或网络抖动时硬撞。
@@ -52,7 +52,7 @@ class AdaptiveConcurrency(
         return permits
     }
 
-    /** 当前应等待的退避毫秒：连续失败 2 次起，每多一次翻倍，封顶 [MAX_BACKOFF_MS]。 */
+    /** 当前应等待的退避毫秒 连续失败 2 次起，每多一次翻倍，封顶 [MAX_BACKOFF_MS]。 */
     val backoffMs: Long
         get() = when {
             consecutiveFailures < 2 -> 0L
@@ -63,7 +63,7 @@ class AdaptiveConcurrency(
         }
 
     fun summary(): String =
-        "自适应 $permits 并发 · 成功 $successes · 失败 $failures"
+        "自适应 $permits 并发 成功 $successes 失败 $failures"
 
     companion object {
         const val DEFAULT_START = 4

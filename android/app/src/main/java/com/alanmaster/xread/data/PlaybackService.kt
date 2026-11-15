@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
- * 前台播放服务：让真人音频在离开听书页、锁屏后继续播，并提供通知栏控制。
+ * 前台播放服务 让真人音频在离开听书页、锁屏后继续播，并提供通知栏控制。
  *
  * 只负责「通知 + 生命周期」，真正的播放器是进程级单例 [AudioPlaybackHolder]，
  * 因此界面与服务操作的是同一个 MediaPlayer。
@@ -170,7 +170,7 @@ class PlaybackService : Service() {
                 if (state.durationMs > 0) {
                     "${AudioPlayerController.formatTime(state.positionMs)} / " +
                         AudioPlayerController.formatTime(state.durationMs) +
-                        " · ${state.rate}x"
+                        " ${state.rate}x"
                 } else "准备中…"
             )
             .setContentIntent(open)
@@ -212,7 +212,7 @@ class PlaybackService : Service() {
         private const val CHANNEL_ID = "xread_playback"
         private const val NOTIFICATION_ID = 0x7EAD
 
-        /** 由界面注册：通知栏上一条/下一条需要章节清单，服务自己拿不到。 */
+        /** 由界面注册 通知栏上一条/下一条需要章节清单，服务自己拿不到。 */
         fun start(context: Context) {
             val intent = Intent(context, PlaybackService::class.java)
             runCatching {

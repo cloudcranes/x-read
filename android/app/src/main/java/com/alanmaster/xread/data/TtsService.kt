@@ -23,9 +23,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
- * 朗读前台服务：让系统 TTS 在离开阅读页、锁屏后继续读，并提供通知栏控制。
+ * 朗读前台服务 让系统 TTS 在离开阅读页、锁屏后继续读，并提供通知栏控制。
  *
- * 与 [PlaybackService] 同构：服务只管通知与生命周期，真正的朗读器是进程级
+ * 与 [PlaybackService] 同构 服务只管通知与生命周期，真正的朗读器是进程级
  * [TtsHolder]，所以界面与服务操作的是同一个 TextToSpeech 实例。
  */
 class TtsService : Service() {
@@ -90,7 +90,7 @@ class TtsService : Service() {
             }
             foreground = true
         } catch (e: Exception) {
-            // Android 12+ 后台起前台服务受限：降级为普通通知，不崩溃
+            // Android 12+ 后台起前台服务受限 降级为普通通知，不崩溃
             runCatching { notificationManager()?.notify(NOTIFICATION_ID, notification) }
             android.util.Log.w("xread-tts", "startForeground failed: ${e.javaClass.simpleName}")
         }

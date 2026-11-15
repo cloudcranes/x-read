@@ -66,7 +66,7 @@ import com.alanmaster.xread.data.ReadCountFormat
 
 /* --------------------------- 封面 --------------------------- */
 
-/** 封面占位：无图时用书名首字，底色是 surfaceContainerHigh 而不是纯灰。 */
+/** 封面占位 无图时用书名首字，底色是 surfaceContainerHigh 而不是纯灰。 */
 @Composable
 fun BookCover(
     title: String,
@@ -100,9 +100,9 @@ fun BookCover(
 /* --------------------------- 书籍卡片 --------------------------- */
 
 /**
- * 网格里的书籍卡片：**封面 + 书名 + 一行元信息**。
+ * 网格里的书籍卡片 **封面 + 书名 + 一行元信息**。
  *
- * 元信息只有一行、只放两段（作者 · 章数），第二行留给「更新章数」「分组」这类
+ * 元信息只有一行、只放两段（作者  章数），第二行留给「更新章数」「分组」这类
  * 状态标——信息密度靠分行控制，不靠缩小字号。
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -138,7 +138,7 @@ fun BookCard(
         val meta = listOfNotNull(
             book.author.takeIf { it.isNotBlank() },
             if (book.chapterCount > 0) "${book.chapterCount}章" else null,
-        ).joinToString(" · ")
+        ).joinToString(" ")
         if (meta.isNotEmpty()) {
             Text(
                 text = meta,
@@ -153,12 +153,12 @@ fun BookCard(
 }
 
 /**
- * 书架里的横排卡片：封面在左，右侧是书名、作者与状态行。
+ * 书架里的横排卡片 封面在左，右侧是书名、作者与状态行。
  *
- * 书架是「我的书」而非「商品列表」，横排能在同样高度下多给 2–3 倍信息量：
+ * 书架是「我的书」而非「商品列表」，横排能在同样高度下多给 2–3 倍信息量
  * 封面只占 68dp，右侧留给「读到第几段 / 有几章新 / 属于哪个分组」。
  *
- * 进度用**段落数**而不是章数：书架数据里只有当前章 id 与段落下标，
+ * 进度用**段落数**而不是章数 书架数据里只有当前章 id 与段落下标，
  * 拿不到当前章在目录里的序号，写「第 N 章」会是假数据。
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -166,13 +166,13 @@ fun BookCard(
 fun ShelfBookCard(
     book: Book,
     modifier: Modifier = Modifier,
-    /** 主状态：有新章 / 分组 / 读到第几段。 */
+    /** 主状态 有新章 / 分组 / 读到第几段。 */
     status: String? = null,
     /** 状态标是否用强调色（更新用主色，分组用弱色）。 */
     statusEmphasized: Boolean = false,
-    /** 次要状态：最近阅读时间等。 */
+    /** 次要状态 最近阅读时间等。 */
     subStatus: String? = null,
-    /** 书籍信息：完结/连载、总章数。 */
+    /** 书籍信息 完结/连载、总章数。 */
     meta: String? = null,
     /** 阅读进度 0..1；null 表示还没开始读。 */
     progress: Float? = null,
@@ -292,7 +292,7 @@ if (!status.isNullOrBlank()) {
 /* --------------------------- 网格与列表 --------------------------- */
 
 /**
- * 书籍网格。列宽用 `GridCells.Adaptive` 而不是固定列数：
+ * 书籍网格。列宽用 `GridCells.Adaptive` 而不是固定列数
  * 平板/折叠屏上自动变 3–4 列，手机上 3 列，不会出现一屏只有两本还左右留白。
  */
 @Composable
@@ -319,7 +319,7 @@ fun BookGrid(
 
 /* --------------------------- 芯片 --------------------------- */
 
-/** 单选芯片行：榜种、分类、排序等横向可滚动的筛选项。 */
+/** 单选芯片行 榜种、分类、排序等横向可滚动的筛选项。 */
 @Composable
 fun ChipRow(options: List<Pair<String, () -> Unit>>, selected: String) {
     LazyRow(
@@ -335,7 +335,7 @@ fun ChipRow(options: List<Pair<String, () -> Unit>>, selected: String) {
 /**
  * 筛选芯片。
  *
- * 不用 Material 的 `FilterChip`：它自带 8dp 圆角与 32dp 最小高度，
+ * 不用 Material 的 `FilterChip` 它自带 8dp 圆角与 32dp 最小高度，
  * 一屏里会与封面（10dp）、抽屉（20dp）凑成三档圆角，且高度压不到设计要的 28dp。
  * v3 用直角 + 发丝线，选中态是朱红实底——与「刊物」语言一致。
  */
@@ -376,7 +376,7 @@ fun SelectChip(
     }
 }
 
-/** 标签徽标：排名、类型、新章数等。 */
+/** 标签徽标 排名、类型、新章数等。 */
 @Composable
 fun Tag(
     text: String,
@@ -413,9 +413,9 @@ fun Tag(
 /* --------------------------- 数字块 --------------------------- */
 
 /**
- * 元信息数字块：大号数字 + 小号标签。
+ * 元信息数字块 大号数字 + 小号标签。
  *
- * 旧实现把评分、字数、章数用「·」串成一行，扫读时抓不到「9.1 分」这个数。
+ * 旧实现把评分、字数、章数用「 」串成一行，扫读时抓不到「9.1 分」这个数。
  * 拆成三列等宽数字块后，每个数字有独立的视觉锚点，竖发丝线分隔。
  */
 @Composable
@@ -463,7 +463,7 @@ fun MetaStatDivider(modifier: Modifier = Modifier) {
 /* --------------------------- 榜单行 --------------------------- */
 
 /**
- * 榜单行：序号 + 封面 + 书名/元信息 + 右侧标记。
+ * 榜单行 序号 + 封面 + 书名/元信息 + 右侧标记。
  *
  * 前三名序号用强调色衬线，其余用次要色；封面 42×56dp。
  * 行间只放发丝线，不给卡片底色——榜单是长列表，卡片会让页面碎掉。
@@ -480,7 +480,7 @@ fun RankRow(
     modifier: Modifier = Modifier,
     /** 评分（如 "9.0"）；空串不显示。听书榜给这个，普通榜单不给。 */
     score: String = "",
-    /** 右侧人数的量词：读书是「在读」，听书是「在听」。 */
+    /** 右侧人数的量词 读书是「在读」，听书是「在听」。 */
     countLabel: String = "在读",
     onClick: () -> Unit,
 ) {
@@ -505,7 +505,7 @@ fun RankRow(
             .padding(horizontal = Space.gutter, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 序号：前三名朱红衬线，其余三级灰。宽度固定，让所有行左边界对齐。
+        // 序号 前三名朱红衬线，其余三级灰。宽度固定，让所有行左边界对齐。
         Text(
             text = "$rank",
             fontSize = 17.sp,
@@ -544,7 +544,7 @@ fun RankRow(
                     author.takeIf { it.isNotBlank() },
                     category.takeIf { it.isNotBlank() },
                     statusLabel(status),
-                ).joinToString(" · "),
+                ).joinToString(" "),
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
                 color = ink3,
@@ -561,7 +561,7 @@ fun RankRow(
                 )
             }
         }
-        // 右侧数字列：在读人数右对齐成列，这是整屏能被竖着扫读的关键。
+        // 右侧数字列 在读人数右对齐成列，这是整屏能被竖着扫读的关键。
         Column(horizontalAlignment = Alignment.End) {
             if (readCount > 0) {
                 Text(
@@ -591,9 +591,9 @@ fun RankRow(
 }
 
 /**
- * 榜单行的读屏文案：一行念完名次、书名、元信息、评分与人数。
+ * 榜单行的读屏文案 一行念完名次、书名、元信息、评分与人数。
  *
- * 抽成纯函数是为了能单测：拼接规则一旦写进 composable，就只能靠真机读屏验证，
+ * 抽成纯函数是为了能单测 拼接规则一旦写进 composable，就只能靠真机读屏验证，
  * 而那种验证最容易漏掉「人数为 0 时右边显示破折号」这种情况。
  */
 internal fun rankRowLabel(
@@ -651,7 +651,7 @@ object ReaderMetrics {
 /* --------------------------- 进度细线 --------------------------- */
 
 /**
- * 进度细线：2dp 细线 + 可选百分比文字。
+ * 进度细线 2dp 细线 + 可选百分比文字。
  *
  * 阅读页常驻。旧实现用 Material 的 LinearProgressIndicator，
  * 轨道色跟着主题走，在夜色阅读底上会糊成一条灰带。
@@ -699,10 +699,10 @@ fun ProgressHairline(
 /* --------------------------- 分段控制 --------------------------- */
 
 /**
- * 分段控制：一组互斥选项，选中项用 primaryContainer 底 + primary 字。
+ * 分段控制 一组互斥选项，选中项用 primaryContainer 底 + primary 字。
  *
  * 用于行距（紧/标准/松）、翻页方式（仿真/滑动/无动画）这类 2–3 选一的设置。
- * 不用 Material 的 SegmentedButton：它自带 20dp 圆角，会多出第三档圆角。
+ * 不用 Material 的 SegmentedButton 它自带 20dp 圆角，会多出第三档圆角。
  */
 @Composable
 fun SegmentedRow(
@@ -748,7 +748,7 @@ fun SegmentedRow(
 /* --------------------------- 色板 --------------------------- */
 
 /**
- * 阅读底色色板：一个 32dp 圆点 + 名称。
+ * 阅读底色色板 一个 32dp 圆点 + 名称。
  *
  * 选中态是 2dp 强调色外环，不改圆点本身的大小——
  * 改大小会让整行跟着跳动。
@@ -801,9 +801,9 @@ fun PaletteSwatch(
 /* --------------------------- 区块标题 --------------------------- */
 
 /**
- * 区块标题：`01` 栏目序号 + 衬线标题 + 右侧动作。
+ * 区块标题 `01` 栏目序号 + 衬线标题 + 右侧动作。
  *
- * 序号是 v3 的刊物骨架：它把长页面切成可数的段落，读者滑到哪儿心里有数。
+ * 序号是 v3 的刊物骨架 它把长页面切成可数的段落，读者滑到哪儿心里有数。
  * 序号用三级灰 + 1.6sp 字距，不抢标题。
  */
 @Composable
@@ -865,7 +865,7 @@ fun SectionHeader(
     }
 }
 
-/** 旧名保留：区块标题（无动作）。 */
+/** 旧名保留 区块标题（无动作）。 */
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -879,7 +879,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 /* --------------------------- 空态与加载 --------------------------- */
 
 /**
- * 空态：图标 + 主文案 + 副文案。
+ * 空态 图标 + 主文案 + 副文案。
  *
  * 旧实现只有一行灰字，用户看到「暂时取不到推荐」不知道该干嘛；
  * 现在给出下一步的提示。
@@ -950,7 +950,7 @@ fun DividerLine(modifier: Modifier = Modifier) {
 /* --------------------------- 底部弹层 --------------------------- */
 
 /**
- * 统一的底部浮层容器：圆角上沿 + 顶部拖拽条 + 背景用 surfaceContainerLow。
+ * 统一的底部浮层容器 圆角上沿 + 顶部拖拽条 + 背景用 surfaceContainerLow。
  *
  * 阅读设置、字号面板都用它，避免各处自己拼一个 Column 弹出来。
  */
@@ -1010,7 +1010,7 @@ fun BottomSheet(
 /**
  * 主要动作按钮。高度 48dp（触控下限），圆角 Radius.sm。
  *
- * 全应用只有一种主按钮样式：实心 primary。
+ * 全应用只有一种主按钮样式 实心 primary。
  */
 @Composable
 fun PrimaryButton(
@@ -1029,7 +1029,7 @@ fun PrimaryButton(
     }
 }
 
-/** 次要动作按钮：描边，1dp 边框。 */
+/** 次要动作按钮 描边，1dp 边框。 */
 @Composable
 fun SecondaryButton(
     text: String,
@@ -1054,7 +1054,7 @@ fun SecondaryButton(
 /**
  * 统一顶栏。返回键 + 标题 + 右侧动作。
  *
- * 标题默认 16sp SemiBold（不再是 Bold 20sp）：中文标题在 Bold 下笔画会糊成一团，
+ * 标题默认 16sp SemiBold（不再是 Bold 20sp） 中文标题在 Bold 下笔画会糊成一团，
  * 且顶栏只有一行内容时不该抢正文层级。
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -1111,9 +1111,9 @@ val Transparent = Color.Transparent
 
 
 /**
- * 多选用的勾选圈：未选中是空心圈，选中是主色实心 + 白勾。
+ * 多选用的勾选圈 未选中是空心圈，选中是主色实心 + 白勾。
  *
- * 独立于卡片：行式与卡片式两种书架布局都要盖同一个标记，样式只有这一份。
+ * 独立于卡片 行式与卡片式两种书架布局都要盖同一个标记，样式只有这一份。
  */
 @Composable
 fun SelectionMark(selected: Boolean, modifier: Modifier = Modifier) {

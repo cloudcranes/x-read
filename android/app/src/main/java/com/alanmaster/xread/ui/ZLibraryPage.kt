@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import com.alanmaster.xread.data.ZLibraryBook
 import com.alanmaster.xread.data.ZLibrarySession
 
-/** Z-Library 主 Tab：搜索、登录、下载 EPUB 与本地导入。 */
+/** Z-Library 主 Tab 搜索、登录、下载 EPUB 与本地导入。 */
 @Composable
 fun ZLibraryPage(
     results: List<ZLibraryBook>,
@@ -33,9 +33,9 @@ fun ZLibraryPage(
             XReadTopBar(
                 title = "Z-Library",
                 subtitle = if (session == null) {
-                    "电子书搜索 · 下载 EPUB · 导入书架"
+                    "电子书搜索 下载 EPUB 导入书架"
                 } else {
-                    "已登录 · 下载 EPUB · 导入书架"
+                    "已登录 下载 EPUB 导入书架"
                 },
             )
         },

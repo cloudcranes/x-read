@@ -65,10 +65,10 @@ private const val FILTER_HIGHLIGHT = "highlight"
 private const val FILTER_NOTED = "noted"
 
 /**
- * 书摘页：跨书列出全部书签与高亮，可跳回原文、写批注、删除、导出 Markdown。
+ * 书摘页 跨书列出全部书签与高亮，可跳回原文、写批注、删除、导出 Markdown。
  *
  * 点击整条仍是「跳回原文」——这是这个页面最高频的动作，不该为了写笔记把它降级。
- * 写批注走行内的「笔记」按钮，弹底部面板，300ms 防抖实时落盘：
+ * 写批注走行内的「笔记」按钮，弹底部面板，300ms 防抖实时落盘
  * 面板里再放一个「跳到原文」，等于两条路都留着。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -203,7 +203,7 @@ fun MarksScreen(
     }
 }
 
-/** 筛选条：类型用芯片，书目用下拉——书目可能几十本，芯片铺不下。 */
+/** 筛选条 类型用芯片，书目用下拉——书目可能几十本，芯片铺不下。 */
 @Composable
 private fun FilterRow(
     options: List<Pair<String, String>>,
@@ -256,7 +256,7 @@ private fun FilterRow(
 /**
  * 一条书摘。
  *
- * 类型用图标 + 文字双通道标出（不只靠颜色）：书签是 Bookmark 图标，
+ * 类型用图标 + 文字双通道标出（不只靠颜色） 书签是 Bookmark 图标，
  * 高亮是 Highlight 图标，右侧跟一个小标签。
  */
 @Composable
@@ -352,7 +352,7 @@ private fun MarkRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "$bookTitle · ${stamp(entry.mark.at)}",
+                    text = "$bookTitle ${stamp(entry.mark.at)}",
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -383,7 +383,7 @@ private fun MarkRow(
 /**
  * 批注面板。
  *
- * 输入即存（300ms 防抖）：批注是随手写的东西，没有「保存」这个心理动作；
+ * 输入即存（300ms 防抖） 批注是随手写的东西，没有「保存」这个心理动作；
  * 弹层被划掉时不该丢字。真正落盘失败由 ViewModel 报错。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -424,13 +424,13 @@ private fun NoteSheet(
             verticalArrangement = Arrangement.spacedBy(Space.sm),
         ) {
             Text(
-                text = "批注 · ${entry.chapterTitle.ifEmpty { "第 ${entry.mark.paragraph + 1} 段" }}",
+                text = "批注 ${entry.chapterTitle.ifEmpty { "第 ${entry.mark.paragraph + 1} 段" }}",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = "$bookTitle · ${stamp(entry.mark.at)}",
+                text = "$bookTitle ${stamp(entry.mark.at)}",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -510,7 +510,7 @@ private fun NoteSheet(
     }
 }
 
-/** 行内图标动作：20dp 图标 + 40dp 视觉，触控区撑到 48dp。 */
+/** 行内图标动作 20dp 图标 + 40dp 视觉，触控区撑到 48dp。 */
 @Composable
 private fun MarkIconAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,

@@ -9,7 +9,7 @@ import java.util.Locale
 /**
  * 桌面「继续阅读」小组件要显示的快照。
  *
- * 纯数据 + 纯函数，不碰 Android 框架：小组件在没有 Activity 的进程里刷新，
+ * 纯数据 + 纯函数，不碰 Android 框架 小组件在没有 Activity 的进程里刷新，
  * 能离线跑的部分必须能脱离设备验证。
  */
 data class ReadingWidgetState(
@@ -29,7 +29,7 @@ data class ReadingWidgetState(
 /**
  * 从 `progress.json` 里挑出最近读的那一本。
  *
- * 记录结构和 [OfflineRepo.saveProgress] 写的一致：每本书一个对象，
+ * 记录结构和 [OfflineRepo.saveProgress] 写的一致 每本书一个对象，
  * 含 `chapterId` / `offset` / `chapterIndex` / `at` / `title` / `author` /
  * `coverUrl` / `source`。缺 `chapterId` 或 `at` 的半截记录直接跳过——
  * 小组件不该拿一条残缺记录去显示。
@@ -60,7 +60,7 @@ object ReadingWidgetStateParser {
 }
 
 /**
- * 上次阅读时间的相对说法：今天 / 昨天 / N 天前 / 具体日期。
+ * 上次阅读时间的相对说法 今天 / 昨天 / N 天前 / 具体日期。
  *
  * 跨年时 `DAY_OF_YEAR` 不可比，直接落到日期说法，不去猜「多少天前」。
  */

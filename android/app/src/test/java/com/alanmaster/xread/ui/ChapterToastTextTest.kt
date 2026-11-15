@@ -12,19 +12,19 @@ import org.junit.Test
  */
 class ChapterToastTextTest {
     @Test fun stripsUpstreamChapterPrefix() {
-        assertEquals("第 6 章 · 好苦啊", chapterToastText(5, "第6章 好苦啊"))
+        assertEquals("第 6 章 好苦啊", chapterToastText(5, "第6章 好苦啊"))
     }
 
     @Test fun stripsPrefixWithColon() {
-        assertEquals("第 3 章 · 写日记的人", chapterToastText(2, "第3章：写日记的人"))
+        assertEquals("第 3 章 写日记的人", chapterToastText(2, "第3章：写日记的人"))
     }
 
     @Test fun stripsChineseNumeralPrefix() {
-        assertEquals("第 2 章 · 游戏开始", chapterToastText(1, "第二章 游戏开始"))
+        assertEquals("第 2 章 游戏开始", chapterToastText(1, "第二章 游戏开始"))
     }
 
     @Test fun keepsTitleWithoutPrefix() {
-        assertEquals("第 1 章 · 序章", chapterToastText(0, "序章"))
+        assertEquals("第 1 章 序章", chapterToastText(0, "序章"))
     }
 
     @Test fun fallsBackToNumberWhenTitleIsOnlyHeading() {

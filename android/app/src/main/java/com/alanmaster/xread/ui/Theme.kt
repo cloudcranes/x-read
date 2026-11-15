@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 /* ================================================================== *
  * x-read 设计系统
  *
- * 三层，互不越界：
+ * 三层，互不越界
  *  1. 色板  应用外壳 [LightColors] / [DarkColors]；阅读页另用 [ReaderPalette]，
  *          因为阅读底色必须由用户显式挑选护眼方案，不能跟随系统。
  *  2. 字体  界面用无衬线，阅读正文用衬线（宋体）——中文长文本在宋体下更护眼。
@@ -38,10 +38,10 @@ object Space {
     val xxl = 24.dp
     val huge = 32.dp
 
-    /** 列表类页面的左右安全边距。v3 从 16dp 放宽到 20dp：刊物需要更松的气口。 */
+    /** 列表类页面的左右安全边距。v3 从 16dp 放宽到 20dp 刊物需要更松的气口。 */
     val gutter = 20.dp
 
-    /** 悬浮底栏让出的高度：贴着屏幕底部浮着，列表末尾要留出这么多才不会被它压住。 */
+    /** 悬浮底栏让出的高度 贴着屏幕底部浮着，列表末尾要留出这么多才不会被它压住。 */
     val navFloat = 80.dp
 
     /** 卡片内边距。 */
@@ -54,16 +54,16 @@ object Space {
 /* ------------------------------ 圆角 ------------------------------ */
 
 /**
- * 圆角只有三档：**0 / 10 / 20**。
+ * 圆角只有三档 **0 / 10 / 20**。
  *
  * v3「刊」的骨架是报纸编辑设计 + 数据表对齐纪律，卡片一律直角 + 发丝线，
  * 不用气泡感。只有封面（10dp，印刷品的圆角出血）和底部抽屉（20dp）例外。
  *
- * v2 曾有 8/14/18/24 四档，落地后同屏必然出现三档以上：
+ * v2 曾有 8/14/18/24 四档，落地后同屏必然出现三档以上
  * 芯片 8 + 封面 8 + 卡片 14 + 抽屉 24，视觉噪点多于信息。
  */
 object Radius {
-    /** 直角：卡片、输入框、芯片、按钮 —— 全部 0。 */
+    /** 直角 卡片、输入框、芯片、按钮 —— 全部 0。 */
     val none = 0.dp
 
     /** 封面。 */
@@ -76,26 +76,26 @@ object Radius {
 /* ------------------------------ 阴影 ------------------------------ */
 
 /**
- * 分层只有两级：**贴面** 与 **浮起**。
+ * 分层只有两级 **贴面** 与 **浮起**。
  *
  * 旧实现里同一个 `surfaceVariant` 同时当占位底、卡片底和分割线，
  * 导致层级全糊在一起；现在用 surface 系列分层、outline 系列画边。
  */
 object Elevation {
-    /** 贴面：卡片。 */
+    /** 贴面 卡片。 */
     val flat = 0.dp
 
-    /** 浮起：浮层、抽屉、弹出菜单。 */
+    /** 浮起 浮层、抽屉、弹出菜单。 */
     val raised = 6.dp
 }
 
 /* ------------------------------ 字体 ------------------------------ */
 
-/** 界面字体：无衬线，用于所有非正文文本。 */
+/** 界面字体 无衬线，用于所有非正文文本。 */
 val Sans = FontFamily.SansSerif
 
 /**
- * 阅读字体：衬线。Android 上 `FontFamily.Serif` 映射到 Noto Serif，
+ * 阅读字体 衬线。Android 上 `FontFamily.Serif` 映射到 Noto Serif，
  * 中文回退到思源宋体，横向笔画更细、白底/米黄底上的正视疲劳低于黑体。
  */
 val Serif = FontFamily.Serif
@@ -155,33 +155,33 @@ private val AppShapes = Shapes(
 /* ------------------------------ 色板 ------------------------------ */
 
 /**
- * 浅色「纸白」：`#FBFAF7` 底 + `#16150F` 墨 + `#B3341F` 朱红主色。
+ * 浅色「纸白」 `#FBFAF7` 底 + `#16150F` 墨 + `#B3341F` 朱红主色。
  *
- * 与 v2 的宣纸米黄（`#FAF6F0` + 赭石 `#9C4A22`）的区别是**用途**：
+ * 与 v2 的宣纸米黄（`#FAF6F0` + 赭石 `#9C4A22`）的区别是**用途**
  * 米黄赭石是一套仿古的阅读语言；榜单/搜索/详情是信息页，需要更高的明度分离
  * 才能让发丝线与数字立住。纸白比米黄冷一档，与阅读页的暖米黄内文形成
  * 「封面纸 / 内文纸」的对比。
  *
- * 全部前景色对 `background` 的对比度实测（WCAG 相对亮度）：
+ * 全部前景色对 `background` 的对比度实测（WCAG 相对亮度）
  *   onSurface 17.52:1 / onSurfaceVariant 6.71:1 / onSurfaceVariant 三级 5.19:1
  *   primary 5.87:1 / onPrimary 6.13:1 / secondary(松绿) 5.85:1 / tertiary(金) 4.83:1
  */
 private val LightColors = lightColorScheme(
-    /** 朱红：主操作、选中、排名上升。 */
+    /** 朱红 主操作、选中、排名上升。 */
     primary = Color(0xFFB3341F),
     onPrimary = Color.White,
-    /** 朱红浅底：选中芯片、徽标。 */
+    /** 朱红浅底 选中芯片、徽标。 */
     primaryContainer = Color(0xFFF8E6E1),
     onPrimaryContainer = Color(0xFFB3341F),
     inversePrimary = Color(0xFFE36A50),
 
-    /** 松绿：排名下降、「已读」这类收敛状态。中文语境红涨绿跌。 */
+    /** 松绿 排名下降、「已读」这类收敛状态。中文语境红涨绿跌。 */
     secondary = Color(0xFF3F6B52),
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFE4EDE6),
     onSecondaryContainer = Color(0xFF2C4A39),
 
-    /** 藏金：评分、前三名序号。 */
+    /** 藏金 评分、前三名序号。 */
     tertiary = Color(0xFF8A6A1F),
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFFBF4E2),
@@ -218,7 +218,7 @@ private val LightColors = lightColorScheme(
 /**
  * 三级文字与「持平」标记。
  *
- * 不能直接用 `onSurfaceVariant`：那个是 6.71:1，用作序号、单位、元信息时
+ * 不能直接用 `onSurfaceVariant` 那个是 6.71:1，用作序号、单位、元信息时
  * 视线重量会和正文抢。`#6E6A5C` 在纸白上是 5.19:1、在白卡上是 5.41:1，
  * 刚好过 AA 又明显退后一层。
  */
@@ -230,7 +230,7 @@ val DownGreen = Color(0xFF3F6B52)
 /** 评分与前三名序号。 */
 val RankGold = Color(0xFF8A6A1F)
 
-/** 深色（夜灯）：近黑暖灰底，浅朱红主色，正文不用纯白以免眩光。 */
+/** 深色（夜灯） 近黑暖灰底，浅朱红主色，正文不用纯白以免眩光。 */
 private val DarkColors = darkColorScheme(
     primary = Color(0xFFE36A50),
     onPrimary = Color(0xFF3D1108),

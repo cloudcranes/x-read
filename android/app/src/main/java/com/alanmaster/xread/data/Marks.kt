@@ -28,7 +28,7 @@ data class Mark(
         const val TAG_LIMIT = 8
 
         /**
-         * 标签归一化：去 `#`、去空白、去空串、去重、限个数。
+         * 标签归一化 去 `#`、去空白、去空串、去重、限个数。
          *
          * 用户输入习惯是「#人物 #伏笔」，有的人用逗号，有的人用空格，
          * 所以切分与清洗都放在这里，UI 与导出都只认清洗后的结果。
@@ -46,7 +46,7 @@ data class Mark(
     }
 }
 
-/** 书摘列表用的一行：书 + 章 + 标记。 */
+/** 书摘列表用的一行 书 + 章 + 标记。 */
 data class MarkEntry(
     val bookId: String,
     val chapterId: String,

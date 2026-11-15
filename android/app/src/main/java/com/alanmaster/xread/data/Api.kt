@@ -4,6 +4,9 @@ import android.content.Context
 import android.text.Html
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -16,7 +19,7 @@ class ApiException(message: String, val transient: Boolean = false) : Exception(
 /** Native content repository: Kotlin -> JNI -> upstream. All user library data stays on phone. */
 class Api(context: Context) {
     private val app = context.applicationContext
-    // 必须与 ViewModel 共用同一实例：OfflineRepo 的锁是实例级，两个实例等于没有互斥。
+    // 必须与 ViewModel 共用同一实例 OfflineRepo 的锁是实例级，两个实例等于没有互斥。
     private val offline = OfflineRepo.of(app)
     private val library = LocalLibrary(File(app.filesDir, "library"))
     private val directoryCache = ConcurrentHashMap<String, List<Chapter>>()
@@ -38,7 +41,7 @@ class Api(context: Context) {
 
     suspend fun shelf(): List<ShelfItem> = withContext(Dispatchers.IO) {
         library.migrateDownloads(offline.offlineBooks())
-        // 直接遍历 shelf.json 的条目：分组、入架时间、更新基线和用户标记都在条目里。
+        // 直接遍历 shelf.json 的条目 分组、入架时间、更新基线和用户标记都在条目里。
         // 组装逻辑见 [assembleShelf]——那里只有「随进度变化」的字段会被覆盖。
         val entries = library.entries()
         val progress = entries.mapNotNull { e ->
@@ -94,7 +97,7 @@ class Api(context: Context) {
                 val chapters = latest.chapterCount
                 if (chapters > item.knownChapters && item.knownChapters > 0) {
                     updated[item.book.bookId] = chapters
-                    // 章数变了，旧目录已经过期：不清掉的话 TOC 与下载都看不到新章
+                    // 章数变了，旧目录已经过期 不清掉的话 TOC 与下载都看不到新章
                     invalidateDirectory(item.book.bookId)
                 }
                 if (chapters > 0) library.markChapterBaseline(item.book.bookId, chapters)
@@ -130,7 +133,7 @@ class Api(context: Context) {
         book
     }
 
-    /** 撤销移出：按备份条目写回本地书架，不重新拉书目（离线也能撤销）。 */
+    /** 撤销移出 按备份条目写回本地书架，不重新拉书目（离线也能撤销）。 */
     suspend fun restoreToShelf(item: ShelfItem) = withContext(Dispatchers.IO) {
         library.restore(item)
     }
@@ -141,7 +144,7 @@ class Api(context: Context) {
     /**
      * 搜索一页。
      *
-     * offset/passback 是上游的翻页游标：两者必须同时传，passback 通常等于 offset 的字符串，
+     * offset/passback 是上游的翻页游标 两者必须同时传，passback 通常等于 offset 的字符串，
      * 只给 offset 会让上游把这页当成第一页重发。
      */
     suspend fun searchPage(
@@ -192,7 +195,7 @@ class Api(context: Context) {
     suspend fun hotWords(): List<HotWord> = ContentParser.hotWords(content("search/hot"))
 
     /**
-     * 首页：排行榜 + 猜你喜欢（同一份 recommend/homepage 载荷）。
+     * 首页 排行榜 + 猜你喜欢（同一份 recommend/homepage 载荷）。
      * offset 每页推进 10，实测每页约 27 本、连续 5 页仍几乎不重复，故用它做「换一批」。
      */
     suspend fun homeFeed(offset: Int = 0): ContentParser.HomeFeed {
@@ -204,7 +207,7 @@ class Api(context: Context) {
     }
 
     /**
-     * 听书榜：recommend/homepage 的 tab_type=5（听书）那一格。
+     * 听书榜 recommend/homepage 的 tab_type=5（听书）那一格。
      * tab_index 必须与 tab_type 一起传——上游靠它决定回哪一格的 cell_data；
      * 少传会拿回推荐流的「爆款网文听听看」以外的格子。
      * 实测只有 offset=0 这一页，offset 再加就 SERVICE_ERROR。
@@ -216,7 +219,7 @@ class Api(context: Context) {
         return list
     }
 
-    /** 新书速递：榜单目录里的「新书榜」。 */
+    /** 新书速递 榜单目录里的「新书榜」。 */
     suspend fun newBooks(): List<Book> = board(algorithm = 108)
 
     suspend fun book(source: String, bookId: String): Book {
@@ -224,7 +227,7 @@ class Api(context: Context) {
         val data = content("books/$bookId").optJSONObject("data") ?: throw ApiException("书籍详情为空")
         val parsed = ContentParser.book(data)
         if (parsed.bookId != bookId) throw ApiException("返回的作品编号与请求不符")
-        // 番茄的详情接口不是每次都给全字段：同一本书两次打开，第二次可能少回
+        // 番茄的详情接口不是每次都给全字段 同一本书两次打开，第二次可能少回
         // word_number / score / read_count。缺少的项用缓存里已知的值兜住，
         // 否则详情页的字数会在「320 万字」和「—」之间来回跳。
         val result = bookCache[bookId]?.let { parsed.mergeFrom(it) } ?: parsed
@@ -267,7 +270,7 @@ class Api(context: Context) {
             } else {
                 if (text.isBlank()) emptyList()
                 else {
-                    // 只有真的看到标签才做 HTML 解析：上游有时给原始 HTML，
+                    // 只有真的看到标签才做 HTML 解析 上游有时给原始 HTML，
                     // 有时给已经带 \n 的纯文本（原生核心的 full 回退路径），
                     // 纯文本再过一遍 Html.fromHtml 会被折叠成空格，整章粘成一段。
                     val plain = Emoji.decode(
@@ -278,13 +281,13 @@ class Api(context: Context) {
             }
         }
         if (paras.isEmpty() && mangaImgs.isEmpty()) throw ApiException("章节正文为空")
-        // 章节正文版本：段评请求必需。正文响应的 novel_data.version 与目录里的
+        // 章节正文版本 段评请求必需。正文响应的 novel_data.version 与目录里的
         // item_data_list[].version 同源同值，两处都没有就留空（读段评会失败，
         // 但不能编一个版本号去骗上游）。
         val version = data?.optJSONObject("novel_data")?.str("version")
             ?.takeIf { it.isNotBlank() }
             ?: directory[index].version
-        // 上游自己认的段落数（data.paragraphs_num）：段评下标换算的权威校验。
+        // 上游自己认的段落数（data.paragraphs_num） 段评下标换算的权威校验。
         // 上游首行是标题且不计它，本应用第 0 段恰是那行标题，所以两者差 1。
         // 拿不到就留 0，由 ChapterContent.upstreamParagraphIndex 判定「换算不出」。
         val upstreamParagraphs = data?.long("paragraphs_num", 0L)
@@ -295,7 +298,7 @@ class Api(context: Context) {
     }
 
     /**
-     * 拉取漫画章节图片列表：调用 /api/v1/manga/{chapterId}?book_id={bookId}。
+     * 拉取漫画章节图片列表 调用 /api/v1/manga/{chapterId}?book_id={bookId}。
      * 自动将本地相对路径（如 /src/img_*.jpg）转换为当前应用沙箱内的绝对路径。
      */
     suspend fun mangaImages(bookId: String, chapterId: String): List<String> = withContext(Dispatchers.IO) {
@@ -376,9 +379,9 @@ class Api(context: Context) {
     }
 
     /**
-     * 书评广场：走 `books/{id}/comments` 老接口。
+     * 书评广场 走 `books/{id}/comments` 老接口。
      *
-     * 为什么不是 `books/{id}/reviews`：那条路要求 sort 传字符串枚举
+     * 为什么不是 `books/{id}/reviews` 那条路要求 sort 传字符串枚举
      * （smart_hot / time_desc），而核心层的 body 把它序列化成 int，
      * 实测 sort=0 直接 400「sort is not smart_hot」——「最多赞」永远是空的。
      * 老接口不提 sort，默认就是最赞，还自带 reply_list 和内嵌评分。
@@ -391,7 +394,7 @@ class Api(context: Context) {
             content("books/$bookId/comments", "count=$count&offset=$offset"))
     }
 
-    /** 评论楼中楼回复列表：/comments/{id}/replies。 */
+    /** 评论楼中楼回复列表 /comments/{id}/replies。 */
     suspend fun commentReplies(
         commentId: String,
         bookId: String,
@@ -409,7 +412,7 @@ class Api(context: Context) {
         return SocialParser.commentReplies(resp)
     }
 
-    /** 评论/回复/短剧评论点赞与取消点赞：/comments/{id}/digg。 */
+    /** 评论/回复/短剧评论点赞与取消点赞 /comments/{id}/digg。 */
     suspend fun diggComment(
         commentId: String,
         liked: Boolean = true,
@@ -440,22 +443,22 @@ class Api(context: Context) {
     }
 
     /**
-     * 某个段落的段评正文：`books/{id}/reviews` + `para_index`。
+     * 某个段落的段评正文 `books/{id}/reviews` + `para_index`。
      *
      * 这条路和 [bookHotReviews] 是**同一条上游链路**，只是多带
      * `para_index`（段落下标）与 `item_version`（章节正文版本）把结果收敛到一段。
      *
-     * 三个不能省的参数：
-     *  - `server_channel` **必须 38**：官方 presenter 里那个 43 也能拿到 code=0，
+     * 三个不能省的参数
+     *  - `server_channel` **必须 38** 官方 presenter 里那个 43 也能拿到 code=0，
      *    但恒返回 total=0；39 只对部分书生效。38 是实测能出数的那个。
-     *  - `item_version` **必须给**：上游缺 book_id / item_version / para_index 任一项
+     *  - `item_version` **必须给** 上游缺 book_id / item_version / para_index 任一项
      *    就直接拒为 `103001 book_id, item_version, or para_index invalid`。
      *    版本来自目录的 `item_data_list[].version` 或 `chapters/{id}` 的
      *    `data.novel_data.version`（两者同源同值）。
      *  - `group_id` 是**章节 id**（段评挂在章节上），不是书 id；
      *    `business_param.book_id` 才放书 id。
      *
-     * 翻页：`common_list_info.cursor` 是数字字符串（形如 `"5"`），
+     * 翻页 `common_list_info.cursor` 是数字字符串（形如 `"5"`），
      * **原样回传**，上游认的是这个字符串本身。
      */
     suspend fun paragraphComments(
@@ -474,7 +477,7 @@ class Api(context: Context) {
         val query = buildString {
             append("book_id=").append(bookId)
             append("&group_id=").append(chapterId)
-            // group_type=15：段落（NovelItemComment）容器；写错会拿不到段评
+            // group_type=15 段落（NovelItemComment）容器；写错会拿不到段评
             append("&group_type=15")
             append("&comment_source=2")
             append("&comment_type=1")
@@ -491,9 +494,9 @@ class Api(context: Context) {
     }
 
     /**
-     * 全书热评：`books/{id}/reviews`。
+     * 全书热评 `books/{id}/reviews`。
      *
-     * 与 [bookComments] 走的是两条不同的上游链路：
+     * 与 [bookComments] 走的是两条不同的上游链路
      *  - 老接口 `books/{id}/comments` 自带 reply_list、offset 分页，但只是老式书评；
      *  - 这条 `books/{id}/reviews` 给的是官方热评（评分、点赞、回复数齐全），
      *    代价是翻页靠 cursor。
@@ -536,7 +539,7 @@ class Api(context: Context) {
     }
 
     /**
-     * 真人音频：先取该书的音频目录（章节标题），再按章节 id 取播放地址。
+     * 真人音频 先取该书的音频目录（章节标题），再按章节 id 取播放地址。
      * 不走 audio/play —— 实测它对当前设备身份恒返回 `invalid aid`，而上游章节接口能直接给出 CDN 地址。
      */
     /**
@@ -581,7 +584,7 @@ class Api(context: Context) {
             TimelineParser.parse(chapterId, payload)
         }
 
-    /** 短剧 / 漫剧推荐流：频道 tab 聚合 + 频道内 offset 分页，保证能一直下滑出新剧 */
+    /** 短剧 / 漫剧推荐流 频道 tab 聚合 + 频道内 offset 分页，保证能一直下滑出新剧 */
     suspend fun dramaFeed(cellId: String = "", maxCells: Int = 10, offset: Int = 0): List<DramaSeries> =
         withContext(Dispatchers.IO) {
             val list = mutableListOf<DramaSeries>()
@@ -598,13 +601,19 @@ class Api(context: Context) {
                 absorb(DramaParser.dramaFeed(payload))
             }
             val tabs = if (maxCells <= 1) intArrayOf(16) else intArrayOf(16, 17, 19, 20, 21)
-            for (tab in tabs) {
-                if (list.size >= FEED_TARGET) break
-                val payload = try {
-                    content("recommend/channels", "tab_type=$tab&last_tab_type=-1&offset=$offset")
-                } catch (_: Exception) { JSONObject() }
-                absorb(DramaParser.dramaFeed(payload))
+            // 各频道互不依赖，串行请求会把首屏拖到 5–10 秒；并发后由总超时兜底。
+            val payloads = coroutineScope {
+                tabs.map { tab ->
+                    async {
+                        try {
+                            content("recommend/channels", "tab_type=$tab&last_tab_type=-1&offset=$offset")
+                        } catch (_: Exception) {
+                            JSONObject()
+                        }
+                    }
+                }.awaitAll()
             }
+            payloads.forEach { absorb(DramaParser.dramaFeed(it)) }
             if (list.isEmpty()) {
                 // tab_type=11 才是短剧；用 2（听书）搜，短剧一条都解析不出来
                 for (kw in listOf("热播", "短剧", "重生")) {
@@ -694,7 +703,7 @@ class Api(context: Context) {
     /**
      * 发送短剧弹幕。
      *
-     * 上游要番茄登录态：没有账号 cookie 时返回 code=103006「用户未登录」。
+     * 上游要番茄登录态 没有账号 cookie 时返回 code=103006「用户未登录」。
      * 所以这里只认 code 为成功，失败就把上游原话带出去，
      * 别让调用方以为弹幕发出去了。
      */

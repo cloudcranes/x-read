@@ -14,7 +14,7 @@ import androidx.core.content.FileProvider
 import java.io.File
 
 /**
- * 书摘卡片：把一条书摘画成 1080 宽的 PNG 再走系统分享。
+ * 书摘卡片 把一条书摘画成 1080 宽的 PNG 再走系统分享。
  *
  * 不引第三方绘图库，StaticLayout 负责中文断行；高度按正文行数算，
  * 长摘录先截断，避免生成一张几千像素高的图。

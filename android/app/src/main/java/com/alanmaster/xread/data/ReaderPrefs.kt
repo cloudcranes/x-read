@@ -14,21 +14,21 @@ data class ReaderPrefs(
     val tapTurn: Boolean = true,
     /** 音量键翻页 */
     val volumeTurn: Boolean = true,
-    /** 漫画浏览模式：vertical(条漫连续流) | paged(横向翻页) */
+    /** 漫画浏览模式 vertical(条漫连续流) | paged(横向翻页) */
     val mangaMode: String = "vertical",
-    /** 正文字体：default | serif | sans | kai | mono（都随 APK 打包，见 res/font） */
+    /** 正文字体 default | serif | sans | kai | mono（都随 APK 打包，见 res/font） */
     val font: String = "default",
     /** 正文段评气泡与段评入口 */
     val paragraphComments: Boolean = true,
     /** 段首缩进两个汉字 */
     val indent: Boolean = true,
-    /** 段间距，单位是行高：紧凑 0.45 / 标准 0.75 / 宽松 1.05 */
+    /** 段间距，单位是行高 紧凑 0.45 / 标准 0.75 / 宽松 1.05 */
     val paragraphGap: Float = 0.75f,
-    /** 翻页方式：simulate(仿真) | slide(滑动) | none(无动画) */
+    /** 翻页方式 simulate(仿真) | slide(滑动) | none(无动画) */
     val turnMode: String = "slide",
-    /** 阅读时保持屏幕常亮。默认开：看两页就黑屏是最常见的打断。 */
+    /** 阅读时保持屏幕常亮。默认开 看两页就黑屏是最常见的打断。 */
     val keepAwake: Boolean = true,
-    /** 自动滚动速度：off | slow | normal | fast，单位见 AUTO_SPEEDS */
+    /** 自动滚动速度 off | slow | normal | fast，单位见 AUTO_SPEEDS */
     val autoScroll: String = "off",
     /** 正文左右留白，单位 dp，见 MARGINS。窄屏一行字太少、大屏一行太长，都靠它调。 */
     val margin: Float = 20f,
@@ -37,7 +37,7 @@ data class ReaderPrefs(
     /** 翻页时轻震一下。系统关掉触感或开着 TalkBack 时不生效。 */
     val hapticTurn: Boolean = true,
     /**
-     * 阅读页屏内亮度：-1 跟随系统，其余 0.1–1.0。
+     * 阅读页屏内亮度 -1 跟随系统，其余 0.1–1.0。
      *
      * 只改本页窗口的亮度，退出阅读页即还原；写系统设置需要权限，也不该动全局。
      */
@@ -84,7 +84,7 @@ data class ReaderPrefs(
         /**
          * 自动滚动速度表，单位 px/s。
          *
-         * 按「每秒几行」定标再换算：常速 26px/s 在 1.75 行距、19sp 正文下约等于
+         * 按「每秒几行」定标再换算 常速 26px/s 在 1.75 行距、19sp 正文下约等于
          * 每 1.9 秒一行，接近默读速度；慢档留给需要停顿的段落，快档给扫榜。
          */
         val AUTO_SPEEDS = linkedMapOf(
@@ -95,20 +95,20 @@ data class ReaderPrefs(
         )
         val AUTO_SCROLLS = AUTO_SPEEDS.keys
 
-        // linkedMapOf：设置面板按插入顺序渲染
+        // linkedMapOf 设置面板按插入顺序渲染
         val AUTO_LABELS = linkedMapOf(
             "off" to "关",
             "slow" to "慢",
             "normal" to "常速",
             "fast" to "快",
         )
-        // linkedMapOf：设置面板按插入顺序渲染
+        // linkedMapOf 设置面板按插入顺序渲染
         val TURN_LABELS = linkedMapOf(
             "simulate" to "仿真",
             "slide" to "滑动",
             "none" to "无动画",
         )
-        // linkedMapOf：设置面板按插入顺序渲染
+        // linkedMapOf 设置面板按插入顺序渲染
         val FONT_LABELS = linkedMapOf(
             "default" to "默认",
             "serif" to "宋体",
@@ -116,7 +116,7 @@ data class ReaderPrefs(
             "kai" to "楷体",
             "mono" to "等宽",
         )
-        // linkedMapOf：设置面板按插入顺序渲染，「跟随系统」排在最前
+        // linkedMapOf 设置面板按插入顺序渲染，「跟随系统」排在最前
         val THEME_LABELS = linkedMapOf(
             "auto" to "跟随系统",
             "paper" to "米黄",
@@ -128,7 +128,7 @@ data class ReaderPrefs(
         /**
          * 页边距三档，单位 dp。
          *
-         * 20dp 是旧版写死的值：19sp 正文在 6.1 寸屏上每行 18 字左右，
+         * 20dp 是旧版写死的值 19sp 正文在 6.1 寸屏上每行 18 字左右，
          * 窄一档给 6.7 寸以上的大屏多挤几个字，宽一档给单手握持留出拇指区。
          */
         val MARGINS = listOf(16f, 20f, 26f)
@@ -138,7 +138,7 @@ data class ReaderPrefs(
         val TRACKINGS = listOf(0f, 0.02f, 0.05f)
         val TRACKING_LABELS = listOf("默认", "微松", "加宽")
 
-        /** 屏内亮度四档：-1 跟随系统，其余为窗口亮度。 */
+        /** 屏内亮度四档 -1 跟随系统，其余为窗口亮度。 */
         val BRIGHTNESSES = listOf(-1f, 0.25f, 0.55f, 1f)
         val BRIGHTNESS_LABELS = listOf("跟随", "暗", "中", "亮")
     }

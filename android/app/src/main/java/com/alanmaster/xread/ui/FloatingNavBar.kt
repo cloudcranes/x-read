@@ -1,10 +1,8 @@
 package com.alanmaster.xread.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,7 +28,7 @@ data class FloatingNavItem(val icon: ImageVector, val label: String)
 /**
  * 悬浮底栏。
  *
- * 与 Material 的 [androidx.compose.material3.NavigationBar] 不同，它不占布局高度：
+ * 与 Material 的 [androidx.compose.material3.NavigationBar] 不同，它不占布局高度
  * 由调用方叠在内容之上，内容从它背后滚过去。这样底部不再是死板的通栏色块，
  * 页面背景能一直延伸到屏幕下缘。
  *
@@ -61,7 +59,7 @@ fun FloatingNavBar(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 }
-                Row(
+                Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(percent = 50))
                         .clickable(role = Role.Tab) { onSelect(index) }
@@ -72,29 +70,23 @@ fun FloatingNavBar(
                                 Color.Transparent
                             },
                         )
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = item.label,
                         tint = tint,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(21.dp),
                     )
-                    AnimatedVisibility(
-                        visible = selected,
-                        enter = expandHorizontally(),
-                        exit = shrinkHorizontally(),
-                    ) {
-                        Text(
-                            text = item.label,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = tint,
-                            modifier = Modifier.padding(start = 6.dp),
-                        )
-                    }
+                    Text(
+                        text = item.label,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = tint,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
                 }
             }
         }

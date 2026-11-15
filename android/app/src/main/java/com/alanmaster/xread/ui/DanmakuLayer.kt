@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.alanmaster.xread.data.DanmakuItem
 
 /**
- * 弹幕流层：位置由外部逐帧时钟驱动，单条弹幕只在 graphicsLayer 内做位移，
+ * 弹幕流层 位置由外部逐帧时钟驱动，单条弹幕只在 graphicsLayer 内做位移，
  * 避免每 200–250ms 整层重组造成的肉眼掉帧。
  */
 @Composable

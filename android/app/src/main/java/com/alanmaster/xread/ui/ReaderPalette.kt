@@ -7,12 +7,12 @@ import androidx.compose.ui.graphics.Color
  *
  * 纯数据映射，不依赖主题，避免深色主题下正文仍是白底。
  *
- * 四个方案的取色逻辑：
- *  - **米黄（paper）**：底色带黄绿，短波蓝光被抵消，正文用深褐而非纯黑，
+ * 四个方案的取色逻辑
+ *  - **米黄（paper）** 底色带黄绿，短波蓝光被抵消，正文用深褐而非纯黑，
  *    在暖光下最不刺眼，是长时间阅读的默认项。
- *  - **白（white）**：白底对 OLED 省电，但夜里偏刺眼。
- *  - **浅绿（mint）**：底色带绿，进一步削弱红光，适合白天强光下阅读。
- *  - **夜色（dark）**：底色用深灰蓝而非纯黑——纯黑与白字对比度过高，
+ *  - **白（white）** 白底对 OLED 省电，但夜里偏刺眼。
+ *  - **浅绿（mint）** 底色带绿，进一步削弱红光，适合白天强光下阅读。
+ *  - **夜色（dark）** 底色用深灰蓝而非纯黑——纯黑与白字对比度过高，
  *    OLED 上还会出现「拖影」；深灰底配浅灰字对比度约 8:1，接近无障碍标准。
  */
 data class ReaderPalette(
@@ -21,7 +21,7 @@ data class ReaderPalette(
     val title: Color,
     /** 注释/气泡等次要信息的颜色。 */
     val dim: Color,
-    /** 强调色：命中高亮、朗读中、段评热评。 */
+    /** 强调色 命中高亮、朗读中、段评热评。 */
     val accent: Color,
     /** 分割线与边框。 */
     val rule: Color,
@@ -29,12 +29,12 @@ data class ReaderPalette(
     val highlight: Color,
 ) {
     companion object {
-        /** 米黄：护眼首选。 */
+        /** 米黄 护眼首选。 */
         private val Paper = ReaderPalette(
             background = Color(0xFFF3EBD9),
             text = Color(0xFF2C2620),
             title = Color(0xFF1A1611),
-            // dim 从 #7B6E5E 收到 #6B5F50：米黄底上的对比度 4.18:1 → 5.24:1，
+            // dim 从 #7B6E5E 收到 #6B5F50 米黄底上的对比度 4.18:1 → 5.24:1，
             // 页眉、进度、段评计数这些 11–12sp 小字才过 AA。
             dim = Color(0xFF6B5F50),
             accent = Color(0xFF9C4A22),
@@ -42,7 +42,7 @@ data class ReaderPalette(
             highlight = Color(0x339C4A22),
         )
 
-        /** 纯白：白天/OLED 省电。 */
+        /** 纯白 白天/OLED 省电。 */
         private val White = ReaderPalette(
             background = Color(0xFFFFFFFF),
             text = Color(0xFF1F1D1A),
@@ -53,7 +53,7 @@ data class ReaderPalette(
             highlight = Color(0x339C4A22),
         )
 
-        /** 浅绿：白天强光下用。 */
+        /** 浅绿 白天强光下用。 */
         private val Mint = ReaderPalette(
             background = Color(0xFFE4EEDE),
             text = Color(0xFF1E2820),
@@ -64,7 +64,7 @@ data class ReaderPalette(
             highlight = Color(0x334A6B3F),
         )
 
-        /** 夜色：深灰蓝底 + 浅灰字，避免纯黑高对比。 */
+        /** 夜色 深灰蓝底 + 浅灰字，避免纯黑高对比。 */
         private val Night = ReaderPalette(
             background = Color(0xFF171A1E),
             text = Color(0xFFC8C7C2),

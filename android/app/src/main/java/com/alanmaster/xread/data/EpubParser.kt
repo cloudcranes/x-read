@@ -13,7 +13,7 @@ import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
 
 /**
- * EPUB 里的一个章节：一串已切好的段落。
+ * EPUB 里的一个章节 一串已切好的段落。
  */
 data class EpubChapter(val id: String, val title: String, val paragraphs: List<String>)
 
@@ -30,9 +30,9 @@ data class EpubBook(
 )
 
 /**
- * EPUB 解析器：把一本 epub 拆成「书籍信息 + 封面 + 章节段落」。
+ * EPUB 解析器 把一本 epub 拆成「书籍信息 + 封面 + 章节段落」。
  *
- * 边界：这里**只做结构解析，不做校验**。
+ * 边界 这里**只做结构解析，不做校验**。
  * - 不验合规（mimetype 是否首项、OPF 声明的 media-type 对不对，一律不查），能读出结构就算成功；
  * - 不解密、不执行脚本、不联网、不写文件，输入只有一段字节，输出只有一份数据对象；
  * - 遇到看不懂的标签按纯文本处理，不报错，尽量把能读的部分读出来。
@@ -40,7 +40,7 @@ data class EpubBook(
  * 这么取舍是因为同一本书在不同工具下打包出来的目录结构、编码、命名都不一样，
  * 宁可「读出一部分」，也不要因为一处不标准就整本失败。
  *
- * 章节 id 从 "1" 开始连续编号：本项目的 `Api.checkId` 限定 `[0-9]{1,24}`，
+ * 章节 id 从 "1" 开始连续编号 本项目的 `Api.checkId` 限定 `[0-9]{1,24}`，
  * 离线仓库与阅读进度都按这个编号寻址，所以这里不能出现 epub 原始文件名。
  */
 object EpubParser {
@@ -49,13 +49,13 @@ object EpubParser {
     private const val CORRUPTED = "EPUB 格式不正确或文件已损坏"
     private const val NO_BODY = "EPUB 里没有可读正文"
 
-    /** 块级标签：出现即视为段落边界。 */
+    /** 块级标签 出现即视为段落边界。 */
     private val BLOCK_TAG = Regex(
         "(?i)</?(?:p|div|h[1-6]|li|ul|ol|dl|dt|dd|blockquote|pre|figure|figcaption|" +
             "section|article|aside|header|footer|nav|main|hr|table|thead|tbody|tfoot|tr|td|th|br)\\b[^>]*>"
     )
 
-    /** 其它标签：直接抹掉，只留标签里的文字。 */
+    /** 其它标签 直接抹掉，只留标签里的文字。 */
     private val ANY_TAG = Regex("(?s)</?[A-Za-z][^>]*>")
 
     private val SCRIPT_STYLE = Regex("(?is)<(?:script|style)\\b[^>]*>.*?</(?:script|style)>")
@@ -140,7 +140,7 @@ object EpubParser {
     }
 
     /**
-     * 按名字取条目：精确命中优先，其次忽略大小写，最后按 percent 解码后再比一次。
+     * 按名字取条目 精确命中优先，其次忽略大小写，最后按 percent 解码后再比一次。
      *
      * OPF 里的 href 常写成 percent 编码（`ch%201.xhtml`），zip 里的文件名却是原样，
      * 只按精确名匹配会漏掉带空格的文件名。
@@ -232,7 +232,7 @@ object EpubParser {
     }
 
     /**
-     * 章节标题表：优先 toc.ncx（EPUB2），其次 nav.xhtml（EPUB3）。
+     * 章节标题表 优先 toc.ncx（EPUB2），其次 nav.xhtml（EPUB3）。
      *
      * 目录里的 href 相对于「目录文件自己所在的目录」，而章节文件相对于 OPF 所在目录，
      * 两者经常不同，所以每份目录都按两种基准各解析一遍，避免对不上。
@@ -273,7 +273,7 @@ object EpubParser {
     }
 
     /**
-     * 合并目录标题：已经有的键不覆盖。
+     * 合并目录标题 已经有的键不覆盖。
      *
      * EPUB2 的 toc.ncx 与 EPUB3 的 nav.xhtml 可能同时存在，
      * 按规范 toc.ncx 优先，所以后来的 nav 只能补位，不能把目录里的标题改掉。
@@ -284,7 +284,7 @@ object EpubParser {
         }
     }
 
-    /** EPUB2 目录：navPoint 的 text 对上 content 的 src。 */
+    /** EPUB2 目录 navPoint 的 text 对上 content 的 src。 */
     private fun ncxTitles(bytes: ByteArray, baseDir: String): Map<String, String> {
         val doc = parseXml(bytes) ?: return emptyMap()
         val root = doc.documentElement ?: return emptyMap()
@@ -305,9 +305,9 @@ object EpubParser {
     }
 
     /**
-     * EPUB3 目录：nav.xhtml 里 toc 导航的 `<a href>`。
+     * EPUB3 目录 nav.xhtml 里 toc 导航的 `<a href>`。
      *
-     * 这里用正则而不是 DOM：EPUB3 的 nav.xhtml 常带 `&nbsp;` 这类 XML 未定义的实体，
+     * 这里用正则而不是 DOM EPUB3 的 nav.xhtml 常带 `&nbsp;` 这类 XML 未定义的实体，
      * DOM 解析会直接失败，而链接文字本来就要按纯文本取。
      */
     private fun navTitles(html: String, baseDir: String): Map<String, String> {
@@ -338,7 +338,7 @@ object EpubParser {
     private data class Cover(val bytes: ByteArray, val extension: String)
 
     /**
-     * 封面：manifest 里 media-type 是图片、且 id 或文件名带 cover 的那一条。
+     * 封面 manifest 里 media-type 是图片、且 id 或文件名带 cover 的那一条。
      * 扩展名优先用文件名，其次按 media-type 猜，都猜不出就用 jpg。
      */
     private fun readCover(
@@ -372,7 +372,7 @@ object EpubParser {
     /**
      * XHTML 正文 → 段落列表。
      *
-     * 顺序很重要：先去 script/style 与注释，再只取 body，
+     * 顺序很重要 先去 script/style 与注释，再只取 body，
      * 然后把块级标签换成换行（段落边界），再抹掉其余标签，最后才解实体。
      * 实体放在最后解，是为了让正文里出现的 `&lt;p&gt;` 不会被当成真标签。
      */
@@ -398,7 +398,7 @@ object EpubParser {
         return if (head != null) html.removeRange(head.range) else html
     }
 
-    /** 章节标题回退：先 h1，再 h2，再 title。 */
+    /** 章节标题回退 先 h1，再 h2，再 title。 */
     private fun firstHeading(html: String): String {
         for (tag in listOf("h1", "h2", "title")) {
             val match = Regex("(?is)<$tag\\b[^>]*>(.*?)</$tag\\s*>").find(html) ?: continue
@@ -408,7 +408,7 @@ object EpubParser {
         return ""
     }
 
-    /** 抽纯文本：去标签、解实体、空白折叠。 */
+    /** 抽纯文本 去标签、解实体、空白折叠。 */
     private fun plainText(raw: String): String {
         val noTag = ANY_TAG.replace(raw, " ")
         val decoded = decodeEntities(noTag).replace('\u00A0', ' ')
@@ -503,7 +503,7 @@ object EpubParser {
         val factory = DocumentBuilderFactory.newInstance()
         factory.isNamespaceAware = false
         factory.isValidating = false
-        // 实体保持默认的「展开」：这样 `&amp;` 直接变成文本节点，
+        // 实体保持默认的「展开」 这样 `&amp;` 直接变成文本节点，
         // 读出来的文字就是书里的内容，不用再自己补一遍实体表。
         // epub 里偶尔带外部 DTD，关掉免得解析时去下载。
         runCatching { factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
@@ -552,7 +552,7 @@ object EpubParser {
     /**
      * 取节点下的纯文本。
      *
-     * 不用 `textContent`：CDATA 与普通文本要分头收，实体引用节点也顺手兜住，
+     * 不用 `textContent` CDATA 与普通文本要分头收，实体引用节点也顺手兜住，
      * 自己递归一次比判断节点类型再回头补一遍更省事。
      */
     private fun textOf(node: Node): String {

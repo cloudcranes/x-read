@@ -65,14 +65,14 @@ import com.alanmaster.xread.data.BookStatus
 import com.alanmaster.xread.data.HomeBoard
 import com.alanmaster.xread.data.ReadCountFormat
 
-/** 自动续页上限：避免 LaunchedEffect 随列表增长反复拉取，把整页撑到上千本。 */
+/** 自动续页上限 避免 LaunchedEffect 随列表增长反复拉取，把整页撑到上千本。 */
 private const val MaxAutoLoadBooks = 120
 
-/** 单个网格块的书本数：把每块高度压在 Compose Constraints 可编码范围内。 */
+/** 单个网格块的书本数 把每块高度压在 Compose Constraints 可编码范围内。 */
 internal const val RecommendationChunkSize = 60
 
 /**
- * 发现页（方案 B「主笔甄选流」）：以小说为主，保留一个短剧剧场入口。
+ * 发现页（方案 B「主笔甄选流」） 以小说为主，保留一个短剧剧场入口。
  *
  * 一张「今日主笔力荐」折页大卡定调，热榜/新书/各榜单收成一条纯封面横滑带，
  * 推荐区走三列竖版海报流。数据仍来自 ranked / newBooks / boards / recommended，
@@ -102,12 +102,12 @@ fun DiscoverScreen(
     // 榜单板块默认全部收进「更多榜单」；展开后逐个露出完整榜单入口。
     var boardsExpanded by remember { mutableStateOf(false) }
 
-    // 已收敛为纯小说阅读器：新书榜并入 01 横滑带，漫剧/短剧榜不再露出。
+    // 已收敛为纯小说阅读器 新书榜并入 01 横滑带，漫剧/短剧榜不再露出。
     val boardList = boards.filter {
         it.name != "新书榜" && !it.name.contains("漫剧") && !it.name.contains("短剧")
     }
     val hero = ranked.firstOrNull()
-    // 01 横滑带：热榜魁首之外 + 新书 + 各榜单，按 bookId 去重，信息量足且不重复封面。
+    // 01 横滑带 热榜魁首之外 + 新书 + 各榜单，按 bookId 去重，信息量足且不重复封面。
     val stripBooks = (ranked.drop(1) + newBooks + boardList.flatMap { it.books })
         .distinctBy { it.bookId }
         .take(20)
@@ -218,7 +218,7 @@ fun DiscoverScreen(
                         action = "换一批" to onMore,
                     )
                 }
-                // 拆成固定大小的网格块：单块高度有上限，避免长列表把
+                // 拆成固定大小的网格块 单块高度有上限，避免长列表把
                 // LazyVerticalGrid 的 height() 推到 Constraints 无法编码的数值。
                 val chunks = recommended.chunked(RecommendationChunkSize)
                 chunks.forEach { chunk ->
@@ -246,17 +246,17 @@ fun DiscoverScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             exhausted -> Text(
-                                "已经到底了 · 共 ${recommended.size} 本",
+                                "共 ${recommended.size} 本",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             autoLoadCapReached -> Text(
-                                "已展示 ${recommended.size} 本 · 点「换一批」继续",
+                                "已展示 ${recommended.size} 本",
                                 fontSize = 12.sp,
                                 color = ink3,
                             )
                             else -> Text(
-                                "继续下滑，自动加载更多",
+                                "继续下滑",
                                 fontSize = 12.sp,
                                 color = ink3,
                             )
@@ -271,7 +271,7 @@ fun DiscoverScreen(
             if (!loading && ranked.isEmpty() && recommended.isEmpty()) {
                 item {
                     EmptyHint(
-                        text = feedError.ifEmpty { "暂时取不到推荐。点右上角刷新，或直接搜索书名。" },
+                        text = feedError.ifEmpty { "推荐加载失败" },
                         actionLabel = "刷新",
                         onAction = onRefresh,
                     )
@@ -303,7 +303,7 @@ private fun DiscoverHeader(onRefresh: () -> Unit) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "拾页精选 · 小说与短剧",
+                    text = "拾页精选 小说与短剧",
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
                     color = ink3,
@@ -370,14 +370,14 @@ private fun HeroFeatureCard(book: Book, onClick: () -> Unit) {
         book.author.takeIf { it.isNotBlank() },
         if (book.readCount > 0) "${ReadCountFormat.short(book.readCount)}人在读" else null,
         statusLabel,
-    ).joinToString(" · ").ifBlank { "编辑甄选" }
+    ).joinToString(" ").ifBlank { "编辑甄选" }
     // 接口简介常带换行、&#10; 实体与【标签】，折成单行短引文，避免两行里大半行被空行吃掉。
     val quote = book.description
         .replace(Regex("&#(?:10|13|xa0|160);?|&nbsp;|<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
         .replace(Regex("\\s+"), " ")
         .trim()
         .takeIf { it.isNotBlank() }
-        ?: "翻开第一页，便舍不得合上。"
+        ?: ""
 
     Surface(
         modifier = Modifier
@@ -386,7 +386,7 @@ private fun HeroFeatureCard(book: Book, onClick: () -> Unit) {
             .heightIn(min = 132.dp)
             .clickable(onClick = onClick, role = Role.Button)
             .semantics(mergeDescendants = true) {
-                contentDescription = "今日主笔力荐，${book.title}，点击查看详情"
+                contentDescription = "主笔推荐"
             },
         shape = RoundedCornerShape(Radius.sm),
         color = surface,
@@ -411,7 +411,7 @@ private fun HeroFeatureCard(book: Book, onClick: () -> Unit) {
                     Spacer(Modifier.width(Space.md))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = "今日主笔力荐",
+                            text = "主笔推荐",
                             fontSize = 10.sp,
                             lineHeight = 14.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -423,7 +423,7 @@ private fun HeroFeatureCard(book: Book, onClick: () -> Unit) {
                         )
                         Spacer(Modifier.height(Space.xs))
                         Text(
-                            text = "热榜魁首 · 编辑甄选",
+                            text = "热榜魁首 编辑甄选",
                             fontSize = 10.sp,
                             lineHeight = 14.sp,
                             color = primary,
@@ -506,12 +506,6 @@ private fun DramaTheatreEntry(onClick: () -> Unit) {
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
-                )
-                Text(
-                    text = "热播短剧 · 动态漫剧 · 弹幕互动",
-                    fontSize = 11.sp,
-                    color = Color(0xFFBDBDBD),
-                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
             Text(
@@ -597,7 +591,7 @@ private fun BookStrip(books: List<Book>, onOpen: (Book) -> Unit) {
     }
 }
 
-/** 90×126 纯封面卡：书名两行 + 一行作者/题材，不铺大段文字。 */
+/** 90×126 纯封面卡 书名两行 + 一行作者/题材，不铺大段文字。 */
 @Composable
 private fun StripBookCard(book: Book, onClick: () -> Unit) {
     Column(
@@ -636,7 +630,7 @@ private fun StripBookCard(book: Book, onClick: () -> Unit) {
 
 /* --------------------------- 推荐网格 --------------------------- */
 
-/** 卡片最小宽度：再窄书名会折成三行，读不出书名。 */
+/** 卡片最小宽度 再窄书名会折成三行，读不出书名。 */
 private val CardMinWidth = 104.dp
 
 /** 卡片之间的横向间距。 */
@@ -645,7 +639,7 @@ private val CardSpacing = Space.md
 /** 网格行间距。 */
 private val CardRowSpacing = Space.xl
 
-/** 封面之外的高度：书名两行 + 元信息一行 + 与封面的间隙。 */
+/** 封面之外的高度 书名两行 + 元信息一行 + 与封面的间隙。 */
 private val CardTextHeight = 66.dp
 
 /**
@@ -661,10 +655,10 @@ internal fun recommendationColumns(
     spacing: Dp = CardSpacing,
 ): Int = ((availableWidth + spacing) / (minCardWidth + spacing)).toInt().coerceAtLeast(2)
 
-/** 单行高度：封面（按 0.70 的宽高比）+ 书名与元信息。 */
+/** 单行高度 封面（按 0.70 的宽高比）+ 书名与元信息。 */
 internal fun recommendationRowHeight(cardWidth: Dp): Dp = cardWidth / 0.70f + CardTextHeight
 
-/** 网格总高度：行数 × 行高 + 行间空隙。 */
+/** 网格总高度 行数 × 行高 + 行间空隙。 */
 internal fun recommendationGridHeight(
     bookCount: Int,
     availableWidth: Dp,
@@ -698,7 +692,7 @@ private fun RecommendationGrid(books: List<Book>, onOpen: (Book) -> Unit) {
     }
 }
 
-/** 三列竖版海报：书名单行截断，封面按 0.70 宽高比撑满列宽。 */
+/** 三列竖版海报 书名单行截断，封面按 0.70 宽高比撑满列宽。 */
 @Composable
 private fun PosterCard(book: Book, onClick: () -> Unit) {
     Column(
@@ -735,7 +729,7 @@ private fun PosterCard(book: Book, onClick: () -> Unit) {
 }
 
 /**
- * 「更多榜单」入口：把榜单板块收一行，展开后逐个露出完整榜单入口。
+ * 「更多榜单」入口 把榜单板块收一行，展开后逐个露出完整榜单入口。
  */
 @Composable
 private fun MoreBoardsEntry(remaining: Int, onClick: () -> Unit) {
@@ -745,7 +739,7 @@ private fun MoreBoardsEntry(remaining: Int, onClick: () -> Unit) {
             .heightIn(min = 48.dp)
             .clickable(onClick = onClick, role = Role.Button)
             .semantics(mergeDescendants = true) {
-                contentDescription = "更多榜单，还有 $remaining 个"
+                contentDescription = "更多榜单"
             }
             .padding(horizontal = Space.gutter, vertical = Space.xl),
         verticalAlignment = Alignment.CenterVertically,

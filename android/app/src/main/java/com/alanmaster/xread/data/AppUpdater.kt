@@ -40,11 +40,11 @@ data class UpdateUi(
 )
 
 /**
- * 应用自更新（热更新）：读取公开 `update.json` 清单或 GitHub Release → 下载 APK → 交给系统安装器。
+ * 应用自更新（热更新） 读取公开 `update.json` 清单或 GitHub Release → 下载 APK → 交给系统安装器。
  *
- * 为什么是「自更新」而不是 Tinker 那类代码级热修复：本项目所有业务逻辑都在
+ * 为什么是「自更新」而不是 Tinker 那类代码级热修复 本项目所有业务逻辑都在
  * Kotlin 里编译进 APK，没有独立插件进程，也没有补丁分发通道；要真正替换
- * dex 得引入补丁 SDK 与签名密钥托管，成本远高于收益。这里做的是**整包热更新**：
+ * dex 得引入补丁 SDK 与签名密钥托管，成本远高于收益。这里做的是**整包热更新**
  * 用户不用连电脑、不用重装数据，点一下就从 GitHub Release 换到新版本，
  * 书架/进度/下载的私有目录原样保留（同 applicationId 覆盖安装）。
  *
@@ -60,7 +60,7 @@ class AppUpdater(context: Context) {
 
     private var job: Job? = null
 
-    /** 安装包目录：cache/update（由 file_paths.xml 的 `update` 暴露给安装器）。 */
+    /** 安装包目录 cache/update（由 file_paths.xml 的 `update` 暴露给安装器）。 */
     val dir: File get() = File(app.cacheDir, "update").apply { mkdirs() }
 
     /** 从磁盘读一次偏好；在 IO 线程调用，组合期不读盘。 */
@@ -75,7 +75,7 @@ class AppUpdater(context: Context) {
                 )
             }
             // 上次已经下好、但没装就退出的包，重启后直接显示「安装」。
-            // 装完系统会在后台重启应用：这时缓存里的包对应的版本已经不新了，清掉。
+            // 装完系统会在后台重启应用 这时缓存里的包对应的版本已经不新了，清掉。
             val saved = repo.pendingUpdate()
             if (saved.isNotBlank()) {
                 val f = File(saved)
@@ -95,7 +95,7 @@ class AppUpdater(context: Context) {
         }
     }
 
-    /** 启动时的自动检查：热更新关闭、或者今天已经查过，就直接返回。 */
+    /** 启动时的自动检查 热更新关闭、或者今天已经查过，就直接返回。 */
     fun autoCheckOnLaunch() {
         if (!_state.value.hotUpdate) return
         if (!AppUpdate.dueForCheck(System.currentTimeMillis(), repo.lastUpdateCheckAt())) return
@@ -244,7 +244,7 @@ class AppUpdater(context: Context) {
             app.startActivity(intent)
             true
         }.getOrElse { e ->
-            _state.update { it.copy(message = "调不起安装器：${e.javaClass.simpleName}") }
+            _state.update { it.copy(message = "调不起安装器 ${e.javaClass.simpleName}") }
             false
         }
     }
@@ -332,7 +332,7 @@ class AppUpdater(context: Context) {
         conn.instanceFollowRedirects = true
         conn.setRequestProperty("User-Agent", "x-read/${BuildConfig.VERSION_NAME}")
         conn.setRequestProperty("Accept", "application/vnd.github+json")
-        // 令牌只发给 GitHub 自己：加速通道是第三方代理，绝不能把 PAT 一并递过去。
+        // 令牌只发给 GitHub 自己 加速通道是第三方代理，绝不能把 PAT 一并递过去。
         if (token.isNotBlank() && isGitHubHost(url)) {
             conn.setRequestProperty("Authorization", "Bearer $token")
         }
@@ -356,7 +356,7 @@ class AppUpdater(context: Context) {
 
     private fun describe(e: Throwable, hasToken: Boolean): String = when (e) {
         is HttpFailure -> AppUpdate.httpMessage(e.code, e.rateLimited, hasToken)
-        else -> "检查失败：${e.message ?: e.javaClass.simpleName}"
+        else -> "检查失败 ${e.message ?: e.javaClass.simpleName}"
     }
 
     private fun formatMb(bytes: Long): String =

@@ -13,9 +13,9 @@ import java.io.File
 import java.util.Locale
 
 /**
- * 阅读报告分享卡：把一次月报/年报画成 1080 宽的 PNG 再走系统分享。
+ * 阅读报告分享卡 把一次月报/年报画成 1080 宽的 PNG 再走系统分享。
  *
- * 和 [MarkCard] 同一套做法与同一套纸色，不引第三方绘图库：
+ * 和 [MarkCard] 同一套做法与同一套纸色，不引第三方绘图库
  * 固定宽度、按内容算高度、写完落 `cache/share/`，再交给已有的 FileProvider。
  */
 object ReportCard {
@@ -49,7 +49,7 @@ object ReportCard {
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "拾页 · ${summary.period.longLabel}阅读报告")
+                putExtra(Intent.EXTRA_TEXT, "拾页 ${summary.period.longLabel}阅读报告")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(send, "分享阅读报告"))
@@ -78,7 +78,7 @@ object ReportCard {
         canvas.drawColor(Color.parseColor(BG))
 
         var y = PAD + 30f
-        canvas.drawText("拾页 · 阅读报告", PAD.toFloat(), y, eyebrow)
+        canvas.drawText("拾页 阅读报告", PAD.toFloat(), y, eyebrow)
 
         y += 84f
         canvas.drawText(summary.period.longLabel, PAD.toFloat(), y, title)

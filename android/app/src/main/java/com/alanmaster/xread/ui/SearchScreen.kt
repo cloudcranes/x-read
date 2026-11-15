@@ -68,12 +68,12 @@ import kotlinx.coroutines.delay
 /**
  * 搜索页。
  *
- * 结构：**顶栏（标题 + 搜索动作）→ 48dp 搜索框 → 状态区**。
+ * 结构 **顶栏（标题 + 搜索动作）→ 48dp 搜索框 → 状态区**。
  *
- * 搜索框独立成行（不再塞进 TopAppBar 的 title 里）：
+ * 搜索框独立成行（不再塞进 TopAppBar 的 title 里）
  * 顶栏里放输入框会让标题栏高度被撑到 64dp，且输入框宽度被返回键挤掉。
  *
- * 状态区三态分明：**历史**（还没搜过）、**结果**（搜到了）、**失败**（能重试）。
+ * 状态区三态分明 **历史**（还没搜过）、**结果**（搜到了）、**失败**（能重试）。
  * 旧实现把「没有结果」和「搜索失败」混成一句灰字，用户不知道是该换词还是该重试，
  * 现在错误态单独成块并带重试按钮。
  */
@@ -98,7 +98,7 @@ fun SearchScreen(
     exhausted: Boolean = true,
     moreLoading: Boolean = false,
     onMore: () -> Unit = {},
-    /** 有已下载的书时才露出「书库」tab：否则搜本地只会永远空手而归。 */
+    /** 有已下载的书时才露出「书库」tab 否则搜本地只会永远空手而归。 */
     libraryAvailable: Boolean = false,
     libraryHits: List<TextHit> = emptyList(),
     librarySearching: Boolean = false,
@@ -115,9 +115,9 @@ fun SearchScreen(
     onOpen: (Book) -> Unit,
     onOpenDrama: (DramaSeries) -> Unit = {},
 ) {
-    // 以 initialQuery 为 key：从书架换关键词再进来时要跟着更新
+    // 以 initialQuery 为 key 从书架换关键词再进来时要跟着更新
     var query by remember(initialQuery) { mutableStateOf(initialQuery) }
-    // 「大家在搜」只在搜索框被点进去时露出：平常它只是发现页的一块内容，
+    // 「大家在搜」只在搜索框被点进去时露出 平常它只是发现页的一块内容，
     // 摆在搜索页只会让人以为这些词是「我搜过的」。
     var fieldFocused by remember { mutableStateOf(false) }
     var libraryMode by rememberSaveable { mutableStateOf(false) }
@@ -227,7 +227,7 @@ fun SearchScreen(
                         else -> "小说结果"
                     }
                     SectionHeader(sectionHint, "${results.size} 本", index = "RESULTS")
-                    // 搜索结果是**行**不是网格：同名书很多（「十日终焉」能搜出十几本），
+                    // 搜索结果是**行**不是网格 同名书很多（「十日终焉」能搜出十几本），
                     // 网格只放得下封面和书名，分不清哪本是要找的；行能多给简介与评分。
                     LazyColumn(
                         modifier = Modifier.weight(1f),
@@ -271,7 +271,7 @@ fun SearchScreen(
 /**
  * 书库检索结果。
  *
- * 按书分组而不是按命中时间平铺：同一本书里的十几处命中，读者会想「这一章翻完再翻下一章」，
+ * 按书分组而不是按命中时间平铺 同一本书里的十几处命中，读者会想「这一章翻完再翻下一章」，
  * 打散之后每次跳转都要重新想一遍自己在哪本里。
  */
 @Composable
@@ -325,14 +325,14 @@ private fun LibraryResults(
         item(key = "library-header") {
             SectionHeader(
                 title = "书库结果",
-                hint = if (searching) "${hits.size} 处 · 继续扫描中" else "${hits.size} 处",
+                hint = if (searching) "${hits.size} 处 继续扫描中" else "${hits.size} 处",
                 index = "LIBRARY",
             )
         }
         groups.forEach { (bookId, group) ->
             item(key = "book-$bookId") {
                 Text(
-                    text = "${group.first().bookTitle} · ${group.size} 处",
+                    text = "${group.first().bookTitle} ${group.size} 处",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -378,7 +378,7 @@ private fun TextHitRow(hit: TextHit, query: String, onClick: () -> Unit) {
     }
 }
 
-/** 命中词描底：扫读时要能一眼看到自己搜的那两个字落在哪。 */
+/** 命中词描底 扫读时要能一眼看到自己搜的那两个字落在哪。 */
 @Composable
 private fun highlight(text: String, query: String): AnnotatedString {
     val q = query.trim()
@@ -401,13 +401,13 @@ private fun highlight(text: String, query: String): AnnotatedString {
 }
 
 /**
- * 统一搜索框：44dp 高、**直角**、左侧放大镜、聚焦时描边转墨色。
+ * 统一搜索框 44dp 高、**直角**、左侧放大镜、聚焦时描边转墨色。
  *
- * v3 把输入框也改成直角：刊物语言里没有气泡输入框。
+ * v3 把输入框也改成直角 刊物语言里没有气泡输入框。
  * 聚焦色用 `onSurface`（墨）而不是朱红——朱红留给「主操作」，
  * 输入框聚焦只是状态，不该抢按钮的位置。
  *
- * 自绘而不是用 `OutlinedTextField`：M3 的输入框最小高度是 56dp，
+ * 自绘而不是用 `OutlinedTextField` M3 的输入框最小高度是 56dp，
  * 压到 48dp 会把提示文字挤掉；而这个框要出现在搜索页、分类页、目录页三处，
  * 自己画一份才能保证三处的高度、圆角、聚焦色完全一致。
  *
@@ -490,13 +490,13 @@ internal fun CompactSearchField(
 }
 
 /**
- * 搜索结果行：封面 + 书名 + 作者/分类/状态 + 两行简介 + 右侧评分。
+ * 搜索结果行 封面 + 书名 + 作者/分类/状态 + 两行简介 + 右侧评分。
  *
  * 评分右对齐成列——搜索结果常常连着七八本，右边缘对齐才扫得动。
- * 简介两行是搜索页与榜单页的关键差异：搜同一本书名会出现大量同名作品，
+ * 简介两行是搜索页与榜单页的关键差异 搜同一本书名会出现大量同名作品，
  * 只有简介能帮用户分辨。
  *
- * 听书结果额外标一行「在听 N」：有声书的 readCount 存的是在听人数，
+ * 听书结果额外标一行「在听 N」 有声书的 readCount 存的是在听人数，
  * 标成「在读」会误导——同一个词在两个 tab 里含义不同。
  */
 @Composable
@@ -535,7 +535,7 @@ private fun SearchResultRow(book: Book, audio: Boolean = false, onClick: () -> U
                     book.author.takeIf { it.isNotBlank() },
                     book.category.takeIf { it.isNotBlank() },
                     statusLabel(book.status),
-                ).joinToString(" · "),
+                ).joinToString(" "),
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
                 color = ink3,
@@ -577,7 +577,7 @@ private fun SearchResultRow(book: Book, audio: Boolean = false, onClick: () -> U
     }
 }
 
-/** 搜索失败态：说明原因 + 一个可点的重试按钮。 */
+/** 搜索失败态 说明原因 + 一个可点的重试按钮。 */
 @Composable
 private fun SearchErrorState(message: String, onRetry: () -> Unit) {
     Column(
@@ -615,7 +615,7 @@ private fun SearchErrorState(message: String, onRetry: () -> Unit) {
     }
 }
 
-/** 最近搜索：一排可点的关键词 + 清空。 */
+/** 最近搜索 一排可点的关键词 + 清空。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryBlock(
@@ -649,9 +649,9 @@ private fun HistoryBlock(
 }
 
 /**
- * 历史词条：点词条直接搜，点右侧叉只删这一条。
+ * 历史词条 点词条直接搜，点右侧叉只删这一条。
  *
- * 之前历史只有一个「清空」：想删掉某个不想被看见的词，只能把整段历史清掉。
+ * 之前历史只有一个「清空」 想删掉某个不想被看见的词，只能把整段历史清掉。
  * 叉放在词条内部而不是长按菜单里——历史就一排词，长按是隐藏动作。
  */
 @Composable
@@ -691,7 +691,7 @@ private fun HistoryChip(label: String, onClick: () -> Unit, onRemove: () -> Unit
 }
 
 /**
- * 「大家在搜」：只在搜索框被点进去时露出的热搜词。
+ * 「大家在搜」 只在搜索框被点进去时露出的热搜词。
  *
  * 平常它在发现页占一整块，搬进搜索页后也没必要一直挂着——没点搜索框时，
  * 用户看到的应该是自己搜过什么，而不是「这些词大家都在搜」。
@@ -726,7 +726,7 @@ private fun HotWordsBlock(words: List<String>, onPick: (String) -> Unit) {
 /**
  * 结果列表底部的翻页条。
  *
- * 不用「点击加载更多」按钮：搜索结果是一路往下看的，多一次点击就多一次打断。
+ * 不用「点击加载更多」按钮 搜索结果是一路往下看的，多一次点击就多一次打断。
  * 滚到底自动取下一页，同时留一行文案说明现在是什么状态，
  * 免得读者不知道是卡住了还是真没有了。
  */

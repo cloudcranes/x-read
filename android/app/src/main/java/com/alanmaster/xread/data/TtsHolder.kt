@@ -7,9 +7,9 @@ import android.content.Context
  *
  * 旧实现把 [TtsController] 建在 Compose 的 `remember` 里，并在 `onDispose` 里
  * `shutdown()` —— 一离开阅读页（或 Activity 被销毁）朗读就断。改为与听书播放器
- * 同样的做法：进程单例 + 前台服务托管，界面只挂接回调。
+ * 同样的做法 进程单例 + 前台服务托管，界面只挂接回调。
  *
- * 回调通过可变槽位转发，避免把 ViewModel 生命周期绑死在控制器上：界面销毁时
+ * 回调通过可变槽位转发，避免把 ViewModel 生命周期绑死在控制器上 界面销毁时
  * 置空，控制器继续朗读但不再回调已失效的作用域。
  */
 object TtsHolder {

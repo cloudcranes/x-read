@@ -121,13 +121,13 @@ class MarksTest {
         val r = repo(File(temp.newFolder(), "offline"))
         r.addMark("1", "c1", "第1章", Mark(0, "无笔记摘录", Mark.KIND_HIGHLIGHT, 100, note = "", tags = emptyList()))
         val plain = r.exportMarks(mapOf("1" to "书名"))!!.readText()
-        assertFalse("没有笔记时不该出现笔记段", plain.contains("笔记："))
+        assertFalse("没有笔记时不该出现笔记段", plain.contains("笔记 "))
 
         r.setMarkNote("1", "c1", 0, Mark.KIND_HIGHLIGHT, "我的批注", listOf("人物"))
         val noted = r.exportMarks(mapOf("1" to "书名"))!!.readText()
         assertTrue(noted.contains("> 无笔记摘录"))
-        assertTrue(noted.contains("笔记：我的批注"))
-        assertTrue(noted.contains("标签：#人物"))
+        assertTrue(noted.contains("笔记 我的批注"))
+        assertTrue(noted.contains("标签 #人物"))
     }
 
     @Test fun emptyNoteIsNotPersistedAsKey() {

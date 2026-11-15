@@ -11,7 +11,7 @@ import java.net.URLEncoder
 /**
  * z-library 的一本书（EAPI 口径）。
  *
- * 只取展示与选文件真正用得上的字段：搜索结果和详情页共用这一份结构，
+ * 只取展示与选文件真正用得上的字段 搜索结果和详情页共用这一份结构，
  * 两边的字段名本来就不完全一样，这里统一收敛掉。
  */
 data class ZLibraryBook(
@@ -53,14 +53,14 @@ data class ZLibraryPage(
     val hasNext: Boolean,
 )
 
-/** 登录后的凭证：后续请求靠这两个字段拼 Cookie。 */
+/** 登录后的凭证 后续请求靠这两个字段拼 Cookie。 */
 data class ZLibrarySession(val userId: String, val userKey: String)
 
-/** z-library 侧的任何失败：HTTP 错误、业务失败、连不上服务器。 */
+/** z-library 侧的任何失败 HTTP 错误、业务失败、连不上服务器。 */
 class ZLibraryException(message: String) : Exception(message)
 
 /**
- * EAPI 应答的纯解析：JSON 字符串 → 数据模型。
+ * EAPI 应答的纯解析 JSON 字符串 → 数据模型。
  *
  * 单独拆成 object 是为了让这一半能在 JVM 单测里直接跑，不碰网络。
  * 真正的 IO 在 [ZLibraryClient]。
@@ -73,7 +73,7 @@ object ZLibraryJson {
     /**
      * 搜索应答。
      *
-     * 上游形状：`{"success":1,"books":[...],"pagination":{"current":1,"next":2,"total_items":500,"total_pages":167}}`。
+     * 上游形状 `{"success":1,"books":[...],"pagination":{"current":1,"next":2,"total_items":500,"total_pages":167}}`。
      * `pagination.next` 是「还有下一页」的页码，没有下一页时给 `null` 或 `false`。
      *
      * @throws ZLibraryException 上游回了 `success != 1`。
@@ -97,7 +97,7 @@ object ZLibraryJson {
     }
 
     /**
-     * 详情应答：`{"success":1,"book":{...}}`。
+     * 详情应答 `{"success":1,"book":{...}}`。
      *
      * 上游偶尔把 book 直接摊在根上，两种都认。
      *
@@ -110,7 +110,7 @@ object ZLibraryJson {
     }
 
     /**
-     * 登录应答：`{"success":1,"user":{"id":42,"remix_userkey":"..."}}`。
+     * 登录应答 `{"success":1,"user":{"id":42,"remix_userkey":"..."}}`。
      *
      * @throws ZLibraryException 上游回了 `success != 1`，或应答里没有用户信息。
      */
@@ -122,7 +122,7 @@ object ZLibraryJson {
     }
 
     /**
-     * 域名列表应答：`{"success":1,"domains":[{"domain":"z-lib.sk"},...]}`。
+     * 域名列表应答 `{"success":1,"domains":[{"domain":"z-lib.sk"},...]}`。
      *
      * @throws ZLibraryException 上游回了 `success != 1`。
      */
@@ -141,7 +141,7 @@ object ZLibraryJson {
     /**
      * 失败时的错误文案；成功返回 null。
      *
-     * 上游失败一律带 `error` 字段（例：`Please login`、`Incorrect email or password`），
+     * 上游失败一律带 `error` 字段（例 `Please login`、`Incorrect email or password`），
      * 少数接口给 `message`。都没有就给一句兜底。
      */
     fun errorMessage(body: String): String? {
@@ -154,7 +154,7 @@ object ZLibraryJson {
     /**
      * 从取文件链接的应答里挖出下载地址。
      *
-     * 这一条的形状不稳定：字段名可能是 `downloadUrl` / `url` / `link` / `href`，
+     * 这一条的形状不稳定 字段名可能是 `downloadUrl` / `url` / `link` / `href`，
      * 也可能整个应答就是一个裸 URL 字符串。找不到具名字段时，
      * 就把整段 JSON 里第一个以 `http` 开头的字符串捞出来。
      */
@@ -175,7 +175,7 @@ object ZLibraryJson {
             }
             firstHttpUrl(root)?.let { return it }
         }
-        // JSON 字符串字面量："https://..."
+        // JSON 字符串字面量 "https://..."
         if (trimmed.length >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
             val inner = trimmed.substring(1, trimmed.length - 1)
             if (inner.startsWith("http")) return inner
@@ -215,7 +215,7 @@ object ZLibraryJson {
     )
 
     /**
-     * 分类：上游给的是 `{"599":"Self-Help","600":"Business"}` 这样的字典。
+     * 分类 上游给的是 `{"599":"Self-Help","600":"Business"}` 这样的字典。
      *
      * JSON 对象的键没有顺序可言，所以按键排一遍再拼，保证同一份数据每次渲染出来的顺序一致。
      */
@@ -232,7 +232,7 @@ object ZLibraryJson {
         return entries.joinToString(", ") { it.second }
     }
 
-    /** `pagination.next`：有下一页时是页码，没有时是 `null` 或 `false`。 */
+    /** `pagination.next` 有下一页时是页码，没有时是 `null` 或 `false`。 */
     private fun hasNextPage(pagination: JSONObject?): Boolean {
         if (pagination == null) return false
         val next = pagination.opt("next") ?: return false
@@ -275,7 +275,7 @@ object ZLibraryJson {
  * 匿名就能搜索、看详情；只有真去下文件才需要用户自己的账号 Cookie
  * （`remix_userid` / `remix_userkey`）。
  *
- * 域名是这套接口最脆的一环：同一个服务有一堆镜像域名，随时被拦、被质询。
+ * 域名是这套接口最脆的一环 同一个服务有一堆镜像域名，随时被拦、被质询。
  * 所以搜索与详情会在 [FALLBACK_BASES] 里逐个回退；登录与下载不做回退——
  * 登录失败是账号问题，下载链接跟域名绑定，换域名没有意义。
  *
@@ -351,7 +351,7 @@ class ZLibraryClient(
     /**
      * 账号登录。
      *
-     * 成功后拿到的凭证要交给新建的客户端实例才会带上 Cookie：
+     * 成功后拿到的凭证要交给新建的客户端实例才会带上 Cookie
      * `ZLibraryClient(baseUrl, ZLibraryClient(...).login(email, password))`。
      *
      * @throws ZLibraryException 账号密码不对，或连不上服务器。
@@ -364,7 +364,7 @@ class ZLibraryClient(
     }
 
     /**
-     * 取文件下载地址。需要登录态：未登录时上游回 `Please login`。
+     * 取文件下载地址。需要登录态 未登录时上游回 `Please login`。
      *
      * 不做域名回退——下载链接跟域名绑定，换域名拿到的链接对不上。
      *
@@ -425,7 +425,7 @@ class ZLibraryClient(
 
     // ---------------- HTTP ----------------
 
-    /** 跨域名回退：先试 [baseUrl]，再依次试 [FALLBACK_BASES] 里剩下的域名，全失败抛最后一个错误。 */
+    /** 跨域名回退 先试 [baseUrl]，再依次试 [FALLBACK_BASES] 里剩下的域名，全失败抛最后一个错误。 */
     private fun <T> withFallback(block: (String) -> T): T {
         var last: ZLibraryException? = null
         for (base in candidateBases()) {
@@ -451,13 +451,13 @@ class ZLibraryClient(
 
     private fun post(url: String, form: String): String = request(url, form)
 
-    /** 表单编码：`a=1&b=2`。 */
+    /** 表单编码 `a=1&b=2`。 */
     private fun formOf(vararg pairs: Pair<String, String>): String =
         pairs.joinToString("&") { (key, value) -> "${enc(key)}=${enc(value)}" }
 
     private fun enc(value: String): String = URLEncoder.encode(value, "UTF-8")
 
-    /** 路径段编码：表单编码把空格写成 `+`，路径里要的是 `%20`。 */
+    /** 路径段编码 表单编码把空格写成 `+`，路径里要的是 `%20`。 */
     private fun pathPart(value: String): String = enc(value).replace("+", "%20")
 
     /** JSON 解析出错时也归一成 z-library 的异常，别把 org.json 的异常漏给上层。 */

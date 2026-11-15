@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var offline: OfflineRepo
 
     /**
-     * 音量键翻页：Compose 的 onKeyEvent 拿不到被系统优先消费的音量键，只能在这里截。
+     * 音量键翻页 Compose 的 onKeyEvent 拿不到被系统优先消费的音量键，只能在这里截。
      * 可见性与开关由 UI 侧写入 [com.alanmaster.xread.ui.ReaderPager.active]。
      */
     override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
@@ -133,7 +133,7 @@ class MainActivity : ComponentActivity() {
     /**
      * Android 13 起通知需要运行时授权。
      * 未授权时播放本身不受影响，只是看不到通知栏控制条——所以这里不阻断播放。
-     * [onResult] 用来让调用方知道最终结果：新章提醒开关如果被拒，
+     * [onResult] 用来让调用方知道最终结果 新章提醒开关如果被拒，
      * 界面还是「开」，通知却永远不会出现，必须给用户一句话。
      */
     fun requestNotificationPermissionIfNeeded(onResult: ((Boolean) -> Unit)? = null) {
@@ -153,12 +153,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         api = Api(this)
         offline = OfflineRepo.of(this)
-        // 桌面小组件点进来时带着书 id：冷启动要直接落到那本书的阅读位置。
+        // 桌面小组件点进来时带着书 id 冷启动要直接落到那本书的阅读位置。
         widgetTarget.value = bookFromIntent(intent)
-        // 尽早注入上下文：音频控制器需要它申请音频焦点（来电/其它播放器打断）
+        // 尽早注入上下文 音频控制器需要它申请音频焦点（来电/其它播放器打断）
         AudioPlaybackHolder.install(this)
 
-        // 主流做法：ComponentActivity 的 OnBackPressedDispatcher（兼容预测式返回）
+        // 主流做法 ComponentActivity 的 OnBackPressedDispatcher（兼容预测式返回）
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val action = backAction
@@ -190,7 +190,7 @@ class MainActivity : ComponentActivity() {
     /**
      * 桌面小组件要打开的那本书。
      *
-     * 用 StateFlow 而不是普通字段：小组件在应用已在后台时点进来走的是
+     * 用 StateFlow 而不是普通字段 小组件在应用已在后台时点进来走的是
      * [onNewIntent]，那会儿 Compose 已经在跑了，字段改完没有重组通知。
      */
     private val widgetTarget = MutableStateFlow<Book?>(null)
@@ -203,7 +203,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 回到前台顺手刷新小组件：进度可能是在别的入口改的。
+        // 回到前台顺手刷新小组件 进度可能是在别的入口改的。
         com.alanmaster.xread.ui.ReadingWidgetProvider.refresh(this)
     }
 
@@ -263,13 +263,13 @@ private fun App(
 ) {
     val vm: LibraryViewModel = viewModel(factory = LibraryViewModel.Factory(api, offline))
     val state by vm.state.collectAsStateWithLifecycle()
-    // Compose 里要在所有 effect 之前拿到 Context：音频服务启动依赖它
+    // Compose 里要在所有 effect 之前拿到 Context 音频服务启动依赖它
     val hostContext = androidx.compose.ui.platform.LocalContext.current
     val download by vm.downloader.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf<Screen>(Screen.Shelf) }
     var mainTab by remember { mutableStateOf<Screen>(Screen.Shelf) }
     var readerFromShelf by remember { mutableStateOf(false) }
-    /** 详情页是从阅读页点右上角进来的：返回时回正文，而不是把读者丢回书架。 */
+    /** 详情页是从阅读页点右上角进来的 返回时回正文，而不是把读者丢回书架。 */
     var detailFromReader by remember { mutableStateOf(false) }
     /**
      * 详情页的来路。榜单/分类/作者页点进去后返回要回原处——榜单是「挑书」的场景，
@@ -284,7 +284,7 @@ private fun App(
         screen = Screen.Detail(b)
     }
 
-    // 桌面小组件点进来：直接落到那本书的阅读位置（openBook 会按本地进度续读）。
+    // 桌面小组件点进来 直接落到那本书的阅读位置（openBook 会按本地进度续读）。
     val widgetBook by widgetTarget.collectAsStateWithLifecycle()
     LaunchedEffect(widgetBook) {
         val b = widgetBook ?: return@LaunchedEffect
@@ -294,7 +294,7 @@ private fun App(
         widgetTarget.value = null
     }
 
-    // 桌面「继续阅读」小组件跟着阅读进度走：换书或换章时刷一次。
+    // 桌面「继续阅读」小组件跟着阅读进度走 换书或换章时刷一次。
     androidx.compose.runtime.LaunchedEffect(state.book?.bookId, state.currentChapterId) {
         com.alanmaster.xread.ui.ReadingWidgetProvider.refresh(hostContext)
     }
@@ -306,10 +306,10 @@ private fun App(
         mutableStateOf((hostContext as? MainActivity)?.hasNotificationPermission() ?: true)
     }
 
-    // 自动备份：目录授权一次长期有效，设置面板与启动检查共用同一份快照
+    // 自动备份 目录授权一次长期有效，设置面板与启动检查共用同一份快照
     var backupUi by remember { mutableStateOf(backupUiState(hostContext)) }
     val backupScope = rememberCoroutineScope()
-    // 本地 EPUB 导入：系统文件选择器只给临时读权限，选完立刻读成字节交给 ViewModel
+    // 本地 EPUB 导入 系统文件选择器只给临时读权限，选完立刻读成字节交给 ViewModel
     val importScope = rememberCoroutineScope()
     val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -379,9 +379,9 @@ private fun App(
     // 会标题空白、返回键失效。
     var audioBook by remember { mutableStateOf<Book?>(null) }
     var audioFromFeed by remember { mutableStateOf(false) }
-    // 从搜索页「听书」tab 进来的听书：没有详情页，返回键要回搜索页。
+    // 从搜索页「听书」tab 进来的听书 没有详情页，返回键要回搜索页。
     var audioFromSearch by remember { mutableStateOf(false) }
-    /** 分组对话框的目标：单本来自长按菜单，多本来自多选模式。 */
+    /** 分组对话框的目标 单本来自长按菜单，多本来自多选模式。 */
     var groupTargets by remember { mutableStateOf<List<Book>>(emptyList()) }
     var groupDraft by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
@@ -391,7 +391,7 @@ private fun App(
     // 读完自动续下一章；用户手动停止后置 false
     var autoContinue by remember { mutableStateOf(false) }
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    // 进程级单例：离开阅读页/Activity 销毁都不能 shutdown，否则后台朗读立刻中断。
+    // 进程级单例 离开阅读页/Activity 销毁都不能 shutdown，否则后台朗读立刻中断。
     val tts = remember { com.alanmaster.xread.data.TtsHolder.install(ctx) }
     // 正在朗读的段落下标；-1 表示未在朗读
     var ttsParagraph by remember { mutableStateOf(-1) }
@@ -406,7 +406,7 @@ private fun App(
             if (autoContinue) vm.nextChapter()
         }
         onDispose {
-            // 只摘回调，不销毁引擎：后台朗读要继续
+            // 只摘回调，不销毁引擎 后台朗读要继续
             com.alanmaster.xread.data.TtsHolder.onParagraph = null
             com.alanmaster.xread.data.TtsHolder.onChapterFinished = null
         }
@@ -415,14 +415,14 @@ private fun App(
     val ttsSpeaking by tts.speakingFlow.collectAsStateWithLifecycle()
     val ttsMessage by tts.messageFlow.collectAsStateWithLifecycle()
 
-    // 新章提醒的闹钟跟着状态走：状态由 loadDownloadPolicy 在 IO 里读盘后写入，
+    // 新章提醒的闹钟跟着状态走 状态由 loadDownloadPolicy 在 IO 里读盘后写入，
     // 不在主线程做文件 IO，也不会因为启动顺序漏排。
     androidx.compose.runtime.LaunchedEffect(state.newChapterNotify) {
         if (state.newChapterNotify) com.alanmaster.xread.data.UpdateScheduler.schedule(hostContext)
         else com.alanmaster.xread.data.UpdateScheduler.cancel(hostContext)
     }
 
-    // 热更新：进界面先读一次偏好，再过节流自动查一次（一天最多一次）。
+    // 热更新 进界面先读一次偏好，再过节流自动查一次（一天最多一次）。
     // 检查/下载都是 IO，状态由 updater 自己的 StateFlow 推送，不占主线程。
     val updater = remember { com.alanmaster.xread.data.AppUpdater(hostContext) }
     val updateState by updater.state.collectAsStateWithLifecycle()
@@ -438,7 +438,7 @@ private fun App(
         }
     }
 
-    // 开始朗读就拉前台上服务：锁屏后仍可读，并从通知栏暂停/停止
+    // 开始朗读就拉前台上服务 锁屏后仍可读，并从通知栏暂停/停止
     androidx.compose.runtime.LaunchedEffect(ttsSpeaking) {
         if (ttsSpeaking) {
             (hostContext as? MainActivity)?.requestNotificationPermissionIfNeeded()
@@ -448,11 +448,11 @@ private fun App(
         }
     }
 
-    // 音频播放器：进程级单例，前台服务与界面操作同一个 MediaPlayer。
+    // 音频播放器 进程级单例，前台服务与界面操作同一个 MediaPlayer。
     // 不能在 onDispose 里 shutdown——离开听书页要能继续播。
     val audioPlayer = remember { AudioPlaybackHolder.controller() }
     val audioState by audioPlayer.state.collectAsStateWithLifecycle()
-    // 自动续章：**只在连续朗读中、且确实是新的一章时**才起播。
+    // 自动续章 **只在连续朗读中、且确实是新的一章时**才起播。
     // 旧实现把 autoContinue 也当 key，用户点「听书」后它会立刻用 startIndex=0 再播一遍，
     // 于是永远从第一段开始、还重复入队。
     var lastTtsChapter by remember { mutableStateOf("") }
@@ -460,35 +460,35 @@ private fun App(
         val c = state.flow.firstOrNull { it.id == state.currentChapterId } ?: return@LaunchedEffect
         if (!autoContinue || c.id == lastTtsChapter || c.paragraphs.isEmpty()) return@LaunchedEffect
         lastTtsChapter = c.id
-        // 正文段落读取时已套过替换规则，这里不能再套一遍：
+        // 正文段落读取时已套过替换规则，这里不能再套一遍
         // 「a => aa」这类规则会连跳两次，念出来是原文的四倍。
         tts.speak(c.paragraphs, 0, key = c.id)
     }
 
-    // 同一章重复点「播放」也要重新起播：data class 值相同不会触发 effect，
+    // 同一章重复点「播放」也要重新起播 data class 值相同不会触发 effect，
     // 因此用请求序号做 key（LibraryViewModel 每次取到地址就自增）。
     androidx.compose.runtime.LaunchedEffect(state.audioPlayRequest) {
         if (state.audioPlayRequest == 0) return@LaunchedEffect
         val a = state.audioCurrent ?: return@LaunchedEffect
-        // 首次听书时申请通知权限：没有它前台服务仍能播，但看不到控制条
+        // 首次听书时申请通知权限 没有它前台服务仍能播，但看不到控制条
         (hostContext as? MainActivity)?.requestNotificationPermissionIfNeeded()
         audioPlayer.play(a.chapterId, a.title, a.cachedUrl.ifEmpty { if (a.encrypted) "" else a.url })
-        // 起播后拉起前台服务：锁屏/离开页面仍可播，并从通知栏控制
+        // 起播后拉起前台服务 锁屏/离开页面仍可播，并从通知栏控制
         if (audioPlayer.state.value.prepared || audioPlayer.state.value.playing) {
             PlaybackService.start(hostContext)
         }
     }
 
-    // 播放进入「准备完成」时也补一次服务启动：prepareAsync 是异步的，
+    // 播放进入「准备完成」时也补一次服务启动 prepareAsync 是异步的，
     // 上面那次判断可能还没 prepared。
     androidx.compose.runtime.LaunchedEffect(audioState.prepared) {
         if (audioState.prepared) PlaybackService.start(hostContext)
     }
 
-    // 服务自己观察控制器状态：真正空闲时它自行 stopForeground + stopSelf。
+    // 服务自己观察控制器状态 真正空闲时它自行 stopForeground + stopSelf。
     // 这里**不要**再发一次停止指令——连播时上一集结束到下一集 prepare 完成之间
     // 必然出现「未准备且未播放」的瞬间，外部插一脚会把刚起播的新一集打死
-    // （实测：片花停在 0:00 且不播）。
+    // （实测 片花停在 0:00 且不播）。
 
     // 离开阅读页仍要停 TTS（它没有通知栏控制）；音频则交给前台服务继续播。
     androidx.compose.runtime.DisposableEffect(screen) {
@@ -500,7 +500,7 @@ private fun App(
             }
         }
     }
-    // 通知栏「上一集/下一集」：服务拿不到章节清单，由界面注册回调
+    // 通知栏「上一集/下一集」 服务拿不到章节清单，由界面注册回调
     androidx.compose.runtime.DisposableEffect(state.audioChapters, audioState.chapterId) {
         val list = state.audioChapters
         AudioPlaybackHolder.command = { action ->
@@ -514,7 +514,7 @@ private fun App(
         }
         onDispose { AudioPlaybackHolder.command = null }
     }
-    // 播完自动下一集：控制器回调里按当前章节定位下一条
+    // 播完自动下一集 控制器回调里按当前章节定位下一条
     androidx.compose.runtime.LaunchedEffect(state.audioChapters, audioState.chapterId) {
         val chapters = state.audioChapters
         val current = audioState.chapterId
@@ -561,31 +561,33 @@ private fun App(
         vm.loadShelf()
         vm.loadRecentDramas()
         vm.loadDramaFavorites()
+        vm.loadDramaSubscriptions()
+        vm.loadCachedDramaFeed()
         vm.loadHot()
         vm.loadFeed()
         statsSnapshot = offline.stats()
         rulesSnapshot = vm.rules()
     }
 
-    // 统计数字只在进「工具」页时刷新一次：统计卡要的是全量累计，读者在页内停留期间
+    // 统计数字只在进「工具」页时刷新一次 统计卡要的是全量累计，读者在页内停留期间
     // 不太可能同时在读书；而每次结算都回读 stats.json 会让翻页多一次读盘。
     LaunchedEffect(screen) {
         if (screen is Screen.Tools || screen is Screen.Report) statsSnapshot = offline.stats()
     }
 
-    // 目录裁剪标记：进目录时扫一次盘；下载推进时（done 变化）再扫，圆点跟着章走。
+    // 目录裁剪标记 进目录时扫一次盘；下载推进时（done 变化）再扫，圆点跟着章走。
     LaunchedEffect(screen, download.done) {
         if (screen is Screen.Toc) vm.refreshCachedChapters()
     }
 
-    // 系统返回键：面板 → 详情 → 书架，逐级回退；书架处两次退出。
+    // 系统返回键 面板 → 详情 → 书架，逐级回退；书架处两次退出。
     var lastBack by remember { mutableStateOf(0L) }
     val activity = hostContext as? MainActivity
     androidx.compose.runtime.LaunchedEffect(showSettings, screen, toolsPage, state.paragraphCommentOpen, readerFromShelf) {
         activity?.setAppBackHandler {
             when {
                 showSettings -> showSettings = false
-                // 段评面板是盖在正文上的浮层：先关它，别把读者直接踢回详情页
+                // 段评面板是盖在正文上的浮层 先关它，别把读者直接踢回详情页
                 state.paragraphCommentOpen -> vm.closeParagraphComments()
                 screen is Screen.Reader -> {
                     vm.flushStats(force = true)
@@ -685,6 +687,7 @@ private fun App(
                     onSelectMediaType = { vm.setShelfMediaType(it) },
                     recentDramas = state.recentDramas,
                     dramaFavorites = state.dramaFavorites,
+                    dramaSubscriptions = state.dramaSubscriptions,
                     onOpenDrama = { drama ->
                         vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = false)
                         screen = Screen.Drama
@@ -694,7 +697,12 @@ private fun App(
                         screen = Screen.Drama
                     },
                     onToggleFavoriteDrama = { vm.toggleDramaFavorite(it) },
-                    onDiscoverDrama = { screen = Screen.Drama },
+                    onOpenSubscription = { drama ->
+                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = false)
+                        screen = Screen.Drama
+                    },
+                    onToggleSubscriptionDrama = { vm.toggleDramaSubscription(it) },
+                    onDiscoverDrama = { vm.loadDramaFeed(); screen = Screen.Drama },
                     shelfStatus = state.shelfStatusFilter,
                     onStatusFilter = { vm.setShelfStatusFilter(it) },
                     updates = state.shelfUpdates,
@@ -707,7 +715,7 @@ private fun App(
                         groupDraft = state.shelfAll.firstOrNull { it.book.bookId == b.bookId }?.group.orEmpty()
                     },
                     onBatchGroup = { books ->
-                        // 多选时的分组起点留空：混选的几本大概率分组不同，预填谁都不对。
+                        // 多选时的分组起点留空 混选的几本大概率分组不同，预填谁都不对。
                         groupDraft = ""
                         groupTargets = books
                     },
@@ -715,7 +723,7 @@ private fun App(
                     onBatchCache = { books -> vm.cacheBooks(books) },
                     onBatchFinish = { books -> vm.markBooksFinished(books) },
                     onBatchStatus = { books, status ->
-                        // 逐本写：setBookStatus 内部会 loadShelf 刷一次，但只有一本／几本，
+                        // 逐本写 setBookStatus 内部会 loadShelf 刷一次，但只有一本／几本，
                         // 一次读盘的开销远小于给这里再造一条批量写路径。
                         books.forEach { vm.setBookStatus(it.bookId, status) }
                     },
@@ -729,7 +737,7 @@ private fun App(
                         screen = Screen.Search
                     },
                     onDiscover = { screen = Screen.Discover },
-                    // 书架是「继续阅读」的地方：点书直接进正文，不再先过详情页。
+                    // 书架是「继续阅读」的地方 点书直接进正文，不再先过详情页。
                     onOpen = { b ->
                         readerFromShelf = true
                         vm.openBook(b)
@@ -767,7 +775,7 @@ private fun App(
                         screen = Screen.AudioFeed
                     },
                     onDrama = {
-                        if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
+                        vm.loadDramaFeed()
                         screen = Screen.Drama
                     },
                     onRank = { vm.loadRankings(); screen = Screen.Rank },
@@ -812,8 +820,17 @@ private fun App(
                     onSwitchToDouyin = {
                         screen = Screen.DramaDouyin
                     },
+                    moreLoading = state.dramaMoreLoading,
+                    feedExhausted = state.dramaExhausted,
+                    onLoadMore = { vm.loadMoreDrama() },
+                    onSearch = {
+                        vm.setSearchTabType(11)
+                        screen = Screen.Search
+                    },
                     favorites = state.dramaFavorites,
                     onToggleFavorite = { vm.toggleDramaFavorite(it) },
+                    subscriptions = state.dramaSubscriptions,
+                    onToggleSubscription = { vm.toggleDramaSubscription(it) },
                     related = state.dramaRelated,
                     comments = state.dramaComments,
                     commentTotal = state.dramaCommentTotal,
@@ -839,6 +856,8 @@ private fun App(
                     feed = state.dramaFeed,
                     favorites = state.dramaFavorites,
                     onToggleFavorite = { vm.toggleDramaFavorite(it) },
+                    subscriptions = state.dramaSubscriptions,
+                    onToggleSubscription = { vm.toggleDramaSubscription(it) },
                     onBack = {
                         if (state.currentDrama != null) {
                             vm.closeDramaPlayer()
@@ -896,6 +915,8 @@ private fun App(
                     },
                     favorites = state.dramaFavorites,
                     onToggleFavorite = { vm.toggleDramaFavorite(it) },
+                    subscriptions = state.dramaSubscriptions,
+                    onToggleSubscription = { vm.toggleDramaSubscription(it) },
                     onLoadMore = { vm.loadMoreDrama() },
                     feedLoading = state.dramaFeedLoading,
                     feedError = state.dramaFeedError,
@@ -980,7 +1001,7 @@ private fun App(
             onSetStatus = { st -> (state.book ?: s.book).let { vm.setBookStatus(it.bookId, st) } },
             onSetRating = { r -> (state.book ?: s.book).let { vm.setBookRating(it.bookId, r) } },
             onSetTags = { t -> (state.book ?: s.book).let { vm.setBookTags(it.bookId, t) } },
-            // 从阅读页进来时用实时位置：state.resume 只在 openBook 时写一次，
+            // 从阅读页进来时用实时位置 state.resume 只在 openBook 时写一次，
             // 读了十几章再点详情，它还停在开书那一刻。
             resumeChapterId = if (detailFromReader) state.currentChapterId else state.resumeChapterId,
             resumeParagraph = if (detailFromReader) state.currentParagraph else state.resumeParagraph,
@@ -1028,7 +1049,7 @@ private fun App(
                     val text = buildList {
                         add(info.copyLinkText.ifBlank { "推荐《${b.title}》" })
                         if (info.subText.isNotBlank()) add(info.subText)
-                        if (b.author.isNotBlank()) add("作者：${b.author}")
+                        if (b.author.isNotBlank()) add("作者 ${b.author}")
                         if (info.shareUrl.isNotBlank()) add(info.shareUrl)
                     }.joinToString("\n")
                     val send = Intent(Intent.ACTION_SEND).apply {
@@ -1163,7 +1184,7 @@ private fun App(
             initialParagraph = state.currentParagraph,
             marksByChapter = state.marksByChapter,
             onToggleMark = { chapId, i, t, k -> vm.toggleMark(chapId, i, t, k) },
-            // 阅读页也能收书：不必退回详情页。
+            // 阅读页也能收书 不必退回详情页。
             inShelf = state.book?.let { b -> state.shelfAll.any { it.book.bookId == b.bookId } } == true,
             onToggleShelf = {
                 val b = state.book
@@ -1175,7 +1196,7 @@ private fun App(
                 // 离开阅读页先把这一段的阅读时长结掉，跟按返回键时一致。
                 vm.flushStats(force = true)
                 state.book?.let { b ->
-                    // 阅读中打开详情：只补详情字段，不动正在读的 flow。
+                    // 阅读中打开详情 只补详情字段，不动正在读的 flow。
                     vm.refreshDetail(b)
                     detailFromReader = true
                     screen = Screen.Detail(b)
@@ -1414,7 +1435,7 @@ private fun App(
                         }
                         if (res.isSuccess) BackupPrefs.setLastAt(hostContext, System.currentTimeMillis())
                         backupUi = backupUiState(hostContext)
-                        vm.notify(res.fold({ "已备份到 $it" }, { "备份失败：${it.message}" }))
+                        vm.notify(res.fold({ "已备份到 $it" }, { "备份失败 ${it.message}" }))
                     }
                 }
             },
@@ -1438,11 +1459,11 @@ private fun App(
                         }
                         if (res.isSuccess) BackupPrefs.setDavLastAt(hostContext, System.currentTimeMillis())
                         backupUi = backupUiState(hostContext)
-                        vm.notify(res.fold({ "已上传到 $it" }, { "上传失败：${it.message}" }))
+                        vm.notify(res.fold({ "已上传到 $it" }, { "上传失败 ${it.message}" }))
                     }
                 }
             },
-            // 导入是「恢复」，统计与规则都要立刻重读：只刷规则会留下导入前的旧数字，
+            // 导入是「恢复」，统计与规则都要立刻重读 只刷规则会留下导入前的旧数字，
             // 用户以为没导入成功，再点一次（旧实现重复导入还会把统计翻倍）。
             onImport = {
                 vm.importBackup {
@@ -1454,13 +1475,13 @@ private fun App(
                 val c = state.flow.firstOrNull { it.id == state.currentChapterId }
                 val paras = c?.paragraphs.orEmpty()
                 if (paras.isEmpty()) {
-                    // 冷启动直接进「我的」时 currentChapterId 还是空的：
+                    // 冷启动直接进「我的」时 currentChapterId 还是空的
                     // 旧实现什么都不做，按钮像坏了一样。这里必须说清楚要先打开一本书。
                     vm.notify("先打开一本书再朗读")
                 } else {
                     autoContinue = false
                     lastTtsChapter = c?.id.orEmpty()
-                    // 同阅读页：段落已带替换结果，不再重复套规则。
+                    // 同阅读页 段落已带替换结果，不再重复套规则。
                     tts.speak(paras, 0, key = c?.id.orEmpty())
                 }
             },
@@ -1468,7 +1489,7 @@ private fun App(
             )
             }
 
-            // 首启引导盖在最上层：它只是引导，不该改导航栈，否则返回键会把人带回一个空书架。
+            // 首启引导盖在最上层 它只是引导，不该改导航栈，否则返回键会把人带回一个空书架。
             if (state.showOnboarding) {
                 com.alanmaster.xread.ui.OnboardingScreen(
                     prefs = state.readerPrefs,
@@ -1483,7 +1504,7 @@ private fun App(
                 )
             }
 
-            // 撤销提示：Toast 没有动作按钮，「移出书架」这种会连分组一起丢的操作没法挽回。
+            // 撤销提示 Toast 没有动作按钮，「移出书架」这种会连分组一起丢的操作没法挽回。
             androidx.compose.material3.SnackbarHost(
                 hostState = undoHost,
                 modifier = androidx.compose.ui.Modifier
@@ -1491,7 +1512,7 @@ private fun App(
                     .padding(bottom = Space.navFloat),
             )
 
-            // 悬浮底栏：叠在内容之上而不是占一行高度，页面背景一直铺到屏幕下缘。
+            // 悬浮底栏 叠在内容之上而不是占一行高度，页面背景一直铺到屏幕下缘。
             if (isMainTab) {
                 FloatingNavBar(
                     items = mainNavItems,
@@ -1514,7 +1535,7 @@ private fun App(
                                 screen = Screen.Discover
                             }
                             2 -> {
-                                if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
+                                vm.loadDramaFeed()
                                 screen = Screen.Drama
                             }
                             3 -> {
@@ -1546,7 +1567,7 @@ private fun App(
             onDismissRequest = { groupTargets = emptyList() },
             title = {
                 androidx.compose.material3.Text(
-                    if (many) "分组 · 已选 ${groupTargets.size} 本" else "分组 · ${target.title}"
+                    if (many) "分组 已选 ${groupTargets.size} 本" else "分组 ${target.title}"
                 )
             },
             text = {
@@ -1608,7 +1629,7 @@ private fun App(
             onUpdateMirror = { updater.setMirror(it) },
         )
     }
-    // 阅读时长按「前台停留」结算：进后台立即结算并暂停计时，
+    // 阅读时长按「前台停留」结算 进后台立即结算并暂停计时，
     // 否则按 Home 挂一小时再回来，统计里就多出一小时。
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {

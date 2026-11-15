@@ -48,11 +48,11 @@ object ContentParser {
                 n.long("serialCount"),
             ).toInt(),
             latestChapterTitle = n.str("last_chapter_title", n.str("latest_chapter_title")),
-            // creation_status："0" 完本 / "1" 连载（实测口径）
+            // creation_status "0" 完本 / "1" 连载（实测口径）
             creationStatus = n.str("creation_status", n.str("creationStatus")),
             readCount = maxOf(n.long("read_count"), n.long("readCount")),
             serialCount = n.long("serial_count", n.long("serialCount")).toInt(),
-            // book_type："1" 有声书 / "0" 文字作品。只有它能区分二者，
+            // book_type "1" 有声书 / "0" 文字作品。只有它能区分二者，
             // 小说条目也带 listen_count，have_stt_resource 又常缺失。
             isAudio = n.str("book_type") == "1",
         )
@@ -61,12 +61,12 @@ object ContentParser {
     /**
      * 分类名。
      *
-     * 上游的 `category` 字段**不可靠**：它在榜单载荷里被当成社交证明位，
+     * 上游的 `category` 字段**不可靠** 它在榜单载荷里被当成社交证明位，
      * 实测出现过 `category = "116个老书虫在看"` 这种值（真分类在
      * `pure_category_tags = "都市日常,仕途"` 里）。
-     * 所以优先级是：`pure_category_tags` 第一段 → `category`(仅当不像计数文案) → `tags` 第一段。
+     * 所以优先级是 `pure_category_tags` 第一段 → `category`(仅当不像计数文案) → `tags` 第一段。
      *
-     * 「不像计数文案」的判据：含「在看 / 人在读 / 书友 / 人读过 / 收藏」这类词，
+     * 「不像计数文案」的判据 含「在看 / 人在读 / 书友 / 人读过 / 收藏」这类词，
      * 或整串是「数字 + 人在…」的形状。宁可不显示分类，也不把社交证明当分类印在榜单上。
      */
     private val COERCION_MARKERS = listOf("在看", "人在读", "人读过", "书友", "人在追", "收藏")
@@ -97,7 +97,7 @@ object ContentParser {
     /**
      * 听书结果要显示「在听人数」而不是「在读人数」。
      *
-     * 上游同一本书给两个数：read_count（在读）与 listen_count（在听），
+     * 上游同一本书给两个数 read_count（在读）与 listen_count（在听），
      * 有声条目上两者不等（实测 read_count=8876 / listen_count=14849）。
      * 沿用 read_count 会把「1.4 万人在听」印成在读人数。
      */
@@ -108,7 +108,7 @@ object ContentParser {
                 val parsed = book(n)
                 // listen_count 可能在 book_info 里，也可能在外层，两处都看。
                 val listen = maxOf(n.long("listen_count"), n.optJSONObject("book_info")?.long("listen_count") ?: 0L)
-                // 有声书在任何 tab 里都按「在听人数」显示：综合 tab 会把小说和有声书混在一条列表里，
+                // 有声书在任何 tab 里都按「在听人数」显示 综合 tab 会把小说和有声书混在一条列表里，
                 // 只看 tab 听不出这条是不是有声书，只有 book_type 能判。
                 val book = if ((preferListen || parsed.isAudio) && listen > 0) parsed.copy(readCount = listen) else parsed
                 result.putIfAbsent(book.bookId, book)
@@ -118,7 +118,7 @@ object ContentParser {
     }
 
 
-    /** 搜索结果：首屏数据 + 翻页游标。 */
+    /** 搜索结果 首屏数据 + 翻页游标。 */
     data class SearchPage(
         val books: List<Book>,
         val hasMore: Boolean = false,
@@ -140,9 +140,9 @@ object ContentParser {
         val tabs = payload.optJSONArray("search_tabs") ?: return SearchPage(books(payload.opt("data")))
         val all = (0 until tabs.length()).mapNotNull { tabs.optJSONObject(it) }
         val exact = all.firstOrNull { it.str("tab_type") == tabType.toString() }
-        // 命中的 tab 可能整块为空（漫画/短剧在书籍 tab 之外经常没数据），此时退回书籍 tab：
+        // 命中的 tab 可能整块为空（漫画/短剧在书籍 tab 之外经常没数据），此时退回书籍 tab
         // 拿到的本来就是书籍结果，翻页游标也必须跟书籍 tab 走，否则页码会错位。
-        // 但听书(2)与短剧(11)不回退：回退会把「有声书」悄悄换成「同名小说」，
+        // 但听书(2)与短剧(11)不回退 回退会把「有声书」悄悄换成「同名小说」，
         // 用户点开才发现根本不是刚搜到的那一本。
         val fallback = if (tabType != 3 && tabType != 2 && tabType != 11) {
             all.firstOrNull { it.str("tab_type") == "3" }
@@ -170,7 +170,7 @@ object ContentParser {
                 val row = arr.optJSONObject(i) ?: continue
                 val id = row.str("item_id")
                 if (id.isEmpty() || !seen.add(id)) continue
-                // version 是章节正文版本：段评接口（books/{id}/reviews + para_index）必需，
+                // version 是章节正文版本 段评接口（books/{id}/reviews + para_index）必需，
                 // 缺了上游直接拒为 103001。目录里没给就留空串，不编造。
                 add(Chapter(id, row.str("title", row.str("item_title")), row.str("volume_name"),
                     row.optBoolean("is_locked", false) || row.optBoolean("locked", false),
@@ -180,7 +180,7 @@ object ContentParser {
     }
 
     /**
-     * 批量章节解析：兼容 chapters/full (data.item_infos 字典或数组)
+     * 批量章节解析 兼容 chapters/full (data.item_infos 字典或数组)
      * 与 chapters/batch (data 字典)。
      * 返回 Map<chapterId, contentText>，其中 content 为解密正文。
      */
@@ -228,7 +228,7 @@ object ContentParser {
     }
 
     /**
-     * 漫画章节图片列表解析：兼容 /api/v1/manga/{id} 返回的 { "images": [...] }
+     * 漫画章节图片列表解析 兼容 /api/v1/manga/{id} 返回的 { "images": [...] }
      * 以及内嵌在 data 结构中的 images 数组。
      */
     fun mangaImages(payload: JSONObject): List<String> {
@@ -264,7 +264,7 @@ object ContentParser {
     data class RankCatalog(val id: String, val tabs: List<RankTab>, val categories: List<RankCategory>)
 
     /**
-     * 首页两个原生区块：上游把「排行榜」与「猜你喜欢」都塞在 tab_item[0].cell_data 里，
+     * 首页两个原生区块 上游把「排行榜」与「猜你喜欢」都塞在 tab_item[0].cell_data 里，
      * 只能按 cell_name 认，不能按位置猜。
      */
     data class HomeFeed(
@@ -294,9 +294,9 @@ object ContentParser {
     }
 
     /**
-     * 听书榜：上游 `recommend/homepage` 里 tab_type=5（听书）那一格。
+     * 听书榜 上游 `recommend/homepage` 里 tab_type=5（听书）那一格。
      *
-     * 不能复用 [homeFeed]：它只认「第一个有 cell_data 的 tab」，再按 cell_name 分流；
+     * 不能复用 [homeFeed] 它只认「第一个有 cell_data 的 tab」，再按 cell_name 分流；
      * 听书藏在 tab_item[4]，cell_name 是「爆款网文听听看」，两条规则都匹配不上。
      * 上游按 tab_index 决定回哪一格的 cell_data，所以 tab_index 必须跟着 tab_type 一起传。
      */
@@ -308,7 +308,7 @@ object ContentParser {
             val cells = tab.optJSONArray("cell_data") ?: continue
             val result = linkedMapOf<String, Book>()
             walk(cells) { n ->
-                // 先 parse 再取 id：有的条目把书裹在 book_info 里，
+                // 先 parse 再取 id 有的条目把书裹在 book_info 里，
                 // 直接读外层 book_id 会漏掉。
                 val parsed = book(n)
                 val id = parsed.bookId
@@ -326,9 +326,9 @@ object ContentParser {
     }
 
     /**
-     * 分类页：`data.down_category[]`，id 与榜单的 rank_sub_info_id 同源。
+     * 分类页 `data.down_category[]`，id 与榜单的 rank_sub_info_id 同源。
      *
-     * 封面字段名上游换过：老结构给 `cover`，新结构（`category_tab_config` 那套）
+     * 封面字段名上游换过 老结构给 `cover`，新结构（`category_tab_config` 那套）
      * 给 `pic_url`，两个都读，免得以后再变成空白格。
      */
     fun categories(payload: JSONObject): List<BookCategory> {
@@ -345,7 +345,7 @@ object ContentParser {
         }
     }
 
-    /** 分享文案：`data.share_url` / `copy_link_text` / `sub_text` / `text`。 */
+    /** 分享文案 `data.share_url` / `copy_link_text` / `sub_text` / `text`。 */
     fun shareInfo(payload: JSONObject): ShareInfo {
         val data = payload.optJSONObject("data") ?: payload
         return ShareInfo(
@@ -383,9 +383,9 @@ object ContentParser {
 object SocialParser {
 
     /**
-     * 书评广场：`data.comment[]`，每条自带 user_info 与 reply_list。
+     * 书评广场 `data.comment[]`，每条自带 user_info 与 reply_list。
      *
-     * 与 [reviews] 的关键差异：分页靠 offset（next_offset 回传），没有 cursor；
+     * 与 [reviews] 的关键差异 分页靠 offset（next_offset 回传），没有 cursor；
      * 也不接受 sort 参数——上游对 int 值直接报 "sort is not smart_hot"。
      */
     fun bookComments(payload: JSONObject): BookCommentPage {
@@ -451,7 +451,7 @@ object SocialParser {
     }
 
     /**
-     * 段评：data.data 是以段落序号为键的对象，值里有 count / hot / is_author_comment。
+     * 段评 data.data 是以段落序号为键的对象，值里有 count / hot / is_author_comment。
      * 只保留有评论的段落，按段落序号升序。
      *
      * `hot` / `is_author_comment` 上游给的是数字字符串（实测 `"0"` / `"1"`），
@@ -473,14 +473,14 @@ object SocialParser {
     }
 
     /**
-     * 全书热评：`data.data_list[]`，每条把内容拆成 common / stat / expand 三组。
+     * 全书热评 `data.data_list[]`，每条把内容拆成 common / stat / expand 三组。
      *
-     * 与老接口 [bookComments] 的差别在三点：
+     * 与老接口 [bookComments] 的差别在三点
      *  1. 正文在 `comment.common.content.text`，不是平铺的 `text`；
      *  2. 用户名与头像在 `comment.common.user_info.base_info` 里，要再下一层；
      *  3. 翻页是 cursor（JSON 字符串），不是 offset——cursor 必须原样回传。
      *
-     * 缺字段一律降级为空值：正文为空就丢掉这条（不造空评论），
+     * 缺字段一律降级为空值 正文为空就丢掉这条（不造空评论），
      * 其余字段缺失只影响这一项的展示，不影响整页。
      */
     fun bookHotReviews(payload: JSONObject): BookHotReviewPage {
@@ -520,12 +520,12 @@ object SocialParser {
     }
 
     /**
-     * 单个段落的段评：`books/{id}/reviews` + `para_index` + `item_version`。
+     * 单个段落的段评 `books/{id}/reviews` + `para_index` + `item_version`。
      *
      * 响应形状与 [bookHotReviews] **完全一致**（同一条上游链路，只是请求多带两个
      * 参数把结果收敛到一段），所以条目解析直接复用同一套规则，不另起一套。
      *
-     * 唯一的区别在翻页游标：全书热评的 cursor 是 JSON 字符串
+     * 唯一的区别在翻页游标 全书热评的 cursor 是 JSON 字符串
      * （`{"session_id":…,"offset":20}`），而段评这边上游给的是**数字字符串**
      * （形如 `"5"`）。它必须原样回传，不能转成 int 再拼回去——
      * 上游认的就是那个字符串。
@@ -539,7 +539,7 @@ object SocialParser {
             val comment = row.optJSONObject("comment") ?: return@mapNotNull null
             val common = comment.optJSONObject("common") ?: JSONObject()
             val text = Emoji.decode(common.optJSONObject("content")?.str("text").orEmpty().trim())
-            // 正文为空就丢掉这一条：宁可少一条，也不造一条空评论充数
+            // 正文为空就丢掉这一条 宁可少一条，也不造一条空评论充数
             if (text.isEmpty()) return@mapNotNull null
             val base = common.optJSONObject("user_info")?.optJSONObject("base_info") ?: JSONObject()
             val stat = comment.optJSONObject("stat") ?: JSONObject()
@@ -563,7 +563,7 @@ object SocialParser {
             items = items,
             total = info.optInt("total", 0),
             hasMore = info.optBoolean("has_more", false),
-            // cursor 原样留成字符串：上游要的就是这个数字字符串本身
+            // cursor 原样留成字符串 上游要的就是这个数字字符串本身
             cursor = info.str("cursor"),
         )
     }
@@ -637,7 +637,7 @@ object SocialParser {
 
 /** 真人音频解析。 */
 object AudioParser {
-    /** data.audio_tones[]：每项给出有声版本的 abook_id。 */
+    /** data.audio_tones[] 每项给出有声版本的 abook_id。 */
     fun tones(payload: JSONObject): List<AudioTone> {
         val data = payload.optJSONObject("data") ?: return emptyList()
         val arr = data.optJSONArray("audio_tones") ?: return emptyList()
@@ -665,7 +665,7 @@ object AudioParser {
                 title = title,
                 url = main.ifEmpty { backup },
                 backupUrl = if (main.isNotEmpty()) backup else "",
-                // is_encrypt 用 flag 而不是 optBoolean：上游有时给字符串 "True"/"1"，
+                // is_encrypt 用 flag 而不是 optBoolean 上游有时给字符串 "True"/"1"，
                 // optBoolean 只认 "true"/"false"，数字字符串一律读成 false。
                 encrypted = row.flag("is_encrypt", false),
                 cachedUrl = row.str("cached_url"),
@@ -789,6 +789,27 @@ object DramaParser {
         return s
     }
 
+    private fun parseDramaTags(node: JSONObject): List<String> {
+        val result = linkedSetOf<String>()
+        fun addRaw(raw: String) {
+            raw.split(',', '，', '|', '/', '、')
+                .map { it.trim() }
+                .filter { it.length in 2..8 }
+                .forEach { result.add(it) }
+        }
+        for (key in listOf("tags", "tag_list", "series_tags", "pure_category_tags", "category_name")) {
+            addRaw(node.str(key))
+        }
+        for (key in listOf("tags", "tag_list", "series_tags")) {
+            val arr = node.optJSONArray(key) ?: continue
+            for (i in 0 until arr.length()) {
+                val value = arr.optString(i).trim()
+                if (value.isNotEmpty()) addRaw(value)
+            }
+        }
+        return result.take(8)
+    }
+
     fun dramaSeries(seriesId: String, payload: JSONObject): DramaSeries {
         val data = payload.optJSONObject("data") ?: payload
         var title = data.str("series_title").ifEmpty {
@@ -876,6 +897,7 @@ object DramaParser {
             episodeCount = epCount,
             contentType = contentType,
             episodes = episodes,
+            tags = parseDramaTags(data),
         )
     }
 
@@ -899,6 +921,7 @@ object DramaParser {
                     author = author,
                     episodeCount = cnt,
                     contentType = cType,
+                    tags = parseDramaTags(node),
                 ))
             }
         }
@@ -908,7 +931,7 @@ object DramaParser {
     /**
      * 官方短剧弹幕列表。
      *
-     * 上游真实载荷是嵌套的：文本在 comment.common.content.text，
+     * 上游真实载荷是嵌套的 文本在 comment.common.content.text，
      * 编号在 comment.comment_id，时间偏移在 comment.expand.offset_time。
      * 早期载荷是扁平的（comment_id / text / start_offset_time），继续兼容。
      */

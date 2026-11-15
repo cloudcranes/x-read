@@ -85,11 +85,11 @@ class DanmakuPayloadTest {
     @Test
     fun sendFailureExplainsMissingLogin() {
         assertEquals(
-            "弹幕发不出去：上游要求番茄登录态，拾页没有登录账号。",
+            "弹幕发不出去 上游要求番茄登录态，拾页没有登录账号。",
             danmakuSendFailure("用户未登录")
         )
         assertEquals(
-            "弹幕发不出去：上游要求番茄登录态，拾页没有登录账号。",
+            "弹幕发不出去 上游要求番茄登录态，拾页没有登录账号。",
             danmakuSendFailure("弹幕发送失败（103006）")
         )
     }
@@ -97,6 +97,6 @@ class DanmakuPayloadTest {
     @Test
     fun sendFailureKeepsOtherReasons() {
         assertEquals("弹幕发送失败，请稍后再试。", danmakuSendFailure(""))
-        assertEquals("弹幕发送失败：网络超时", danmakuSendFailure("网络超时"))
+        assertEquals("弹幕发送失败 网络超时", danmakuSendFailure("网络超时"))
     }
 }

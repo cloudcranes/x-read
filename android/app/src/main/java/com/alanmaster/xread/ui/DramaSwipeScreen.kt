@@ -31,6 +31,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -66,13 +68,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import com.alanmaster.xread.data.DramaPlaySource
 import com.alanmaster.xread.data.DramaSeries
+import com.alanmaster.xread.data.DramaSubscription
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val SwipeRed = Color(0xFFFE2C55)
 
 /**
- * 刷短剧界面：一屏一部剧，只播该剧第一集，上下滑动换剧。
+ * 刷短剧界面 一屏一部剧，只播该剧第一集，上下滑动换剧。
  * 第一集播完自动进入该剧详情页并从第二集继续。
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -84,6 +87,8 @@ fun DramaSwipeScreen(
     /** 已收藏的短剧，星标状态由它派生；收藏本身落盘在 OfflineRepo。 */
     favorites: List<DramaSeries> = emptyList(),
     onToggleFavorite: (DramaSeries) -> Unit = {},
+    subscriptions: List<DramaSubscription> = emptyList(),
+    onToggleSubscription: (DramaSeries) -> Unit = {},
     drama: DramaSeries?,
     currentEpisodeId: String?,
     currentVideoSource: DramaPlaySource?,
@@ -106,7 +111,7 @@ fun DramaSwipeScreen(
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = feedError.ifBlank { "短剧暂时没能加载出来" },
+                        text = feedError.ifBlank { "加载失败" },
                         color = Color(0xFFEAEAEA),
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 32.dp),
@@ -155,7 +160,7 @@ fun DramaSwipeScreen(
         if (drama?.seriesId != first.seriesId) onLoadFirstEpisode(first)
     }
 
-    // 当前页变化：保证只播该剧的第一集
+    // 当前页变化 保证只播该剧的第一集
     LaunchedEffect(pagerState.currentPage, feed, drama?.seriesId, currentEpisodeId) {
         val target = feed.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect
         val loadedForTarget = drama?.seriesId == target.seriesId
@@ -220,9 +225,10 @@ fun DramaSwipeScreen(
             val isFirstEpisode = firstEpisodeId == null || firstEpisodeId == currentEpisodeId
             val isActive = page == pagerState.currentPage &&
                 series.seriesId == drama?.seriesId && isFirstEpisode
-            // 星标直接读收藏列表：以前只从 SharedPreferences 回填，
+            // 星标直接读收藏列表 以前只从 SharedPreferences 回填，
             // 换个页面收藏就丢了，也没有任何地方能列出收藏过什么。
             val isFavorited = favorites.any { it.seriesId == series.seriesId }
+            val isSubscribed = subscriptions.any { it.series.seriesId == series.seriesId }
 
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 AsyncImage(
@@ -317,7 +323,7 @@ fun DramaSwipeScreen(
                         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        // 只显示一句报错，用户什么都做不了：抖音流那边有「重试播放」，
+                        // 只显示一句报错，用户什么都做不了 抖音流那边有「重试播放」，
                         // 这边缺一个，用户只能退回上一页再回来。
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -325,7 +331,7 @@ fun DramaSwipeScreen(
                         ) {
                             Text(videoError, color = Color.White, fontSize = 13.sp)
                             TextButton(onClick = onRetryVideo) {
-                                Text("重试播放", color = SwipeRed)
+                                Text("重试", color = SwipeRed)
                             }
                         }
                     }
@@ -386,6 +392,22 @@ fun DramaSwipeScreen(
                     // 点赞原来在这里显示一个写死的「1.3 万」，上游根本没有短剧点赞数
                     // （digg_cnt 恒为 0，也没有点赞写接口），每部剧显示的都是同一个假数字。
                     // 现在只留收藏（真的落盘）和分享，点赞手势只剩双击红心。
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(onClick = { onToggleSubscription(series) }) {
+                            Icon(
+                                if (isSubscribed) Icons.Filled.NotificationsActive else Icons.Filled.Notifications,
+                                contentDescription = if (isSubscribed) "取消订阅" else "订阅",
+                                tint = if (isSubscribed) Color(0xFF4FC3F7) else Color.White,
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+                        Text(
+                            if (isSubscribed) "已订阅" else "订阅",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                        )
+                    }
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         IconButton(onClick = { onToggleFavorite(series) }) {
@@ -463,7 +485,7 @@ fun DramaSwipeScreen(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "共 ${series.episodeCount} 集 · 第 1 集播放完自动续播下一集",
+                        "共 ${series.episodeCount} 集 自动续播",
                         color = Color.White.copy(alpha = 0.7f),
                         fontSize = 12.sp,
                     )

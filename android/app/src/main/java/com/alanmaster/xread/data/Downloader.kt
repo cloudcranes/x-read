@@ -29,12 +29,12 @@ data class DownloadState(
 )
 
 /**
- * 批量下载：目录 → 正文**自适应并发**抓取 → 落 OfflineRepo。
+ * 批量下载 目录 → 正文**自适应并发**抓取 → 落 OfflineRepo。
  *
- * 并发窗口由 [AdaptiveConcurrency]（AIMD）动态调整：连续成功则加一，失败则减半并退避，
+ * 并发窗口由 [AdaptiveConcurrency]（AIMD）动态调整 连续成功则加一，失败则减半并退避，
  * 因此在服务端 `Transport` 串行节流或网络抖动时会自动收敛，不会撞出 `LOCAL_BUSY`。
  *
- * 续传不记账，以**磁盘上已存在的章节文件**为准：每次启动重拉目录，按 hasChapter 过滤缺失章节。
+ * 续传不记账，以**磁盘上已存在的章节文件**为准 每次启动重拉目录，按 hasChapter 过滤缺失章节。
  * 任务状态另存 tasks.json，仅用于界面标注「未完成任务（可续传）」。
  */
 class Downloader(
@@ -72,14 +72,14 @@ class Downloader(
     /**
      * 只补目录里从 [from] 开始（0 基下标）的 [count] 章，[count] = 1 就是单章补缓存。
      *
-     * 与整本下载共用同一套并发、预算与续传逻辑，区别只在待下集合：整本按
+     * 与整本下载共用同一套并发、预算与续传逻辑，区别只在待下集合 整本按
      * `maxChapters` 截断，这里按区间过滤。不做第二份循环。
      */
     fun startRange(book: Book, from: Int, count: Int) =
         launch(book, if (count <= 0 || from < 0) IntRange.EMPTY else from until (from + count))
 
     /**
-     * 等到当前任务收尾。批量缓存按顺序跑时要它：下载器同一时刻只跑一本，
+     * 等到当前任务收尾。批量缓存按顺序跑时要它 下载器同一时刻只跑一本，
      * 排队方不能在上一本还在跑的时候 start（会被直接 return 丢掉）。
      */
     suspend fun awaitIdle() {
@@ -96,14 +96,14 @@ class Downloader(
         // tasks.json 仍按「下到第几章」记账，续传才认得这次任务的范围
         val maxChapters = limit?.last?.plus(1) ?: 0
         if (job?.isActive == true) return
-        // 仅 Wi-Fi：没网或移动网络下不起跑，直接给出可操作提示，而不是把失败摊进进度
+        // 仅 Wi-Fi 没网或移动网络下不起跑，直接给出可操作提示，而不是把失败摊进进度
         if (policy.wifiOnly && !onUnmetered()) {
             _state.value = DownloadState(false, book.bookId, book.title, 0, 0,
                 "已设为仅 Wi-Fi 下载，当前网络不计费条件不满足")
             return
         }
         jobBookId = book.bookId
-        // 必须落在 IO：putBook/saveTask/chapterCount 都是同步磁盘操作，
+        // 必须落在 IO putBook/saveTask/chapterCount 都是同步磁盘操作，
         // 旧实现用 viewModelScope(Main) 启动，1496 章目录的 fsync 直接卡主线程。
         job = scope.launch(Dispatchers.IO) download@{
             var total = 0
@@ -120,7 +120,7 @@ class Downloader(
                 total = slice.size
                 // 数千次 stat 不能在主线程做
                 val pending = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                    // 只下未读：从阅读进度所在章开始；进度不存在则照常全下
+                    // 只下未读 从阅读进度所在章开始；进度不存在则照常全下
                     // 区间下载是用户手动点的那几章，不再套「只下未读」
                     val readFrom = if (limit == null && policy.skipRead)
                         offline.progress(book.bookId)?.first?.let { cid ->
@@ -137,7 +137,7 @@ class Downloader(
 
                 if (pending.isEmpty()) {
                     finish(book, maxChapters, already, total, 0, 0,
-                        "已是最新 · 本地 ${offline.chapterCount(book.bookId)} 章")
+                        "已是最新 本地 ${offline.chapterCount(book.bookId)} 章")
                     return@download
                 }
 
@@ -242,28 +242,28 @@ class Downloader(
                     if (missing > 0) append("，$missing 章失败可续传")
                 }
                 if (budgetHit.get()) {
-                    // 容量上限命中：不再继续，但已下的章节算数，任务标 partial 便于续传
+                    // 容量上限命中 不再继续，但已下的章节算数，任务标 partial 便于续传
                     offline.saveTask(taskOf(book, maxChapters, total, local, STATUS_PARTIAL, skip, missing))
                     _state.value = DownloadState(false, book.bookId, book.title, local, total,
-                        "已达存储上限 · 本地 $local 章，可续传", resumable = true,
+                        "已达存储上限 本地 $local 章，可续传", resumable = true,
                         concurrency = window.permits, skipped = skip, failed = missing)
                     return@download
                 }
                 if (missing > 0) {
-                    // 有章节没拿到：不能标 DONE，否则「可续传」列表会把它过滤掉。
+                    // 有章节没拿到 不能标 DONE，否则「可续传」列表会把它过滤掉。
                     offline.saveTask(taskOf(book, maxChapters, total, local, STATUS_PARTIAL, skip, missing))
                     _state.value = DownloadState(false, book.bookId, book.title, local, total,
-                        "完成（不完整）· 本地 $local 章$note", resumable = true,
+                        "完成（不完整） 本地 $local 章$note", resumable = true,
                         concurrency = window.permits, skipped = skip, failed = missing)
                 } else {
                     finish(book, maxChapters, local, total, skip, 0,
-                        "完成 · 本地 $local 章$note")
+                        "完成 本地 $local 章$note")
                 }
             } catch (e: CancellationException) {
                 val local = offline.chapterCount(book.bookId)
                 offline.saveTask(taskOf(book, maxChapters, total, local, STATUS_PAUSED))
                 _state.value = DownloadState(false, book.bookId, book.title, local, total,
-                    "已取消 · 本地 $local 章，可续传", resumable = true, concurrency = window.permits)
+                    "已取消 本地 $local 章，可续传", resumable = true, concurrency = window.permits)
                 throw e
             } catch (e: Exception) {
                 val local = offline.chapterCount(book.bookId)
@@ -365,7 +365,7 @@ class Downloader(
         val running = job
         _state.value = _state.value.copy(running = false, message = "已取消")
         if (running == null || !running.isActive) return
-        // 注释一直写着「取消并等待旧任务真正退场」，实现却是 cancel 完就返回：
+        // 注释一直写着「取消并等待旧任务真正退场」，实现却是 cancel 完就返回
         // 旧协程的 CancellationException 收尾仍会写 state/tasks，把紧接着新起的任务
         // 覆盖成「已取消」。这里改成真正 join，并在 join 之后再收尾。
         running.cancelAndJoin()
@@ -375,7 +375,7 @@ class Downloader(
             running = false,
             done = if (local > 0) local else _state.value.done,
             resumable = local > 0,
-            message = "已取消 · 本地 $local 章，可续传",
+            message = "已取消 本地 $local 章，可续传",
         )
     }
 

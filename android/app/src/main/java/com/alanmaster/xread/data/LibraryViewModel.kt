@@ -19,9 +19,9 @@ data class UiState(
     val shelfAll: List<ShelfItem> = emptyList(),
     val shelf: List<ShelfItem> = emptyList(),
     /**
-     * 下拉刷新完成计数：每完成一次 +1。
+     * 下拉刷新完成计数 每完成一次 +1。
      *
-     * 不用布尔标记：快到同一帧完成时布尔翻转会被合帧吃掉，UI 就再也收不回指示器。
+     * 不用布尔标记 快到同一帧完成时布尔翻转会被合帧吃掉，UI 就再也收不回指示器。
      */
     val shelfRefreshDone: Int = 0,
     val results: List<Book> = emptyList(),
@@ -41,7 +41,7 @@ data class UiState(
     /** 目录重拉完成计数，驱动下拉指示器收起（布尔会被合帧吃掉）。 */
     val tocRefreshDone: Int = 0,
     /**
-     * 连续阅读：已加载的相邻章节，按阅读顺序排列。
+     * 连续阅读 已加载的相邻章节，按阅读顺序排列。
      *
      * 滚到本章末尾会自动把下一章接在它后面（[appendNextChapter]），
      * 滚到开头会往前接上一章（[prependPreviousChapter]），
@@ -51,7 +51,7 @@ data class UiState(
     val flow: List<ChapterContent> = emptyList(),
     /** 当前活动章在 [flow] 里的下标。 */
     val flowIndex: Int = 0,
-    /** 当前读到的章 id：进度、书签、段评都按它定位。 */
+    /** 当前读到的章 id 进度、书签、段评都按它定位。 */
     val currentChapterId: String = "",
     /** 正在接下一章。 */
     val flowLoading: Boolean = false,
@@ -59,21 +59,21 @@ data class UiState(
     val flowError: String = "",
     /** 正在往流头部接上一章。 */
     val flowLoadingPrev: Boolean = false,
-    /** 上面接不动了：已经是第一章，或上一次接上一章失败。 */
+    /** 上面接不动了 已经是第一章，或上一次接上一章失败。 */
     val flowPrevDone: Boolean = false,
-    /** 跳章请求：请求序号自增即触发阅读页滚到 [scrollChapterId]。 */
+    /** 跳章请求 请求序号自增即触发阅读页滚到 [scrollChapterId]。 */
     val scrollRequest: Int = 0,
     /** 要滚到的章 id。 */
     val scrollChapterId: String = "",
     /** 要滚到的段落下标（章内）；-1 表示滚到章首页眉。 */
     val scrollParagraph: Int = -1,
-    /** 段评气泡：章 id → 该章的段落气泡（每章下标独立）。 */
+    /** 段评气泡 章 id → 该章的段落气泡（每章下标独立）。 */
     val bubblesByChapter: Map<String, List<ParagraphBubble>> = emptyMap(),
-    /** 书签与高亮：章 id → 该章的标记（每章下标独立）。 */
+    /** 书签与高亮 章 id → 该章的标记（每章下标独立）。 */
     val marksByChapter: Map<String, List<Mark>> = emptyMap(),
     /** 朗读中的章；与阅读活动章无关——朗读可以跑在读者前面。 */
     val ttsChapter: ChapterContent? = null,
-    /** 朗读请求序号：自增即触发起播。 */
+    /** 朗读请求序号 自增即触发起播。 */
     val ttsRequest: Int = 0,
     /** 本次起播的起始段落下标。 */
     val ttsRequestParagraph: Int = 0,
@@ -84,14 +84,14 @@ data class UiState(
     val chapterIndex: Int = 0,
     val offlineBooks: List<Book> = emptyList(),
     val resumable: List<OfflineRepo.DownloadTask> = emptyList(),
-    /** 目录页缓存圆点：章节键集合。整本一次扫盘，不在 composition 里做 IO。 */
+    /** 目录页缓存圆点 章节键集合。整本一次扫盘，不在 composition 里做 IO。 */
     val cachedChapters: Set<String> = emptySet(),
     /** 离线库总体积与每本书占用（字节）。 */
     val storageTotal: Long = 0,
     val bookSizes: Map<String, Long> = emptyMap(),
     val leftoverCount: Int = 0,
     val leftoverBytes: Long = 0,
-    /** 离线下载策略：仅 Wi-Fi / 容量上限 / 只下未读。 */
+    /** 离线下载策略 仅 Wi-Fi / 容量上限 / 只下未读。 */
     val downloadPolicy: DownloadPolicy = DownloadPolicy(),
     /** 每天检查一次新章并发通知。 */
     val newChapterNotify: Boolean = false,
@@ -104,7 +104,7 @@ data class UiState(
     /**
      * 刚被移出书架的条目，非空时界面给出「撤销」。
      *
-     * 存整条 ShelfItem 而不是 Book：撤销要把分组、入架时间、更新基线一起还回去，
+     * 存整条 ShelfItem 而不是 Book 撤销要把分组、入架时间、更新基线一起还回去，
      * 只凭 Book 重新入架会变成一本「今天刚加、没有分组」的新书。
      */
     val undoRemove: List<ShelfItem> = emptyList(),
@@ -122,7 +122,7 @@ data class UiState(
     val feedError: String = "",
     val feedOffset: Int = 0,
     val feedExhausted: Boolean = false,
-    /** 书评广场（books/{id}/comments）：offset 分页，无排序参数。 */
+    /** 书评广场（books/{id}/comments） offset 分页，无排序参数。 */
     val comments: List<BookComment> = emptyList(),
     val commentTotal: Int = 0,
     /** 点评人数，与评论条数不是一个口径。 */
@@ -131,7 +131,7 @@ data class UiState(
     val commentsLoading: Boolean = false,
     val commentsHasMore: Boolean = false,
     val commentsOffset: Int = 0,
-    /** 分类页：全部分类与某分类下的书。 */
+    /** 分类页 全部分类与某分类下的书。 */
     val categories: List<BookCategory> = emptyList(),
     val categoriesLoading: Boolean = false,
     val categoryBooks: List<Book> = emptyList(),
@@ -140,7 +140,7 @@ data class UiState(
     /** 段评面板打开时对应的章 id；跨章后气泡要按章取，段评请求也按章。 */
     val paragraphCommentChapter: String = "",
     /**
-     * 段评面板：当前打开的段落与它的段评列表。
+     * 段评面板 当前打开的段落与它的段评列表。
      *
      * [paragraphCommentOpen] 为 true 时界面展示这个面板。
      * 段评加载失败只落到 [paragraphCommentError] 上，**不影响正文**——
@@ -176,26 +176,26 @@ data class UiState(
     val audioBookId: String = "",
     val audioTones: List<AudioTone> = emptyList(),
     val audioTone: AudioTone? = null,
-    /** 每次取到新的音频地址就自增：同章重播时 data class 值不变，需要它触发 effect。 */
+    /** 每次取到新的音频地址就自增 同章重播时 data class 值不变，需要它触发 effect。 */
     val audioPlayRequest: Int = 0,
     /** 听书榜（发现页「官方听书」入口进来的那页）。 */
     val audioFeedBooks: List<Book> = emptyList(),
     val audioFeedLoading: Boolean = false,
     /** 听书榜加载失败的原因；空串表示没有错误。 */
     val audioFeedError: String = "",
-    /** 书架排序：recent=最近阅读, added=入架时间, title=书名, group=按分组。 */
+    /** 书架排序 recent=最近阅读, added=入架时间, title=书名, group=按分组。 */
     val shelfSort: String = "recent",
     val shelfGroupFilter: String = "",
     /**
-     * 个人标记筛选：all / want / reading / done。
+     * 个人标记筛选 all / want / reading / done。
      *
-     * 默认落在「在读」：架上的书绝大多数是在读的，进书架先看「全部」等于让每个人
+     * 默认落在「在读」 架上的书绝大多数是在读的，进书架先看「全部」等于让每个人
      * 每次再手动点一下；想看全部仍然只有一次点击的距离。
      */
     val shelfStatusFilter: String = ShelfItem.STATUS_READING,
     /** 有新章的书目 id → 最新章数。 */
     val shelfUpdates: Map<String, Int> = emptyMap(),
-    /** 查更新正在跑：既是防连点的闸，也是页头刷新图标的转圈依据。 */
+    /** 查更新正在跑 既是防连点的闸，也是页头刷新图标的转圈依据。 */
     val checkingUpdates: Boolean = false,
     /** 整轮刷新（重读书架 + 查新章）是否在跑；下拉指示器与页头图标共用。 */
     val refreshingShelf: Boolean = false,
@@ -212,7 +212,7 @@ data class UiState(
     val currentVideoSource: DramaPlaySource? = null,
     val dramaVideoLoading: Boolean = false,
     val dramaVideoError: String = "",
-    /** 下一集预取：当前播放时后台取好它的视频源，切集时直接命中本地缓存。 */
+    /** 下一集预取 当前播放时后台取好它的视频源，切集时直接命中本地缓存。 */
     val prefetchedEpisodeId: String = "",
     val prefetchedVideoSource: DramaPlaySource? = null,
     val danmakuList: List<DanmakuItem> = emptyList(),
@@ -247,6 +247,8 @@ data class UiState(
     val shelfMediaType: String = "all",
     val recentDramas: List<DramaSeries> = emptyList(),
     val dramaFavorites: List<DramaSeries> = emptyList(),
+    /** 本地短剧订阅（上游没有订阅写接口）。 */
+    val dramaSubscriptions: List<DramaSubscription> = emptyList(),
     /** 短剧剧评（与书评热评同一条上游链路）。 */
     val dramaComments: List<BookHotReview> = emptyList(),
     val dramaCommentTotal: Int = 0,
@@ -304,17 +306,17 @@ internal fun danmakuSendFailure(raw: String): String {
     val reason = raw.trim()
     if (reason.isEmpty()) return "弹幕发送失败，请稍后再试。"
     if (reason.contains("未登录") || reason.contains("103006")) {
-        return "弹幕发不出去：上游要求番茄登录态，拾页没有登录账号。"
+        return "弹幕发不出去 上游要求番茄登录态，拾页没有登录账号。"
     }
-    return "弹幕发送失败：$reason"
+    return "弹幕发送失败 $reason"
 }
 
-/** 首页一个横向榜区：榜名 + 书单。 */
+/** 首页一个横向榜区 榜名 + 书单。 */
 data class HomeBoard(val name: String, val algorithm: Int, val books: List<Book>)
 
 class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewModel() {
 
-    /** 移出书架后的撤销窗口：短到不挡手，长到够反应过来点撤销。 */
+    /** 移出书架后的撤销窗口 短到不挡手，长到够反应过来点撤销。 */
     private val UNDO_WINDOW_MS = 5_000L
 
     private val _state = MutableStateFlow(UiState())
@@ -338,16 +340,16 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         onSaved = { refreshCachedChapters() },
     )
 
-    // 阅读统计：每载入一章记一次，时长按阅读停留时间结算。
+    // 阅读统计 每载入一章记一次，时长按阅读停留时间结算。
     private var readingSince = 0L
     private var pendingWords = 0
     private var pendingChapters = 0
 
-    // 今日已读秒数的内存副本：启动时读一次 stats.json，之后由 rollToday 累加、跨日归零。
+    // 今日已读秒数的内存副本 启动时读一次 stats.json，之后由 rollToday 累加、跨日归零。
     private var todayKey = GoalMath.dayKey()
     private var todayCache = 0L
 
-    // 阅读位置的落盘节流：同章内滚动不必每滑一下都写盘。
+    // 阅读位置的落盘节流 同章内滚动不必每滑一下都写盘。
     private var progressSavedAt = 0L
 
     // MutableStateFlow.update 是 CAS 循环，读改写不会互相覆盖（多入口同时刷新时尤其重要）
@@ -366,11 +368,11 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     /**
      * 下拉刷新 = 「查新章」。
      *
-     * 只重读书架没有意义：那是本机 `shelf.json`，同一毫秒拉两次也是同一个结果。
+     * 只重读书架没有意义 那是本机 `shelf.json`，同一毫秒拉两次也是同一个结果。
      * 用户拉这一下想问的是「有没有新章」，所以这里先重读一遍书架（下载/移出会改变条目），
      * 再对全部书架书跑一次更新检查，检查结果落地后才收起指示器。
      *
-     * 不碰全局 [UiState.loading]：它是搜索/榜单/详情共用的，一旦置位，书架空列表会整个跳成
+     * 不碰全局 [UiState.loading] 它是搜索/榜单/详情共用的，一旦置位，书架空列表会整个跳成
      * 全屏 Loading()，下拉的转圈指示器也就跟着没了。
      */
     fun refreshShelf() = viewModelScope.launch {
@@ -459,7 +461,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 .onSuccess { f ->
                     update { st ->
                         val seen = (st.feedRecommended + st.feedRanked).map { it.bookId }.toSet()
-                        // 页内也要去重：上游同一页的推荐 cell 与排行 cell 常含同一本书，
+                        // 页内也要去重 上游同一页的推荐 cell 与排行 cell 常含同一本书，
                         // 只对「上一轮已展示」去重会让 LazyGrid 出现重复 key 直接崩溃。
                         val fresh = (f.recommended + f.ranked)
                             .distinctBy { it.bookId }
@@ -508,7 +510,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             }
     }
 
-    /** 漫画下滑续页：先按 offset 续取，无新内容时换题材关键词继续，按 bookId 去重追加 */
+    /** 漫画下滑续页 先按 offset 续取，无新内容时换题材关键词继续，按 bookId 去重追加 */
     fun loadMoreManga() {
         val st = _state.value
         if (st.mangaMoreLoading || st.mangaExhausted || st.mangaFeedLoading) return
@@ -627,10 +629,10 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 导入一本 z-library 电子书：下载 EPUB → 解包分章 → 写本地书 → 进书架。
+     * 导入一本 z-library 电子书 下载 EPUB → 解包分章 → 写本地书 → 进书架。
      *
      * 下载文件本体必须带账号会话；没登录就直接提示，不发请求。
-     * 只支持 EPUB：mobi/azw3 要另一套解析器，不能假装能读。
+     * 只支持 EPUB mobi/azw3 要另一套解析器，不能假装能读。
      */
     fun zlibraryImport(raw: ZLibraryBook) = viewModelScope.launch {
         if (_state.value.zlibImporting.isNotBlank() || raw.extension.lowercase() != "epub") return@launch
@@ -689,7 +691,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun search(query: String, tabType: Int = _state.value.searchTabType) = viewModelScope.launch {
         if (query.isBlank()) return@launch
         update { it.copy(loading = true, searchError = "", searchTabType = tabType) }
-        // 先记历史再发请求：搜不到也是用户真实搜过的词
+        // 先记历史再发请求 搜不到也是用户真实搜过的词
         val history = withContext(Dispatchers.IO) { offline.pushSearch(query) }
         update { it.copy(searchHistory = history) }
         // 上游 tab_type=11 是短剧、2 是听书。听书走通用分页路径，
@@ -755,7 +757,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 }
             }
             .onFailure { e ->
-                // 翻页失败不清空已有结果：读者已经看到的部分不该消失
+                // 翻页失败不清空已有结果 读者已经看到的部分不该消失
                 update { it.copy(searchMoreLoading = false, searchExhausted = true, message = e.message ?: "加载更多失败") }
             }
     }
@@ -786,7 +788,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(searchHistory = emptyList()) }
     }
 
-    /** 榜单：六榜种 × 十六分类，目录只取一次。 */
+    /** 榜单 六榜种 × 十六分类，目录只取一次。 */
     fun loadRankings(algorithm: Int = _state.value.rankAlgorithm, categoryId: String = _state.value.rankCategory) =
         viewModelScope.launch {
             update { it.copy(loading = true, rankAlgorithm = algorithm, rankCategory = categoryId) }
@@ -800,7 +802,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 .onFailure { e -> update { it.copy(loading = false, rankings = emptyList(), message = e.message ?: "榜单加载失败") } }
         }
 
-    /** 断网或服务不可达时，用本地缓存打开：章节清单与正文都取自 OfflineRepo。 */
+    /** 断网或服务不可达时，用本地缓存打开 章节清单与正文都取自 OfflineRepo。 */
     fun openOfflineBook(book: Book) = viewModelScope.launch {
         val chapters = offline.offlineChapters(book.bookId)
         if (chapters.isEmpty()) {
@@ -821,7 +823,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             update { it.copy(message = "该章未缓存") }
             return@launch
         }
-        // 先切段再套替换规则：段数不变，段评与书签下标才不用跟着换算。
+        // 先切段再套替换规则 段数不变，段评与书签下标才不用跟着换算。
         val paras = renderable(Paragraphs.split(raw.optString("content")))
         update {
             it.copy(flow = listOf(ChapterContent(target, raw.optString("title"), paras, null, null)),
@@ -833,10 +835,10 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun hasOffline(bookId: String): Boolean = offline.offlineChapters(bookId).isNotEmpty()
 
     /**
-     * 目录下拉刷新：只重拉章节列表，不动正文，也不改写阅读位置。
+     * 目录下拉刷新 只重拉章节列表，不动正文，也不改写阅读位置。
      *
      * 追更的书目录会一直变长。读者在目录页拉一下就该看到新章，而不是退回详情再进来。
-     * 计数 +1 而不是布尔，原因与书架下拉一致：布尔在同一帧翻转会被合帧吃掉，指示器收不回去。
+     * 计数 +1 而不是布尔，原因与书架下拉一致 布尔在同一帧翻转会被合帧吃掉，指示器收不回去。
      */
     fun refreshChapters() = viewModelScope.launch {
         val book = _state.value.book ?: return@launch
@@ -849,7 +851,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                         tocRefreshDone = it.tocRefreshDone + 1,
                         message = when {
                             list.size > before -> "新增 ${list.size - before} 章"
-                            list.size < before -> "目录已更新：${list.size} 章"
+                            list.size < before -> "目录已更新 ${list.size} 章"
                             else -> "目录已是最新"
                         },
                     )
@@ -866,7 +868,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     /**
      * 只补详情页需要、阅读流程不需要的数据。
      *
-     * 从阅读页点「书籍详情」时不能走 [openBook]：那会把 flow、当前章一起清掉，
+     * 从阅读页点「书籍详情」时不能走 [openBook] 那会把 flow、当前章一起清掉，
      * 返回阅读页就得从头加载。这里只刷新书籍字段与相关推荐，正文进度原样保留。
      */
     fun refreshDetail(book: Book) = viewModelScope.launch {
@@ -890,7 +892,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 commentsLoading = false, commentsHasMore = false, commentsOffset = 0)
         }
         runCatching {
-            // 上游详情接口不是每次都给全字段：第二次打开同一本书可能少回 word_number
+            // 上游详情接口不是每次都给全字段 第二次打开同一本书可能少回 word_number
             // 或 score，直接替换会让详情页从「320 万字 / 9.9 分」掉成「— / 空」。
             // 以列表里那份快照为底，只用详情接口真正给了的字段覆盖。
             val fresh = book.mergeFrom(
@@ -930,7 +932,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     private val chapterTicket = java.util.concurrent.atomic.AtomicInteger(0)
 
     fun loadChapter(chapterId: String) {
-        // 章目录都还没拿到就来重试：空编号会被当成非法参数，
+        // 章目录都还没拿到就来重试 空编号会被当成非法参数，
         // 报「作品或章节编号格式错误」——把网络问题说成了编号问题，误导且点不动。
         if (chapterId.isBlank()) {
             update { it.copy(loading = false, readerError = "章节还没加载好，请重试") }
@@ -951,7 +953,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     val paragraph = if (jump.pendingJumpChapter == chapterId && jump.pendingJumpParagraph >= 0)
                         jump.pendingJumpParagraph
                     else resumeParagraph(offline.progress(book.bookId), chapterId)
-                    // 套替换规则只在渲染侧做：离线缓存里的正文保持上游原文，
+                    // 套替换规则只在渲染侧做 离线缓存里的正文保持上游原文，
                     // 否则用户删掉规则后磁盘上的文字也回不来。
                     val rendered = c.copy(paragraphs = renderable(c.paragraphs))
                     update { it.copy(loading = false, flow = listOf(rendered), flowIndex = 0, flowPrevDone = false,
@@ -989,10 +991,10 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                         // 离线回退说明网络本来就不通，预取没有意义；只做窗口清理
                         trimAutoWindow(book, index)
                     } else {
-                        // 用 readerError 而不是 message：message 被 MainActivity 当一次性
+                        // 用 readerError 而不是 message message 被 MainActivity 当一次性
                         // 事件消费并立刻 clearMessage，正文页拿到的永远是空串。
                         // 换章失败时上一章的段评还挂在旧下标上，必须一起清掉。
-                        // 错误文案走 readableFailure：上游超时别写成编号不对。
+                        // 错误文案走 readableFailure 上游超时别写成编号不对。
                         val reason = readableFailure(e.message ?: "章节加载失败")
                         update { it.copy(loading = false, readerError = reason) }
                     }
@@ -1016,9 +1018,9 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 每次真正落到一章之后：补后面的缺口，再把窗口外的预取章清掉。
+     * 每次真正落到一章之后 补后面的缺口，再把窗口外的预取章清掉。
      *
-     * 两件事必须一起做：只预取不清理，长读一本 3000 章的书会把存储吃满；
+     * 两件事必须一起做 只预取不清理，长读一本 3000 章的书会把存储吃满；
      * 只清理不预取，窗口永远凑不齐。
      */
     private fun afterChapter(book: Book, index: Int) {
@@ -1044,9 +1046,9 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 章末读不下去时的出路：把后面几章补下来，回来了就原地续接。
+     * 章末读不下去时的出路 把后面几章补下来，回来了就原地续接。
      *
-     * 不复用 [cacheBooks]：那是「批量缓存整本」的队列，走它要等前面所有排队任务，
+     * 不复用 [cacheBooks] 那是「批量缓存整本」的队列，走它要等前面所有排队任务，
      * 而这里读者正停在章末，必须立刻下。
      */
     fun cacheNext(count: Int = 5) {
@@ -1056,7 +1058,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         if (from <= 0) return
         viewModelScope.launch {
             downloader.policy = _state.value.downloadPolicy
-            // 先把手上那本跑完再插队：startRange 在已有任务时会被直接丢掉，
+            // 先把手上那本跑完再插队 startRange 在已有任务时会被直接丢掉，
             // 读者会看到「按钮点了没反应」。等它结束再下这 5 章才是真的排上了。
             downloader.awaitIdle()
             downloader.startRange(book, from, count)
@@ -1065,7 +1067,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
-    /** 目录页「补全当前窗口」：一次补齐前 [KEEP_BEHIND] 章到后 N 章里的缺口。 */
+    /** 目录页「补全当前窗口」 一次补齐前 [KEEP_BEHIND] 章到后 N 章里的缺口。 */
     fun fillWindow() {
         val s = _state.value
         val book = s.book ?: return
@@ -1330,7 +1332,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 某个分类下的书：复用推荐榜（algo 101）+ 分类 id。
+     * 某个分类下的书 复用推荐榜（algo 101）+ 分类 id。
      * 上游的 rank_sub_info_id 只做推荐位筛选、不是严格过滤，书里会混进别的分类，
      * 所以标题写明是「推荐」，不谎称精确分类列表。
      */
@@ -1378,7 +1380,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     private val paragraphCommentTicket = java.util.concurrent.atomic.AtomicInteger(0)
 
     /**
-     * 换章时重置段评面板：旧章的段评对新章没有意义，
+     * 换章时重置段评面板 旧章的段评对新章没有意义，
      * 留着会让用户看到上一页的评论还挂在当前章的气泡上。
      */
     private fun UiState.resetParagraphComments(): UiState = copy(
@@ -1403,7 +1405,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
      * 由 `ChapterContent.upstreamParagraphIndex` 换算；换算不出就只报面板错误，
      * 不发请求（宁可报「无法定位」，也不能把评论挂到错的段落上）。
      *
-     * 失败只写进段评面板的错误位，**不碰正文**：读不到评论也要能继续看书。
+     * 失败只写进段评面板的错误位，**不碰正文** 读不到评论也要能继续看书。
      */
     fun openParagraphComments(chapterId: String, paragraph: Int) {
         val st = _state.value
@@ -1446,7 +1448,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             runCatching {
                 api.paragraphComments(book.bookId, content.id, version, upstreamIndex, count = PAGE)
             }.onSuccess { page ->
-                // 期间用户可能已经关掉面板或切到别的段落：过期响应直接丢掉
+                // 期间用户可能已经关掉面板或切到别的段落 过期响应直接丢掉
                 if (ticket != paragraphCommentTicket.get()) return@onSuccess
                 update {
                     it.copy(paragraphCommentsLoading = false, paragraphComments = page.items,
@@ -1522,7 +1524,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     /** 关闭段评面板；顺带清掉列表，免得下次打开闪出上一次的旧内容。 */
     fun closeParagraphComments() {
-        // 作废在途请求：关掉之后回来的响应不该再把面板填上
+        // 作废在途请求 关掉之后回来的响应不该再把面板填上
         paragraphCommentTicket.incrementAndGet()
         update {
             it.copy(paragraphCommentOpen = false, paragraphCommentIndex = -1,
@@ -1610,7 +1612,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             .onFailure { e -> update { it.copy(message = e.message ?: "分享文案加载失败") } }
     }
 
-    /** 整本导出：把离线章节拼成 TXT 放到外部目录。 */
+    /** 整本导出 把离线章节拼成 TXT 放到外部目录。 */
     fun exportBookText(book: Book) = viewModelScope.launch {
         val file = withContext(Dispatchers.IO) { offline.exportBookText(book.bookId) }
         update {
@@ -1627,7 +1629,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             it.copy(message = when {
                 file == null && offline.allMarks().isEmpty() -> "还没有书摘"
                 file == null -> "书摘导出失败"
-                else -> "书摘已导出：${file.name}"
+                else -> "书摘已导出 ${file.name}"
             })
         }
     }
@@ -1678,7 +1680,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(librarySearching = false) }
     }
 
-    /** 命中项跳转：与书摘同一条路径，保证落点、段落定位、返回行为完全一致。 */
+    /** 命中项跳转 与书摘同一条路径，保证落点、段落定位、返回行为完全一致。 */
     fun openTextHit(hit: TextHit, onReady: () -> Unit = {}) = viewModelScope.launch {
         update { it.copy(pendingJumpChapter = hit.chapterId, pendingJumpParagraph = hit.paragraphIndex) }
         val current = _state.value.book
@@ -1704,7 +1706,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     fun loadAuthor(authorId: String) = viewModelScope.launch {
-        // 必须清掉上一个作者：否则切作者时先渲染上一位的头像与简介
+        // 必须清掉上一个作者 否则切作者时先渲染上一位的头像与简介
         update { it.copy(loading = true, author = null) }
         runCatching { api.author(authorId) }
             .onSuccess { a -> update { it.copy(loading = false, author = a) } }
@@ -1712,7 +1714,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 阅读状态自动推进：进正文把「想读」变「在读」，读到末章最后一段变「读完」。
+     * 阅读状态自动推进 进正文把「想读」变「在读」，读到末章最后一段变「读完」。
      *
      * 手标「读完」的书重读不降级（规则见 [autoShelfStatus]）；不在书架上的书直接跳过，
      * 免得为了读一本试读本先把它塞进书架。
@@ -1731,11 +1733,11 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
-    /** 阅读位置：记录章节与段落；跨章立刻落盘，同章内按间隔节流落盘。 */
+    /** 阅读位置 记录章节与段落；跨章立刻落盘，同章内按间隔节流落盘。 */
     fun setParagraph(chapterId: String, index: Int) {
         val s = _state.value
         val chIndex = s.chapters.indexOfFirst { it.id == chapterId }.takeIf { it >= 0 } ?: s.chapterIndex
-        // 书架标记要先算：刚进正文时报的就是已保存的段落，会走下面的提前返回。
+        // 书架标记要先算 刚进正文时报的就是已保存的段落，会走下面的提前返回。
         // 也放在节流判断之前——同一章里一路读到底同样要能触发。
         s.book?.let { b ->
             val lastParagraph = s.flow.lastOrNull { it.id == chapterId }?.paragraphs?.lastIndex ?: -1
@@ -1754,7 +1756,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 flowIndex = fIndex
             )
         }
-        // 换章必须立刻写：否则「读到第 10 章退出」会把位置留在旧章。
+        // 换章必须立刻写 否则「读到第 10 章退出」会把位置留在旧章。
         // 同章内滚动也写，但要节流——读者停下来退出时由 flushStats 兜底再写一次。
         val now = System.currentTimeMillis()
         if (!progressDue(chapterChanged, progressSavedAt, now)) return
@@ -1772,7 +1774,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 正文落地到界面前的最后一道：逐段套用「正文替换」规则。
+     * 正文落地到界面前的最后一道 逐段套用「正文替换」规则。
      *
      * 必须放在这里而不是 [Api.chapter]，因为下载器也走那个方法，会把替换后的
      * 文本写进离线缓存——用户之后删掉规则，磁盘里的正文也回不来了。
@@ -1781,7 +1783,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     private fun renderable(paras: List<String>): List<String> = offline.applyRules(paras)
 
     /**
-     * 取一章正文：本地有缓存先读本地，段落为空再回落网络。
+     * 取一章正文 本地有缓存先读本地，段落为空再回落网络。
      *
      * 离线缓存只存正文，不带上下章 id；连续阅读要靠 [ChapterContent.previousId]
      * 往回接、[ChapterContent.nextId] 往后接，所以这里按目录补齐。目录里找不到
@@ -1818,7 +1820,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         return online.copy(paragraphs = renderable(online.paragraphs))
     }
 
-    /** 跨章连续阅读：在流末尾追加下一章。 */
+    /** 跨章连续阅读 在流末尾追加下一章。 */
     fun appendNextChapter() {
         val s = _state.value
         if (s.flowLoading) return
@@ -1845,7 +1847,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     }
                     loadBubbles(c.id)
                     loadMarks(c.id)
-                    // 续接到新的一章：缺口从新位置重算，否则预取永远停在打开时那一屏
+                    // 续接到新的一章 缺口从新位置重算，否则预取永远停在打开时那一屏
                     val at = _state.value.chapters.indexOfFirst { it.id == c.id }
                     if (at >= 0) afterChapter(book, at)
                 }
@@ -1857,7 +1859,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 跨章连续阅读：在流头部接上一章。
+     * 跨章连续阅读 在流头部接上一章。
      *
      * 和 [appendNextChapter] 是一对。没有它时，流的第一章永远是打开时那一章，
      * 读者从第 2 章往下能丝滑读到第 3 章，往回滚到第 2 章开头却什么都没有——
@@ -1879,7 +1881,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             val ticket = chapterTicket.get()
             runCatching { chapterContent(book, prevId, fallbackPrevId = null, fallbackNextId = first.id) }
                 .onSuccess { c ->
-                    // 期间读者跳章了：接上来的这章不属于新流，只把加载态放下
+                    // 期间读者跳章了 接上来的这章不属于新流，只把加载态放下
                     if (ticket != chapterTicket.get()) {
                         update { it.copy(flowLoadingPrev = false) }
                         return@onSuccess
@@ -1906,21 +1908,21 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                         update { it.copy(flowLoadingPrev = false) }
                         return@onFailure
                     }
-                    // 失败也要停手：不停的话滚到顶会反复重试，网络一抖就一直打
+                    // 失败也要停手 不停的话滚到顶会反复重试，网络一抖就一直打
                     update { it.copy(flowLoadingPrev = false, flowPrevDone = true, message = "上一章加载失败") }
                 }
         }
     }
 
     /**
-     * 冷启动要恢复的那本书：进度文件里 `at` 最新的一条，且不超过 [SESSION_RESTORE_TTL_MS]。
+     * 冷启动要恢复的那本书 进度文件里 `at` 最新的一条，且不超过 [SESSION_RESTORE_TTL_MS]。
      *
      * 书目本身还在本地 bookcase 里才返回——书架删掉的书不该把读者拽进阅读页。
      */
     suspend fun lastSessionBook(now: Long = System.currentTimeMillis()): Book? {
         val (saved, at) = offline.lastSession() ?: return null
         if (!shouldRestoreSession(at, now)) return null
-        // 在架书目优先：它有最新的章节数等元信息；不在架（从发现/榜单点进去读过）时
+        // 在架书目优先 它有最新的章节数等元信息；不在架（从发现/榜单点进去读过）时
         // 用进度记录里存的副本，书名封面都在，照旧能进阅读页。
         val onShelf = runCatching { api.shelf() }.getOrDefault(emptyList())
             .firstOrNull { it.book.bookId == saved.bookId }?.book
@@ -1928,7 +1930,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     companion object {
-        /** 书评每页条数：上游对 count 上限敏感，20 与既有翻页手感一致。 */
+        /** 书评每页条数 上游对 count 上限敏感，20 与既有翻页手感一致。 */
         private const val PAGE = 20
 
         /**
@@ -1950,7 +1952,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             chapterChanged || lastSavedAt <= 0L || now - lastSavedAt >= PROGRESS_SAVE_INTERVAL_MS
 
         /**
-         * 冷启动自动回到上次阅读位置的时限：超过一天就不再打扰，直接停在书架。
+         * 冷启动自动回到上次阅读位置的时限 超过一天就不再打扰，直接停在书架。
          *
          * 再久之前的「上次在读」多半是另一本书/另一段时期的上下文，直接跳进去反而突然。
          */
@@ -1967,10 +1969,10 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             if (saved != null && saved.first == chapterId) saved.second.coerceAtLeast(0) else 0
 
         /**
-         * 流头部那一章的上一章 id：先信章节自带的 `previousId`，
+         * 流头部那一章的上一章 id 先信章节自带的 `previousId`，
          * 再退回目录里它前面的那一本；都在最前面就返回 null。
          *
-         * 退路是必需的：离线读出来的章没有 `previousId`（缓存里只有正文），
+         * 退路是必需的 离线读出来的章没有 `previousId`（缓存里只有正文），
          * 只认它的话向上连续阅读对下载过的书直接失效。
          */
         fun previousChapterId(head: ChapterContent?, chapters: List<Chapter>): String? {
@@ -1981,13 +1983,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
-    /** 打开听书：取音频目录（章节清单来自普通目录，音频地址单独按章取）。 */
+    /** 打开听书 取音频目录（章节清单来自普通目录，音频地址单独按章取）。 */
     /**
-     * 打开听书：小说 id → tones（取 abook_id）→ 有声目录。
+     * 打开听书 小说 id → tones（取 abook_id）→ 有声目录。
      * 直接用小说 id 打音频接口会返回 NO_THIS_TONE，故这里必须两步。
      */
     fun openAudio(book: Book) = viewModelScope.launch {
-        // 回到同一本书的听书页且正在播：保留当前章节，不要从第一集重播。
+        // 回到同一本书的听书页且正在播 保留当前章节，不要从第一集重播。
         val current = _state.value
         val sameBook = current.audioBookId == book.bookId && current.audioCurrent != null
         val playingId = AudioPlaybackHolder.controller().state.value.chapterId
@@ -2032,7 +2034,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     fun playAudio(chapter: Chapter) = viewModelScope.launch {
         val abookId = _state.value.audioTone?.abookId ?: return@launch
-        // 请求序号：快速点 A、B 两章时，先发的 A 晚到会把 B 顶掉（loadChapter 已有同款对照）。
+        // 请求序号 快速点 A、B 两章时，先发的 A 晚到会把 B 顶掉（loadChapter 已有同款对照）。
         val ticket = audioTicket.incrementAndGet()
         lastAudioChapter = chapter
         update { it.copy(audioLoading = true, audioError = "", audioTimeline = null) }
@@ -2067,12 +2069,12 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     /** 下一集视频源预取任务；切剧/关播放器时取消。 */
     private var dramaPrefetchJob: kotlinx.coroutines.Job? = null
 
-    /** 书库全文检索任务：换词就取消上一轮，否则旧结果会盖住新结果。 */
+    /** 书库全文检索任务 换词就取消上一轮，否则旧结果会盖住新结果。 */
     private var libraryJob: kotlinx.coroutines.Job? = null
 
     private val audioTicket = java.util.concurrent.atomic.AtomicInteger()
 
-    /** 记住上次尝试的章节：失败时 audioCurrent 被置 null，重试不能依赖它。 */
+    /** 记住上次尝试的章节 失败时 audioCurrent 被置 null，重试不能依赖它。 */
     private var lastAudioChapter: Chapter? = null
 
     fun retryAudio() {
@@ -2114,7 +2116,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         )
     }
 
-    /** 批量标记读完：把进度下标推到最后一章，正文位置保持不动。 */
+    /** 批量标记读完 把进度下标推到最后一章，正文位置保持不动。 */
     fun markBooksFinished(books: List<Book>) = viewModelScope.launch {
         if (books.isEmpty()) return@launch
         var marked = 0
@@ -2153,7 +2155,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
         update { it.copy(undoRemove = snapshot) }
         loadShelf()
-        // 成功时不再发 toast：界面会用带「撤销」的 Snackbar 说同一句话，双份提示很吵。
+        // 成功时不再发 toast 界面会用带「撤销」的 Snackbar 说同一句话，双份提示很吵。
         if (failed > 0) notify("移出 ${snapshot.size - failed} 本，失败 $failed 本")
         undoJob?.cancel()
         undoJob = viewModelScope.launch {
@@ -2186,7 +2188,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
      */
     fun cacheBooks(books: List<Book>) {
         if (books.isEmpty()) return
-        // 正在读的那本插到队首：用户点「缓存」通常就是想让手上这本先能离线读，
+        // 正在读的那本插到队首 用户点「缓存」通常就是想让手上这本先能离线读，
         // 先来先得会让它排在七本无关的书后面。
         val current = _state.value.book?.bookId
         val ordered = if (current == null) books
@@ -2194,7 +2196,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         synchronized(cacheQueue) { cacheQueue.addAll(ordered) }
         val pending = synchronized(cacheQueue) { cacheQueue.size }
         update { it.copy(cacheQueueSize = pending) }
-        notify("已加入缓存队列：${books.size} 本")
+        notify("已加入缓存队列 ${books.size} 本")
         if (queuePumping) return
         queuePumping = true
         viewModelScope.launch {
@@ -2209,24 +2211,24 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             }
             queuePumping = false
             update { it.copy(cacheQueueSize = 0) }
-            notify("批量缓存完成：$finished 本")
+            notify("批量缓存完成 $finished 本")
         }
     }
 
     /** 取消当前下载并清空排队中的书。 */
     fun cancelDownloads() = viewModelScope.launch {
-        // 队列先清：只取消当前任务的话，泵会立刻把下一本拉起来，用户会以为「取消没生效」。
+        // 队列先清 只取消当前任务的话，泵会立刻把下一本拉起来，用户会以为「取消没生效」。
         val pending = synchronized(cacheQueue) { cacheQueue.size.also { cacheQueue.clear() } }
         update { it.copy(cacheQueueSize = 0) }
         downloader.cancel()
-        // 预取也停：用户按下取消，不是只想停掉排队里的那几本
+        // 预取也停 用户按下取消，不是只想停掉排队里的那几本
         prefetcher.cancel()
         refreshOffline()
         if (pending > 0) notify("已清空排队中的 $pending 本")
     }
 
     fun startDownload(book: Book, maxChapters: Int) {
-        // 每次起跑前同步一次策略：设置页改完立刻生效，不需要重启
+        // 每次起跑前同步一次策略 设置页改完立刻生效，不需要重启
         downloader.policy = _state.value.downloadPolicy
         downloader.start(book, maxChapters)
     }
@@ -2258,7 +2260,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 else -> byGroup
             }
             return when (sort) {
-                // 「最近」= 最近一次活动：读过看阅读时间，没读过看入架时间。
+                // 「最近」= 最近一次活动 读过看阅读时间，没读过看入架时间。
                 // 旧实现让没读过的书永远沉底，刚加入书架的书反而找不到。
                 "recent" -> byMedia.sortedWith(
                     compareByDescending<ShelfItem> { maxOf(it.lastReadAt, it.addedAt) })
@@ -2296,7 +2298,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun setShelfSort(sort: String) {
         require(sort in setOf("recent", "added", "title", "group")) { "未知排序" }
         update {
-            // 传新 sort，且沿用当前分组过滤：否则选中「分组X」切排序就会显示全部书
+            // 传新 sort，且沿用当前分组过滤 否则选中「分组X」切排序就会显示全部书
             it.copy(shelfSort = sort,
                 shelf = ShelfSort.apply(
                     it.shelfAll, sort, it.shelfGroupFilter, it.shelfMediaType, it.shelfStatusFilter
@@ -2356,7 +2358,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
      * 不能先返回再后台跑。
      */
     private suspend fun checkUpdatesNow() {
-        // 用 shelfAll：shelf 可能被分组过滤过，用它会漏掉其余书的更新
+        // 用 shelfAll shelf 可能被分组过滤过，用它会漏掉其余书的更新
         val items = _state.value.shelfAll
         if (items.isEmpty() || _state.value.checkingUpdates) return
         update { it.copy(checkingUpdates = true) }
@@ -2401,13 +2403,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(message = if (removed > 0) "已清理 $removed 个残留文件" else "没有可清理的残留") }
     }
 
-    /** 删除中／取消下载的入口：cancel() 现在是 suspend 且会真正 join 旧任务。 */
+    /** 删除中／取消下载的入口 cancel() 现在是 suspend 且会真正 join 旧任务。 */
     fun cancelDownload(refresh: Boolean = false) = viewModelScope.launch {
         downloader.cancel()
         if (refresh) refreshOffline()
     }
 
-    /** 删本地书：deleteRecursively 可能上千个文件，必须离开主线程。 */
+    /** 删本地书 deleteRecursively 可能上千个文件，必须离开主线程。 */
     fun deleteOfflineBook(bookId: String) = viewModelScope.launch {
         // 先停掉这本书正在跑的下载，否则 worker 的 mkdirs 会在删除后把目录重建，
         // 删完又「复活」成半本（chapterCount 随后还会把它标成完成）。
@@ -2444,7 +2446,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         downloader.startRange(book, index, count)
     }
 
-    /** 删掉单章缓存：容量吃紧时先清掉读过的几百章，不必删整本。 */
+    /** 删掉单章缓存 容量吃紧时先清掉读过的几百章，不必删整本。 */
     fun uncacheChapter(chapterId: String) = viewModelScope.launch {
         val book = _state.value.book ?: return@launch
         val ok = withContext(Dispatchers.IO) { offline.removeChapter(book.bookId, chapterId) }
@@ -2470,7 +2472,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     /**
      * 把当前阅读位置落盘。
      *
-     * 和 [flushStats] 分开，因为两者的触发条件不同：阅读时长只在「真的读了」时结算，
+     * 和 [flushStats] 分开，因为两者的触发条件不同 阅读时长只在「真的读了」时结算，
      * 而阅读位置任何时候都可以安全重写。合在一起会让「没在计时」顺带吞掉进度保存。
      */
     fun saveReadingProgress(): Boolean {
@@ -2483,7 +2485,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     /** 结算阅读时长；离屏、切章或退出前调用。 */
     fun flushStats(force: Boolean = false): Boolean {
-        // 进度不该被计时状态挡住：退出阅读页时若暂停过计时（readingSince 已归零），
+        // 进度不该被计时状态挡住 退出阅读页时若暂停过计时（readingSince 已归零），
         // 旧实现在这里直接 return，于是进度一条都没写，重进就回到旧章节。
         val progressed = saveReadingProgress()
         if (readingSince == 0L) return progressed
@@ -2527,7 +2529,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 进后台：结算已读时长并**停止计时**。
+     * 进后台 结算已读时长并**停止计时**。
      * 只调用 [flushStats] 不够——它会把起点重置为「现在」，
      * 于是后台停留的时间照样计入下次结算。
      */
@@ -2536,7 +2538,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         readingSince = 0L
     }
 
-    /** 回前台：若正文仍在，重新开始计时（否则要等切章才会计入时长）。 */
+    /** 回前台 若正文仍在，重新开始计时（否则要等切章才会计入时长）。 */
     fun resumeReading() {
         if (readingSince == 0L && _state.value.currentChapterId.isNotEmpty()) {
             readingSince = System.currentTimeMillis()
@@ -2549,7 +2551,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(reminder = r) }
     }
 
-    /** 落盘在前、界面在后：闹钟由调用方（Activity）按新值重排。 */
+    /** 落盘在前、界面在后 闹钟由调用方（Activity）按新值重排。 */
     fun setReminder(reminder: ReadingReminder) {
         val r = reminder.normalized()
         update { it.copy(reminder = r) }
@@ -2566,7 +2568,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         if (needed) update { it.copy(showOnboarding = true) }
     }
 
-    /** 结束引导：标记写盘后立刻撤掉浮层，不等 IO。 */
+    /** 结束引导 标记写盘后立刻撤掉浮层，不等 IO。 */
     fun finishOnboarding() {
         update { it.copy(showOnboarding = false) }
         viewModelScope.launch(Dispatchers.IO) { offline.saveOnboarded() }
@@ -2594,7 +2596,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         val p = withContext(Dispatchers.IO) { offline.downloadPolicy() }
         val notify = withContext(Dispatchers.IO) { offline.newChapterNotifyEnabled() }
         downloader.policy = p
-        // 预取器也要拿到落盘的档位：只同步 downloader 的话，重启后预取会按缺省 3 章跑，
+        // 预取器也要拿到落盘的档位 只同步 downloader 的话，重启后预取会按缺省 3 章跑，
         // 用户在设置里选的「关」或「后 10 章」等于没生效。
         prefetcher.policy = p
         update { it.copy(downloadPolicy = p, newChapterNotify = notify) }
@@ -2611,13 +2613,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         else if (_state.value.chapters.isNotEmpty()) afterChapter(book, _state.value.chapterIndex)
     }
 
-    /** 载入阅读器偏好：磁盘读写统一走 IO。 */
+    /** 载入阅读器偏好 磁盘读写统一走 IO。 */
     fun loadReaderPrefs() = viewModelScope.launch {
         val prefs = withContext(Dispatchers.IO) { offline.readerPrefs() }
         update { it.copy(readerPrefs = prefs) }
     }
 
-    /** 恢复追剧记录：书架「短剧」页靠它，进程重启后不再永远是空的。 */
+    /** 恢复追剧记录 书架「短剧」页靠它，进程重启后不再永远是空的。 */
     fun loadRecentDramas() = viewModelScope.launch {
         val recent = withContext(Dispatchers.IO) { offline.dramaRecent() }
         if (recent.isEmpty()) return@launch
@@ -2628,10 +2630,16 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
-    /** 恢复短剧收藏：以前只写 SharedPreferences 的布尔值，界面上根本没有地方读回来。 */
+    /** 恢复短剧收藏 以前只写 SharedPreferences 的布尔值，界面上根本没有地方读回来。 */
     fun loadDramaFavorites() = viewModelScope.launch {
         val favorites = withContext(Dispatchers.IO) { offline.dramaFavorites() }
         update { it.copy(dramaFavorites = favorites) }
+    }
+
+    /** 恢复本地短剧订阅。 */
+    fun loadDramaSubscriptions() = viewModelScope.launch {
+        val subscriptions = withContext(Dispatchers.IO) { offline.dramaSubscriptions() }
+        update { it.copy(dramaSubscriptions = subscriptions) }
     }
 
     /**
@@ -2642,6 +2650,14 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         val next = !current
         val updated = withContext(Dispatchers.IO) { offline.setDramaFavorite(series, next) }
         update { it.copy(dramaFavorites = updated, message = if (next) "已收藏《${series.title}》" else "已取消收藏") }
+    }
+
+    /** 订阅/取消订阅一部短剧；订阅后书架「我的订阅」会出现，并标记后续更新集数。 */
+    fun toggleDramaSubscription(series: DramaSeries) = viewModelScope.launch {
+        val current = _state.value.dramaSubscriptions.any { it.series.seriesId == series.seriesId }
+        val next = !current
+        val updated = withContext(Dispatchers.IO) { offline.setDramaSubscription(series, next) }
+        update { it.copy(dramaSubscriptions = updated, message = if (next) "已订阅《${series.title}》" else "已取消订阅") }
     }
 
     fun setReaderPrefs(prefs: ReaderPrefs) = viewModelScope.launch {
@@ -2661,7 +2677,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 导入备份。写盘在 IO 完成之后才回调 [onDone]：
+     * 导入备份。写盘在 IO 完成之后才回调 [onDone]
      * 旧实现 UI 紧接着同步读 rules()/loadShelf()，拿到的是导入**之前**的数据，
      * 于是「保存规则」会用旧快照把刚导入的规则覆盖回去。
      */
@@ -2685,30 +2701,73 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         ) }
     }
 
+    /** 启动时只把上次缓存放进状态，避免后台网络预取流量；进入短剧页时再刷新。 */
+    fun loadCachedDramaFeed() {
+        viewModelScope.launch {
+            val cached = withContext(Dispatchers.IO) { offline.dramaFeedCache() }
+            if (cached.isNotEmpty()) {
+                update { if (it.dramaFeed.isEmpty()) it.copy(dramaFeed = cached) else it }
+                refreshDramaSubscriptionsFromFeed()
+            }
+        }
+    }
+
     fun loadDramaFeed() {
         viewModelScope.launch {
+            // 先读上次成功缓存 有缓存就直接出媒体墙，网络刷新在后台补/替换。
+            val cached = withContext(Dispatchers.IO) { offline.dramaFeedCache() }
             update {
-                it.copy(dramaFeedLoading = true, dramaOffset = 0, dramaExhausted = false,
-                    dramaMoreLoading = false, dramaFeedError = "")
+                val hasFeed = it.dramaFeed.isNotEmpty() || cached.isNotEmpty()
+                it.copy(
+                    dramaFeed = if (it.dramaFeed.isEmpty()) cached else it.dramaFeed,
+                    dramaFeedLoading = !hasFeed,
+                    dramaOffset = 0,
+                    dramaExhausted = false,
+                    dramaMoreLoading = false,
+                    dramaFeedError = "",
+                )
             }
             try {
-                // 先取首个 cell 让界面立刻可滑，再补齐其余 cell
-                val quick = api.dramaFeed(maxCells = 2)
-                update { it.copy(dramaFeed = quick, dramaFeedLoading = false, dramaOffset = 10) }
+                // 先取首个频道让界面立刻可滑，再并发补齐其余频道。
+                val quick = api.dramaFeed(maxCells = 1)
+                if (quick.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { offline.saveDramaFeed(quick) }
+                    update { cur ->
+                        val merged = (cur.dramaFeed + quick).distinctBy { it.seriesId }
+                        cur.copy(dramaFeed = merged, dramaFeedLoading = false, dramaOffset = 10)
+                    }
+                    refreshDramaSubscriptionsFromFeed()
+                }
                 val full = api.dramaFeed(maxCells = 10)
-                if (full.size > quick.size) {
-                    update { it.copy(dramaFeed = full, dramaOffset = 10) }
+                if (full.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { offline.saveDramaFeed(full) }
+                    update { it.copy(dramaFeed = full, dramaFeedLoading = false, dramaOffset = 10) }
+                    refreshDramaSubscriptionsFromFeed()
+                } else {
+                    update { it.copy(dramaFeedLoading = false) }
                 }
             } catch (e: Exception) {
-                // 短剧页是全屏播放器，加载失败必须自己说清楚，否则只剩一个转不停的圈
+                // 有缓存时保留缓存，不把整页打回错误态。
                 update {
-                    it.copy(dramaFeedLoading = false, dramaFeedError = readableFailure(e.message.orEmpty()))
+                    it.copy(
+                        dramaFeedLoading = false,
+                        dramaFeedError = if (it.dramaFeed.isEmpty()) readableFailure(e.message.orEmpty()) else "",
+                    )
                 }
             }
         }
     }
 
-    /** 短剧下滑续页：沿频道首页 offset 往后翻，按 seriesId 去重追加 */
+    private suspend fun refreshDramaSubscriptionsFromFeed() {
+        val subscriptions = withContext(Dispatchers.IO) {
+            offline.refreshDramaSubscriptionEpisodes(_state.value.dramaFeed)
+        }
+        if (subscriptions.isNotEmpty()) {
+            update { it.copy(dramaSubscriptions = subscriptions) }
+        }
+    }
+
+    /** 短剧下滑续页 沿频道首页 offset 往后翻，按 seriesId 去重追加 */
     fun loadMoreDrama() {
         val st = _state.value
         if (st.dramaMoreLoading || st.dramaExhausted || st.dramaFeedLoading) return
@@ -2726,6 +2785,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                             dramaMoreLoading = false,
                         )
                     }
+                    withContext(Dispatchers.IO) { offline.saveDramaFeed(_state.value.dramaFeed) }
                 }
                 .onFailure { update { it.copy(dramaMoreLoading = false) } }
         }
@@ -2752,11 +2812,12 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     author = parsed.author.ifBlank { feedItem.author },
                     episodeCount = if (parsed.episodeCount > 0) parsed.episodeCount else feedItem.episodeCount,
                 )
-                // 落盘后再更新界面：追剧记录以前只存在内存，杀进程就没了。
+                // 落盘后再更新界面 追剧记录以前只存在内存，杀进程就没了。
                 val persisted = offline.pushDramaRecent(drama)
                 val updatedRecent =
                     if (persisted.isNotEmpty()) persisted
                     else (listOf(drama) + _state.value.recentDramas.filterNot { it.seriesId == drama.seriesId }).take(20)
+                val updatedSubscriptions = offline.markDramaSubscriptionSeen(drama)
                 dramaPrefetchJob?.cancel()
                 dramaPrefetchJob = null
                 update { it.copy(
@@ -2765,6 +2826,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     prefetchedEpisodeId = "",
                     prefetchedVideoSource = null,
                     recentDramas = updatedRecent,
+                    dramaSubscriptions = updatedSubscriptions,
                 ) }
                 loadDramaRelated(drama.seriesId)
                 if (autoPlayFirst && drama.episodes.isNotEmpty()) {
@@ -2806,7 +2868,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     /**
-     * 后台预取下一集视频源：短剧接口非 stream 模式会把文件解密落到本地，
+     * 后台预取下一集视频源 短剧接口非 stream 模式会把文件解密落到本地，
      * 等当前集播完直接切本地文件，避免在用户面前等待接口。
      */
     private fun prefetchNextDramaEpisode(episode: DramaEpisode) {
@@ -2870,7 +2932,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             try {
                 val ok = api.sendDramaDanmaku(series.seriesId, ep.episodeId, text.trim(), currentOffsetMs)
                 if (!ok) {
-                    // code 是成功但 body 不是 success 形态：同样算没发出去，
+                    // code 是成功但 body 不是 success 形态 同样算没发出去，
                     // 不然用户会看到自己那条留在屏上，却根本没上墙。
                     update { state ->
                         state.copy(danmakuList = state.danmakuList.filterNot { it.id == optimistic.id })
@@ -3004,7 +3066,7 @@ object ParagraphBubbleIndex {
     /**
      * 把上游段评气泡的键换算成应用段落下标。
      *
-     * 上游键与段评请求参数 `para_index` 同一坐标系：0-based，且**不计章节标题行**
+     * 上游键与段评请求参数 `para_index` 同一坐标系 0-based，且**不计章节标题行**
      * （实测 47 章的 `paragraphs_num` 与首行标题一致）。应用第 0 段恰是那行标题，
      * 所以应用下标 = 上游键 + [ParagraphOffsets.UPSTREAM_TITLE_OFFSET]。
      *

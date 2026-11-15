@@ -49,9 +49,9 @@ import com.alanmaster.xread.data.ZLibraryImportMapper
 import com.alanmaster.xread.data.ZLibrarySession
 
 /**
- * Z-Library 电子书：搜索 → 下载 EPUB → 导入书架。
+ * Z-Library 电子书 搜索 → 下载 EPUB → 导入书架。
  *
- * 权限边界（实测）：搜索与详情走 EAPI，**不需要登录**；下载文件本体与在线阅读
+ * 权限边界（实测） 搜索与详情走 EAPI，**不需要登录**；下载文件本体与在线阅读
  * 需要用户自己的 z-library 账号，没登录时下载会回 401。所以登录入口只影响「导入」，
  * 不挡搜索——先让用户能搜到书，再提示登录。
  */
@@ -210,8 +210,8 @@ private fun ZLibraryRow(book: ZLibraryBook, importing: Boolean, busy: Boolean, o
             Text(
                 text = buildString {
                     if (book.author.isNotBlank()) append(book.author)
-                    if (book.year > 0) { if (isNotEmpty()) append(" · "); append(book.year) }
-                    if (book.language.isNotBlank()) { if (isNotEmpty()) append(" · "); append(book.language) }
+                    if (book.year > 0) { if (isNotEmpty()) append(" "); append(book.year) }
+                    if (book.language.isNotBlank()) { if (isNotEmpty()) append(" "); append(book.language) }
                 },
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -222,8 +222,8 @@ private fun ZLibraryRow(book: ZLibraryBook, importing: Boolean, busy: Boolean, o
             Text(
                 text = buildString {
                     append(book.extension.uppercase().ifBlank { "未知格式" })
-                    if (book.fileSizeText.isNotBlank()) append(" · ${book.fileSizeText}")
-                    if (book.pages > 0) append(" · ${book.pages} 页")
+                    if (book.fileSizeText.isNotBlank()) append(" ${book.fileSizeText}")
+                    if (book.pages > 0) append(" ${book.pages} 页")
                 },
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -309,7 +309,7 @@ private fun ZLibraryLoginDialog(
                         Text(error, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                     }
                 } else {
-                    Text("已登录，用户 id：${session.userId}", fontSize = 13.sp)
+                    Text("已登录，用户 id ${session.userId}", fontSize = 13.sp)
                     Text(
                         "退出后不影响已导入的书，只是不能再下载新的。",
                         fontSize = 12.sp,
