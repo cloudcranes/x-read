@@ -43,6 +43,10 @@ const DIRECTORY_READING_QUERY_SUFFIX: &str = "&book_info_md5=&need_version=true&
 
 const VIDEO_DETAIL_PATH: &str = "/novel/player/video_detail/v1/";
 
+/// 视频模型接口空包重试次数。HTTP 200 + 0 字节是上游偶发行为，
+/// 重建一次请求通常能拿到非空 body；重试会自然轮换设备池中的设备。
+const VIDEO_MODEL_MAX_ATTEMPTS: usize = 2;
+
 static VIDEO_CACHE_LOCK: Lazy<tokio::sync::Mutex<()>> = Lazy::new(|| tokio::sync::Mutex::new(()));
 
 // Note: 编码拒绝必须穿透回退链，见 .agents/notes/implemented/bug-fix/2026-09-25-video-codec-gates.md
@@ -101,9 +105,50 @@ fn handle_video<'a>(ctx: &'a Ctx, params: &'a Params) -> BoxFuture<'a, ApiResult
                     error.message()
                 ),
             }
-            (shortplay?, phoenix.ok())
+            let shortplay_body = shortplay.ok().filter(|body| video_body_usable(body));
+            let phoenix_body = phoenix
+                .as_ref()
+                .ok()
+                .filter(|body| phoenix_model_usable(body))
+                .cloned();
+            // 短剧专用接口偶发 HTTP 200 + 空 body（实测同一集重试可恢复），
+            // 不能让空包覆盖已经拿到的 phoenix 模型；短剧接口失败时也优先
+            // 使用 phoenix 的可用 body，而不是把空数组送进 JSON 解析。
+            let raw = match shortplay_body {
+                Some(body) => body,
+                None => match phoenix_body.clone() {
+                    Some(body) => {
+                        log::warn!("video {video_id}: shortplay body missing, using phoenix body");
+                        body
+                    }
+                    None => {
+                        return Err(ApiError::Internal("视频接口返回空响应".to_string()));
+                    }
+                },
+            };
+            (raw, phoenix_body)
         } else {
-            (fetch_phoenix_video_model(ctx, &video_id).await?, None)
+            // 非 stream 下载路径也先试短剧专用模型：phoenix 偶发 200 + 空 body，
+            // 只走单接口会让「能播的剧集」直接报错。两个请求并发，短剧模型优先，
+            // phoenix 作为兜底；两者都不可用时才返回明确错误。
+            let (shortplay, phoenix) = tokio::join!(
+                fetch_shortplay_video_model(ctx, &video_id),
+                fetch_phoenix_video_model(ctx, &video_id),
+            );
+            let shortplay_body = shortplay.ok().filter(|body| video_body_usable(body));
+            let phoenix_body = phoenix
+                .as_ref()
+                .ok()
+                .filter(|body| phoenix_model_usable(body))
+                .cloned();
+            let raw = match shortplay_body {
+                Some(body) => body,
+                None => match phoenix_body.clone() {
+                    Some(body) => body,
+                    None => return Err(ApiError::Internal("视频接口返回空响应".to_string())),
+                },
+            };
+            (raw, phoenix_body)
         };
 
         let (video_url, content_key) = match resolve_video_source(ctx, &raw).await {
@@ -171,15 +216,40 @@ async fn fetch_phoenix_video_model(ctx: &Ctx, video_id: &str) -> ApiResult<Vec<u
     }))
     .map_err(|e| ApiError::Internal(format!("marshal phoenix video body: {e}")))?;
 
-    Upstream::new(ctx.up.clone())
-        .raw(&UpstreamRequestSpec {
-            mode: UpstreamMode::DeviceSigned,
-            raw_url: Some(phoenix_player_url()),
-            body: Some(post_body),
-            headers: phoenix_player_headers(),
-            ..Default::default()
-        })
-        .await
+    let mut last_error: Option<ApiError> = None;
+    for attempt in 0..VIDEO_MODEL_MAX_ATTEMPTS {
+        match Upstream::new(ctx.up.clone())
+            .raw(&UpstreamRequestSpec {
+                mode: UpstreamMode::DeviceSigned,
+                raw_url: Some(phoenix_player_url()),
+                body: Some(post_body.clone()),
+                headers: phoenix_player_headers(),
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(body) if video_body_usable(&body) => return Ok(body),
+            Ok(body) => {
+                log::warn!(
+                    "video {video_id}: phoenix returned unusable body (attempt {}/{}): {}",
+                    attempt + 1,
+                    VIDEO_MODEL_MAX_ATTEMPTS,
+                    envelope_of_body(&body)
+                );
+                last_error = Some(ApiError::Internal("视频接口返回空响应".to_string()));
+            }
+            Err(error) => {
+                log::warn!(
+                    "video {video_id}: phoenix request failed (attempt {}/{}): {}",
+                    attempt + 1,
+                    VIDEO_MODEL_MAX_ATTEMPTS,
+                    error.message()
+                );
+                last_error = Some(error);
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| ApiError::Internal("视频接口返回空响应".to_string())))
 }
 
 /// Queries the shortplay-style video_model endpoint used for short drama ids.
@@ -203,15 +273,40 @@ async fn fetch_shortplay_video_model(ctx: &Ctx, video_id: &str) -> ApiResult<Vec
     }))
     .map_err(|e| ApiError::Internal(format!("marshal shortplay video body: {e}")))?;
 
-    Upstream::new(ctx.up.clone())
-        .raw(&UpstreamRequestSpec {
-            mode: UpstreamMode::DeviceSigned,
-            raw_url: Some(SHORTPLAY_VIDEO_MODEL_URL.to_string()),
-            body: Some(post_body),
-            headers: dragon_read_json_headers(),
-            ..Default::default()
-        })
-        .await
+    let mut last_error: Option<ApiError> = None;
+    for attempt in 0..VIDEO_MODEL_MAX_ATTEMPTS {
+        match Upstream::new(ctx.up.clone())
+            .raw(&UpstreamRequestSpec {
+                mode: UpstreamMode::DeviceSigned,
+                raw_url: Some(SHORTPLAY_VIDEO_MODEL_URL.to_string()),
+                body: Some(post_body.clone()),
+                headers: dragon_read_json_headers(),
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(body) if video_body_usable(&body) => return Ok(body),
+            Ok(body) => {
+                log::warn!(
+                    "video {video_id}: shortplay returned unusable body (attempt {}/{}): {}",
+                    attempt + 1,
+                    VIDEO_MODEL_MAX_ATTEMPTS,
+                    envelope_of_body(&body)
+                );
+                last_error = Some(ApiError::Internal("视频接口返回空响应".to_string()));
+            }
+            Err(error) => {
+                log::warn!(
+                    "video {video_id}: shortplay request failed (attempt {}/{}): {}",
+                    attempt + 1,
+                    VIDEO_MODEL_MAX_ATTEMPTS,
+                    error.message()
+                );
+                last_error = Some(error);
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| ApiError::Internal("视频接口返回空响应".to_string())))
 }
 
 /// Parses the multi_video_model response and extracts the best quality MP4 URL.
@@ -476,11 +571,15 @@ fn merge_variant_rows(scored: Vec<(i64, Value)>) -> Vec<Value> {
 /// HTTP 成功不等于业务成功——上游业务失败时回的是火山错误封包
 /// `{BaseResp, Code, Message}`（无 `data`），状态码仍是 200。看状态码判不出来，
 /// 只能看外壳，所以这里单独判一次由调用点告警。
-fn phoenix_model_usable(body: &[u8]) -> bool {
+fn video_body_usable(body: &[u8]) -> bool {
     serde_json::from_slice::<Value>(body)
         .ok()
         .and_then(|resp| resp.get("data").map(Value::is_object))
         .unwrap_or(false)
+}
+
+fn phoenix_model_usable(body: &[u8]) -> bool {
+    video_body_usable(body)
 }
 
 /// 把一份响应的**外壳**压成一行：顶层键名、`data` 的类型、`code`/`Code`、
@@ -1052,57 +1151,30 @@ fn handle_pseries<'a>(ctx: &'a Ctx, params: &'a Params) -> BoxFuture<'a, ApiResu
         }))
         .map_err(|e| ApiError::Internal(format!("marshal pseries body: {e}")))?;
 
-        let result = Upstream::new(ctx.up.clone())
-            .json(&UpstreamRequestSpec {
-                mode: UpstreamMode::DeviceSigned,
-                raw_url: Some(phoenix_player_url()),
-                body: Some(post_body),
-                headers: phoenix_player_headers(),
-                ..Default::default()
-            })
-            .await?;
+        let result = match fetch_pseries_model(ctx, &pseries_id, &post_body).await {
+            Ok(result) => result,
+            Err(error) => {
+                log::warn!("pseries {}: player endpoint failed: {}", pseries_id, error.message());
+                match pseries_directory_fallback(ctx, &pseries_id).await {
+                    Some(fallback) => return Ok(fallback),
+                    None => return Err(error),
+                }
+            }
+        };
 
         if let Some(m) = crate::json::as_map(&result) {
             match crate::json::numeric_code(m.get("code").unwrap_or(&Value::Null)) {
                 Some(code) if code != 0.0 => {
-                    eprintln!(
+                    log::warn!(
                         "pseries {}: player endpoint code={}, trying directory fallback",
                         pseries_id, code as i64
                     );
-                    match directory_reading(ctx, &pseries_id).await {
-                        Ok(dir_result) => {
-                            if let Some(dm) = crate::json::as_map(&dir_result) {
-                                match crate::json::numeric_code(
-                                    dm.get("code").unwrap_or(&Value::Null),
-                                ) {
-                                    Some(0.0) => {
-                                        eprintln!(
-                                            "pseries {}: directory fallback ok ({} items)",
-                                            pseries_id,
-                                            dir_item_count(dm)
-                                        );
-                                        return Ok(dir_result);
-                                    }
-                                    _ => {
-                                        eprintln!(
-                                            "pseries {}: directory fallback code={:?}",
-                                            pseries_id,
-                                            dm.get("code")
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        Err(dir_err) => {
-                            eprintln!(
-                                "pseries {}: directory fallback transport error: {}",
-                                pseries_id, dir_err
-                            );
-                        }
+                    if let Some(fallback) = pseries_directory_fallback(ctx, &pseries_id).await {
+                        return Ok(fallback);
                     }
                 }
                 _ => {
-                    eprintln!(
+                    log::warn!(
                         "pseries {}: player code not numeric or zero: {:?}",
                         pseries_id,
                         m.get("code")
@@ -1110,11 +1182,95 @@ fn handle_pseries<'a>(ctx: &'a Ctx, params: &'a Params) -> BoxFuture<'a, ApiResu
                 }
             }
         } else {
-            eprintln!("pseries {}: response is not an object", pseries_id);
+            log::warn!("pseries {}: response is not an object", pseries_id);
         }
 
         Ok(result)
     })
+}
+
+/// Fetches the player model for a pseries, retrying empty/invalid bodies.
+/// HTTP 200 with a zero-byte body is an occasional upstream behavior; a second
+/// attempt naturally rotates to another device from the pool.
+async fn fetch_pseries_model(ctx: &Ctx, pseries_id: &str, post_body: &[u8]) -> ApiResult<Value> {
+    let mut last_error: Option<ApiError> = None;
+    for attempt in 0..VIDEO_MODEL_MAX_ATTEMPTS {
+        match Upstream::new(ctx.up.clone())
+            .raw(&UpstreamRequestSpec {
+                mode: UpstreamMode::DeviceSigned,
+                raw_url: Some(phoenix_player_url()),
+                body: Some(post_body.to_vec()),
+                headers: phoenix_player_headers(),
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(body) if !body.is_empty() => match serde_json::from_slice::<Value>(&body) {
+                Ok(value) => return Ok(value),
+                Err(error) => {
+                    log::warn!(
+                        "pseries {pseries_id}: player returned invalid json (attempt {}/{}): {}",
+                        attempt + 1,
+                        VIDEO_MODEL_MAX_ATTEMPTS,
+                        error
+                    );
+                    last_error = Some(ApiError::Internal("视频接口返回空响应".to_string()));
+                }
+            },
+            Ok(_) => {
+                log::warn!(
+                    "pseries {pseries_id}: player returned empty body (attempt {}/{})",
+                    attempt + 1,
+                    VIDEO_MODEL_MAX_ATTEMPTS
+                );
+                last_error = Some(ApiError::Internal("视频接口返回空响应".to_string()));
+            }
+            Err(error) => {
+                log::warn!(
+                    "pseries {pseries_id}: player request failed (attempt {}/{}): {}",
+                    attempt + 1,
+                    VIDEO_MODEL_MAX_ATTEMPTS,
+                    error.message()
+                );
+                last_error = Some(error);
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| ApiError::Internal("视频接口返回空响应".to_string())))
+}
+
+/// Attempts the reading-directory fallback used when the player endpoint fails.
+async fn pseries_directory_fallback(ctx: &Ctx, pseries_id: &str) -> Option<Value> {
+    match directory_reading(ctx, pseries_id).await {
+        Ok(dir_result) => {
+            if let Some(dm) = crate::json::as_map(&dir_result) {
+                match crate::json::numeric_code(dm.get("code").unwrap_or(&Value::Null)) {
+                    Some(0.0) => {
+                        log::info!(
+                            "pseries {}: directory fallback ok ({} items)",
+                            pseries_id,
+                            dir_item_count(dm)
+                        );
+                        return Some(dir_result);
+                    }
+                    _ => {
+                        log::warn!(
+                            "pseries {}: directory fallback code={:?}",
+                            pseries_id,
+                            dm.get("code")
+                        );
+                    }
+                }
+            }
+        }
+        Err(dir_err) => {
+            log::warn!(
+                "pseries {}: directory fallback transport error: {}",
+                pseries_id, dir_err
+            );
+        }
+    }
+    None
 }
 
 /// reading from directory.go, copied so pseries can fall back to it.
@@ -2614,5 +2770,18 @@ mod variant_url_shapes {
         let (url, key) = decrypt_variant_entry(&entry(main_url), Some(b"AAAA")).unwrap();
         assert_eq!(url, "https://example.test/1080.mp4");
         assert_eq!(key.len(), 16);
+    }
+}
+
+#[cfg(test)]
+mod video_body_checks {
+    use super::*;
+
+    #[test]
+    fn empty_malformed_and_missing_data_bodies_are_unusable() {
+        assert!(!video_body_usable(b""));
+        assert!(!video_body_usable(b"not-json"));
+        assert!(!video_body_usable(br#"{"data":null}"#));
+        assert!(video_body_usable(br#"{"data":{}}"#));
     }
 }

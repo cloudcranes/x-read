@@ -67,7 +67,9 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,7 +80,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -90,7 +91,6 @@ import com.alanmaster.xread.data.DramaPlaySource
 import com.alanmaster.xread.data.DramaSeries
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * 短剧与漫剧剧场界面：剧场广场、剧集选集与视频播放、弹幕浮层与互动。
@@ -384,16 +384,22 @@ private fun DramaPlayerScreen(
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
+    val danmakuPositionState = remember { mutableLongStateOf(0L) }
+    var danmakuPositionMs by danmakuPositionState
     var durationMs by remember { mutableLongStateOf(0L) }
     var showControls by remember { mutableStateOf(true) }
     var danmakuEnabled by remember { mutableStateOf(true) }
     var inputText by remember { mutableStateOf("") }
     var showComments by remember { mutableStateOf(false) }
+    // AndroidView 的 factory 只执行一次，回调里要读最新的剧集列表与回调，不能捕获首帧闭包。
+    val currentEpisodeState by rememberUpdatedState(episode)
+    val currentDramaState by rememberUpdatedState(drama)
+    val selectEpisodeState by rememberUpdatedState(onSelectEpisode)
 
     // 从「相关推荐」切到另一部剧时，先把上一部剧的剧评弹层收起来，避免展示旧列表。
     LaunchedEffect(drama.seriesId) { showComments = false }
 
-    // 播放位置轮询更新
+    // 播放位置轮询更新（仅用于时间/进度条）
     LaunchedEffect(videoViewRef, isPlaying) {
         while (true) {
             videoViewRef?.let { vv ->
@@ -404,6 +410,19 @@ private fun DramaPlayerScreen(
                 }
             }
             delay(250)
+        }
+    }
+
+    // 弹幕用逐帧时钟：每帧只更新一个 State，DanmakuFlowLayer 在 graphicsLayer 内读取，
+    // 不触发整页重组，弹幕位移才能跟满刷新率。
+    LaunchedEffect(videoViewRef, danmakuEnabled, danmakuList.isNotEmpty()) {
+        if (!danmakuEnabled || danmakuList.isEmpty()) return@LaunchedEffect
+        while (true) {
+            withFrameNanos {
+                videoViewRef?.let { vv ->
+                    if (vv.isPlaying) danmakuPositionMs = vv.currentPosition.toLong()
+                }
+            }
         }
     }
 
@@ -486,6 +505,12 @@ private fun DramaPlayerScreen(
                             }
                             setOnCompletionListener {
                                 isPlaying = false
+                                val list = currentDramaState.episodes
+                                val index = list.indexOfFirst {
+                                    it.episodeId == currentEpisodeState?.episodeId
+                                }
+                                val next = if (index >= 0) list.getOrNull(index + 1) else null
+                                if (next != null) selectEpisodeState(next)
                             }
                             videoViewRef = this
                         }
@@ -545,10 +570,10 @@ private fun DramaPlayerScreen(
 
                 // ------------------ 弹幕浮层 ------------------
                 if (danmakuEnabled && danmakuList.isNotEmpty()) {
-                    DanmakuOverlay(
-                        currentPositionMs = currentPositionMs,
-                        danmakuList = danmakuList,
-                        modifier = Modifier.fillMaxSize()
+                    DanmakuFlowLayer(
+                        positionMs = danmakuPositionState,
+                        items = danmakuList,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
 
@@ -583,7 +608,9 @@ private fun DramaPlayerScreen(
                 }
 
                 // ------------------ 播放控制覆盖层 ------------------
-                if (showControls) {
+                // 详情首帧由封面上的播放入口负责；没有视频源时不要显示控制层，
+                // 否则中间播放键会先拦截点击并把空 VideoView 置成“播放中”。
+                if (showControls && !(source == null && !loading && error.isEmpty())) {
                     Box(
                         Modifier
                             .fillMaxSize()
@@ -730,7 +757,8 @@ private fun DramaPlayerScreen(
                     ) {
                         Text("选集", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = "共 ${drama.episodes.size.coerceAtLeast(drama.episodeCount)} 集",
+                            text = "共 ${drama.episodes.size.coerceAtLeast(drama.episodeCount)} 集" +
+                                if (drama.episodes.size > 1) " · 自动续播" else "",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1019,53 +1047,6 @@ private fun EpisodeChip(
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
             )
-        }
-    }
-}
-
-/** 弹幕动态浮层渲染 */
-@Composable
-private fun DanmakuOverlay(
-    currentPositionMs: Long,
-    danmakuList: List<DanmakuItem>,
-    modifier: Modifier = Modifier,
-) {
-    // 筛选当前时间前 4 秒至当前时间的弹幕进行渲染（每条弹幕飞 4 秒）
-    val activeDanmakus = remember(currentPositionMs, danmakuList) {
-        danmakuList.filter {
-            currentPositionMs >= it.offsetMs && currentPositionMs <= it.offsetMs + 4000L
-        }
-    }
-
-    Box(modifier = modifier) {
-        activeDanmakus.forEachIndexed { index, item ->
-            // 进度 0.0 ~ 1.0 从右侧 1.0f 飞到左侧 -0.2f
-            val progress = ((currentPositionMs - item.offsetMs).toFloat() / 4000f).coerceIn(0f, 1f)
-            val trackIndex = (index % 3) // 3 条弹幕轨道避免重叠
-            val yOffset = 16.dp + (trackIndex * 26).dp
-
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = yOffset)
-            ) {
-                Text(
-                    text = item.text,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    modifier = Modifier
-                        .offset {
-                            // 从全屏右侧往左飞
-                            val screenWidth = 1000 // 估算轨道像素宽度
-                            val x = (screenWidth * (1f - progress * 1.3f)).roundToInt()
-                            IntOffset(x, 0)
-                        }
-                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
         }
     }
 }

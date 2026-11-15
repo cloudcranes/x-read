@@ -212,6 +212,9 @@ data class UiState(
     val currentVideoSource: DramaPlaySource? = null,
     val dramaVideoLoading: Boolean = false,
     val dramaVideoError: String = "",
+    /** 下一集预取：当前播放时后台取好它的视频源，切集时直接命中本地缓存。 */
+    val prefetchedEpisodeId: String = "",
+    val prefetchedVideoSource: DramaPlaySource? = null,
     val danmakuList: List<DanmakuItem> = emptyList(),
     val danmakuLoading: Boolean = false,
     val dramaPlaying: Boolean = false,
@@ -2061,6 +2064,9 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     /** 撤销移出的倒计时任务；新的批量移出会顶掉旧的。 */
     private var undoJob: kotlinx.coroutines.Job? = null
 
+    /** 下一集视频源预取任务；切剧/关播放器时取消。 */
+    private var dramaPrefetchJob: kotlinx.coroutines.Job? = null
+
     /** 书库全文检索任务：换词就取消上一轮，否则旧结果会盖住新结果。 */
     private var libraryJob: kotlinx.coroutines.Job? = null
 
@@ -2667,8 +2673,11 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     fun closeDramaPlayer() {
+        dramaPrefetchJob?.cancel()
+        dramaPrefetchJob = null
         update { it.copy(
             currentDrama = null, currentEpisode = null, currentVideoSource = null,
+            prefetchedEpisodeId = "", prefetchedVideoSource = null,
             danmakuList = emptyList(), dramaVideoError = "",
             dramaComments = emptyList(), dramaCommentTotal = 0, dramaCommentsHasMore = false,
             dramaCommentsCursor = "", dramaCommentsError = "",
@@ -2748,7 +2757,15 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 val updatedRecent =
                     if (persisted.isNotEmpty()) persisted
                     else (listOf(drama) + _state.value.recentDramas.filterNot { it.seriesId == drama.seriesId }).take(20)
-                update { it.copy(currentDrama = drama, dramaDetailLoading = false, recentDramas = updatedRecent) }
+                dramaPrefetchJob?.cancel()
+                dramaPrefetchJob = null
+                update { it.copy(
+                    currentDrama = drama,
+                    dramaDetailLoading = false,
+                    prefetchedEpisodeId = "",
+                    prefetchedVideoSource = null,
+                    recentDramas = updatedRecent,
+                ) }
                 loadDramaRelated(drama.seriesId)
                 if (autoPlayFirst && drama.episodes.isNotEmpty()) {
                     playDramaEpisode(drama.episodes.first())
@@ -2761,19 +2778,64 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     fun playDramaEpisode(episode: DramaEpisode) {
         viewModelScope.launch {
+            val cached = _state.value.prefetchedVideoSource
+                ?.takeIf { _state.value.prefetchedEpisodeId == episode.episodeId }
             update { it.copy(
                 currentEpisode = episode,
-                dramaVideoLoading = true,
+                dramaVideoLoading = cached == null,
                 dramaVideoError = "",
-                currentVideoSource = null,
+                currentVideoSource = cached,
+                prefetchedEpisodeId = "",
+                prefetchedVideoSource = null,
                 danmakuList = emptyList()
             ) }
+            if (cached != null) {
+                loadDanmaku(episode.seriesId, episode.episodeId, durationSeconds = episode.durationSeconds)
+                prefetchNextDramaEpisode(episode)
+                return@launch
+            }
             try {
                 val source = api.dramaEpisodePlay(episode.episodeId)
                 update { it.copy(currentVideoSource = source, dramaVideoLoading = false) }
                 loadDanmaku(episode.seriesId, episode.episodeId, durationSeconds = episode.durationSeconds)
+                prefetchNextDramaEpisode(episode)
             } catch (e: Exception) {
                 update { it.copy(dramaVideoLoading = false, dramaVideoError = readableFailure(e.message.orEmpty())) }
+            }
+        }
+    }
+
+    /**
+     * 后台预取下一集视频源：短剧接口非 stream 模式会把文件解密落到本地，
+     * 等当前集播完直接切本地文件，避免在用户面前等待接口。
+     */
+    private fun prefetchNextDramaEpisode(episode: DramaEpisode) {
+        val drama = _state.value.currentDrama ?: return
+        val index = drama.episodes.indexOfFirst { it.episodeId == episode.episodeId }
+        if (index < 0) return
+        val next = drama.episodes.getOrNull(index + 1)
+        if (next == null) {
+            dramaPrefetchJob?.cancel()
+            dramaPrefetchJob = null
+            update { it.copy(prefetchedEpisodeId = "", prefetchedVideoSource = null) }
+            return
+        }
+        if (_state.value.prefetchedEpisodeId == next.episodeId &&
+            _state.value.prefetchedVideoSource != null
+        ) return
+        dramaPrefetchJob?.cancel()
+        update { it.copy(prefetchedEpisodeId = next.episodeId, prefetchedVideoSource = null) }
+        dramaPrefetchJob = viewModelScope.launch {
+            try {
+                val source = api.dramaEpisodePlay(next.episodeId)
+                if (_state.value.currentDrama?.seriesId == drama.seriesId &&
+                    _state.value.currentEpisode?.episodeId == episode.episodeId &&
+                    _state.value.prefetchedEpisodeId == next.episodeId
+                ) {
+                    update { it.copy(prefetchedVideoSource = source) }
+                }
+            } catch (_: Exception) {
+                // 预取失败不打扰用户；真正切到该集时会重新请求并展示错误。
             }
         }
     }

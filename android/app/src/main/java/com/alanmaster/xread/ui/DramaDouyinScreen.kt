@@ -93,6 +93,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -215,6 +216,8 @@ fun DramaDouyinScreen(
 
     // 播放位置与总时长
     var currentPositionMs by remember { mutableLongStateOf(0L) }
+    val danmakuPositionState = remember { mutableLongStateOf(0L) }
+    var danmakuPositionMs by danmakuPositionState
     var durationMs by remember { mutableLongStateOf(0L) }
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubPositionMs by remember { mutableLongStateOf(0L) }
@@ -280,7 +283,7 @@ fun DramaDouyinScreen(
         }
     }
 
-    // 播放进度高频轮询更新
+    // 播放进度高频轮询更新（时间/进度条）
     LaunchedEffect(videoViewRef, isPlaying) {
         while (true) {
             videoViewRef?.let { vv ->
@@ -291,6 +294,18 @@ fun DramaDouyinScreen(
                 }
             }
             delay(200)
+        }
+    }
+
+    // 弹幕逐帧时钟：与播放进度解耦，只驱动弹幕层 graphicsLayer 位移。
+    LaunchedEffect(videoViewRef, danmakuEnabled, danmakuList.isNotEmpty()) {
+        if (!danmakuEnabled || danmakuList.isEmpty()) return@LaunchedEffect
+        while (true) {
+            withFrameNanos {
+                videoViewRef?.let { vv ->
+                    if (vv.isPlaying && !isScrubbing) danmakuPositionMs = vv.currentPosition.toLong()
+                }
+            }
         }
     }
 
@@ -462,7 +477,7 @@ fun DramaDouyinScreen(
         if (danmakuEnabled && danmakuList.isNotEmpty()) {
             DouyinDanmakuOverlay(
                 items = danmakuList,
-                currentPositionMs = currentPositionMs,
+                positionMs = danmakuPositionState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.42f)
@@ -1187,36 +1202,21 @@ private fun DouyinHeartPop(bubble: HeartBubble) {
 @Composable
 private fun DouyinDanmakuOverlay(
     items: List<DanmakuItem>,
-    currentPositionMs: Long,
+    positionMs: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier,
 ) {
-    val visibleDanmaku = remember(items, currentPositionMs) {
-        items.filter {
-            val delta = it.offsetMs - currentPositionMs
-            delta in -1000..5000
-        }.take(8)
-    }
-
-    Box(modifier = modifier) {
-        visibleDanmaku.forEachIndexed { idx, danmaku ->
-            val laneY = (idx % 4) * 26
-            val timeDelta = (danmaku.offsetMs - currentPositionMs).coerceIn(-1000L, 5000L)
-            val progress = 1f - (timeDelta + 1000f) / 6000f
-            val offsetX = (360 - progress * 480).dp
-
-            Text(
-                text = danmaku.text,
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .offset(x = offsetX, y = laneY.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            )
-        }
-    }
+    DanmakuFlowLayer(
+        positionMs = positionMs,
+        items = items,
+        modifier = modifier,
+        windowMs = 6000L,
+        leadMs = 5000L,
+        laneCount = 4,
+        topInset = 0.dp,
+        laneGap = 26.dp,
+        maxItems = 8,
+        fontSize = 13.sp,
+    )
 }
 
 /** 时间格式化 mm:ss */
