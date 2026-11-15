@@ -365,7 +365,8 @@ private fun App(
     }
     LaunchedEffect(screen) {
         if (screen is Screen.Shelf || screen is Screen.Discover ||
-            screen is Screen.ZLibrary || screen is Screen.Tools
+            screen is Screen.ZLibrary || screen is Screen.Tools ||
+            (screen is Screen.Drama && state.currentDrama == null)
         ) {
             mainTab = screen
         }
@@ -615,11 +616,11 @@ private fun App(
                         dramaBackToSwipe = false
                         vm.closeDramaPlayer()
                         screen = Screen.DramaSwipe
+                    } else if (state.currentDrama != null) {
+                        // 详情返回媒体墙，不直接回其它 tab。
+                        vm.closeDramaPlayer()
                     } else {
-                        if (state.currentDrama != null) {
-                            vm.closeDramaPlayer()
-                        }
-                        screen = Screen.Discover
+                        screen = Screen.Shelf
                     }
                 }
                 screen is Screen.DramaDouyin || screen is Screen.DramaSwipe -> {
@@ -663,6 +664,7 @@ private fun App(
     }
     val isMainTab = screen == Screen.Shelf || screen == Screen.Discover ||
             screen == Screen.ZLibrary ||
+            (screen == Screen.Drama && state.currentDrama == null) ||
             (screen == Screen.Tools && toolsPage == ToolsPage.Overview)
     Scaffold { innerPadding ->
         Box(
@@ -684,15 +686,15 @@ private fun App(
                     recentDramas = state.recentDramas,
                     dramaFavorites = state.dramaFavorites,
                     onOpenDrama = { drama ->
-                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
+                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = false)
                         screen = Screen.Drama
                     },
                     onOpenFavoriteDrama = { drama ->
-                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
+                        vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = false)
                         screen = Screen.Drama
                     },
                     onToggleFavoriteDrama = { vm.toggleDramaFavorite(it) },
-                    onDiscoverDrama = { screen = Screen.DramaSwipe },
+                    onDiscoverDrama = { screen = Screen.Drama },
                     shelfStatus = state.shelfStatusFilter,
                     onStatusFilter = { vm.setShelfStatusFilter(it) },
                     updates = state.shelfUpdates,
@@ -766,7 +768,7 @@ private fun App(
                     },
                     onDrama = {
                         if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
-                        screen = Screen.DramaSwipe
+                        screen = Screen.Drama
                     },
                     onRank = { vm.loadRankings(); screen = Screen.Rank },
                     onCategory = { vm.loadCategories(); screen = Screen.Category },
@@ -792,11 +794,11 @@ private fun App(
                         } else if (state.currentDrama != null) {
                             vm.closeDramaPlayer()
                         } else {
-                            screen = Screen.Discover
+                            screen = Screen.Shelf
                         }
                     },
                     onSelectDrama = { item ->
-                        vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = true)
+                        vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = false)
                     },
                     onSelectEpisode = { ep ->
                         vm.playDramaEpisode(ep)
@@ -823,7 +825,7 @@ private fun App(
                     onSendComment = { vm.sendDramaComment(it) },
                     onToggleCommentDigg = { vm.toggleDramaCommentDigg(it) },
                     onSelectRelated = { item ->
-                        vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = true)
+                        vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = false)
                     },
                 )
 
@@ -945,7 +947,7 @@ private fun App(
                 }
             },
             onOpenDrama = { drama ->
-                vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = true)
+                vm.loadDramaDetail(drama.seriesId, drama.isMotionComic, autoPlayFirst = false)
                 screen = Screen.Drama
             },
         )
@@ -1513,7 +1515,7 @@ private fun App(
                             }
                             2 -> {
                                 if (state.dramaFeed.isEmpty()) vm.loadDramaFeed()
-                                screen = Screen.DramaSwipe
+                                screen = Screen.Drama
                             }
                             3 -> {
                                 vm.loadZLibrarySession()

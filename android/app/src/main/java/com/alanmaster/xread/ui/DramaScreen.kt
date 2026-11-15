@@ -24,9 +24,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -134,7 +134,11 @@ fun DramaScreen(
                     title = {
                         Column {
                             Text("短剧 · 漫剧剧场", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("热播好剧 · 动态漫剧 · 弹幕互动", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (feed.isNotEmpty()) "${feed.size} 部 · 瀑布流浏览" else "热播好剧 · 动态漫剧 · 弹幕互动",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     },
                     navigationIcon = {
@@ -189,15 +193,20 @@ fun DramaScreen(
                         }
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+                    // 媒体墙：两列瀑布流，封面高度随剧集变化，先浏览再进详情。
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Fixed(2),
                         contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.sm),
                         horizontalArrangement = Arrangement.spacedBy(Space.sm),
-                        verticalArrangement = Arrangement.spacedBy(Space.md),
+                        verticalItemSpacing = Space.md,
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(feed, key = { it.seriesId }) { item ->
-                            DramaCard(drama = item, onClick = { onSelectDrama(item) })
+                        staggeredItems(feed, key = { it.seriesId }) { item ->
+                            DramaCard(
+                                drama = item,
+                                onClick = { onSelectDrama(item) },
+                                coverAspectRatio = dramaCoverAspectRatio(item.seriesId),
+                            )
                         }
                     }
                 }
@@ -236,11 +245,23 @@ fun DramaScreen(
     }
 }
 
+/** 瀑布流封面比例：按 seriesId 稳定散列到 0.62~0.82，避免相邻卡片高度一致。 */
+private fun dramaCoverAspectRatio(seriesId: String): Float {
+    val bucket = (seriesId.hashCode() and 0x7fffffff) % 4
+    return when (bucket) {
+        0 -> 0.62f
+        1 -> 0.72f
+        2 -> 0.78f
+        else -> 0.84f
+    }
+}
+
 /** 广场单部剧集卡片 */
 @Composable
 internal fun DramaCard(
     drama: DramaSeries,
     onClick: () -> Unit,
+    coverAspectRatio: Float = 0.72f,
 ) {
     Column(
         modifier = Modifier
@@ -252,7 +273,7 @@ internal fun DramaCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(0.72f)
+                .aspectRatio(coverAspectRatio)
                 .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         ) {
@@ -480,6 +501,47 @@ private fun DramaPlayerScreen(
                         }
                     }
                 )
+
+                // 未点播放前先展示封面，不自动起播；点封面或播放键才加载第一集。
+                if (source == null && !loading && error.isEmpty()) {
+                    if (drama.coverUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = drama.coverUrl,
+                            contentDescription = drama.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f))
+                    )
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Space.sm),
+                    ) {
+                        IconButton(
+                            onClick = { drama.episodes.firstOrNull()?.let(onSelectEpisode) },
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(Color.Black.copy(alpha = 0.55f), CircleShape),
+                        ) {
+                            Icon(
+                                Icons.Filled.PlayArrow,
+                                contentDescription = "播放第一集",
+                                tint = Color.White,
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
+                        Text(
+                            if (drama.episodes.isEmpty()) "暂无剧集" else "点击播放第 1 集",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White,
+                        )
+                    }
+                }
 
                 // ------------------ 弹幕浮层 ------------------
                 if (danmakuEnabled && danmakuList.isNotEmpty()) {
