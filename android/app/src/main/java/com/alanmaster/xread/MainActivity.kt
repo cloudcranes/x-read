@@ -50,6 +50,7 @@ import com.alanmaster.xread.data.AudioPlaybackHolder
 import com.alanmaster.xread.data.PlaybackService
 import com.alanmaster.xread.data.Book
 import com.alanmaster.xread.data.LibraryViewModel
+import com.alanmaster.xread.data.NotificationChannels
 import com.alanmaster.xread.data.OfflineRepo
 import com.alanmaster.xread.data.ShelfGrouping
 import com.alanmaster.xread.data.TtsController
@@ -62,7 +63,6 @@ import com.alanmaster.xread.ui.DetailScreen
 import com.alanmaster.xread.ui.DiscoverScreen
 import com.alanmaster.xread.ui.FloatingNavBar
 import com.alanmaster.xread.ui.FloatingNavItem
-import com.alanmaster.xread.ui.DramaDouyinScreen
 import com.alanmaster.xread.ui.DramaScreen
 import com.alanmaster.xread.ui.DramaSwipeScreen
 import com.alanmaster.xread.ui.ReviewScreen
@@ -157,6 +157,8 @@ class MainActivity : ComponentActivity() {
         widgetTarget.value = bookFromIntent(intent)
         // 尽早注入上下文 音频控制器需要它申请音频焦点（来电/其它播放器打断）
         AudioPlaybackHolder.install(this)
+        // 渠道一次建齐：追更通知、朗读控制条的开关页都按渠道渲染，没建过就看不到。
+        NotificationChannels.ensure(this)
 
         // 主流做法 ComponentActivity 的 OnBackPressedDispatcher（兼容预测式返回）
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -251,7 +253,6 @@ private sealed interface Screen {
     data object Category : Screen
     data object CategoryBooks : Screen
     data object Drama : Screen
-    data object DramaDouyin : Screen
     data object DramaSwipe : Screen
 }
 
@@ -560,6 +561,7 @@ private fun App(
         vm.checkOnboarding()
         vm.loadShelf()
         vm.loadRecentDramas()
+        vm.loadDramaProgress()
         vm.loadDramaFavorites()
         vm.loadDramaSubscriptions()
         vm.loadCachedDramaFeed()
@@ -625,7 +627,7 @@ private fun App(
                         screen = Screen.Shelf
                     }
                 }
-                screen is Screen.DramaDouyin || screen is Screen.DramaSwipe -> {
+                screen is Screen.DramaSwipe -> {
                     if (state.currentDrama != null) {
                         vm.closeDramaPlayer()
                     }
@@ -788,11 +790,24 @@ private fun App(
                 Screen.Drama -> DramaScreen(
                     feed = state.dramaFeed,
                     feedLoading = state.dramaFeedLoading,
+                    progress = state.dramaProgress,
+                    onContinueWatching = { progress ->
+                        vm.loadDramaDetail(
+                            progress.seriesId,
+                            autoPlayFirst = false,
+                            resumeEpisodeId = progress.episodeId,
+                            resumePositionMs = progress.positionMs,
+                        )
+                    },
                     currentDrama = state.currentDrama,
                     currentEpisode = state.currentEpisode,
                     currentVideoSource = state.currentVideoSource,
+                    prefetchedEpisodeId = state.prefetchedEpisodeId,
+                    prefetchedVideoSource = state.prefetchedVideoSource,
                     videoLoading = state.dramaVideoLoading,
                     videoError = state.dramaVideoError,
+                    resumePositionMs = state.dramaResumePositionMs,
+                    onSaveDramaProgress = { ep, pos, dur -> vm.saveDramaProgress(ep, pos, dur) },
                     danmakuList = state.danmakuList,
                     onBack = {
                         if (dramaBackToSwipe) {
@@ -814,11 +829,13 @@ private fun App(
                     onSendDanmaku = { text, offsetMs ->
                         vm.sendDanmaku(text, offsetMs)
                     },
+                    onLoadMoreDanmaku = { offsetMs ->
+                        state.currentEpisode?.let { ep ->
+                            vm.loadMoreDanmaku(ep.seriesId, ep.episodeId, offsetMs, ep.durationSeconds)
+                        }
+                    },
                     onRefreshFeed = {
                         vm.loadDramaFeed()
-                    },
-                    onSwitchToDouyin = {
-                        screen = Screen.DramaDouyin
                     },
                     moreLoading = state.dramaMoreLoading,
                     feedExhausted = state.dramaExhausted,
@@ -826,6 +843,12 @@ private fun App(
                     onSearch = {
                         vm.setSearchTabType(11)
                         screen = Screen.Search
+                    },
+                    onOpenMyDramas = {
+                        // 短剧 tab 的「我的追剧」直接落到书架短剧分组，订阅/收藏/记录都在同一页。
+                        vm.setShelfMediaType("drama")
+                        mainTab = Screen.Shelf
+                        screen = Screen.Shelf
                     },
                     favorites = state.dramaFavorites,
                     onToggleFavorite = { vm.toggleDramaFavorite(it) },
@@ -841,40 +864,40 @@ private fun App(
                     onLoadMoreComments = { state.currentDrama?.let { vm.loadMoreDramaComments(it.seriesId) } },
                     onSendComment = { vm.sendDramaComment(it) },
                     onToggleCommentDigg = { vm.toggleDramaCommentDigg(it) },
+                    commentReplyTarget = state.dramaCommentReplyTarget,
+                    commentReplies = state.dramaCommentReplies,
+                    commentRepliesLoading = state.dramaCommentRepliesLoading,
+                    commentRepliesHasMore = state.dramaCommentRepliesHasMore,
+                    commentRepliesError = state.dramaCommentRepliesError,
+                    commentReplySending = state.dramaCommentReplySending,
+                    onOpenCommentReplies = { vm.loadDramaCommentReplies(it) },
+                    onLoadMoreCommentReplies = { vm.loadMoreDramaCommentReplies() },
+                    onCloseCommentReplies = { vm.closeDramaCommentReplies() },
+                    onReplyComment = { text, replyTo -> vm.replyDramaComment(text, replyTo) },
+                    onShareDrama = {
+                        state.currentDrama?.let { drama ->
+                            vm.loadDramaShare(
+                                seriesId = drama.seriesId,
+                                currentEpisodeId = state.currentEpisode?.episodeId.orEmpty(),
+                                firstEpisodeId = drama.episodes.firstOrNull()?.episodeId.orEmpty(),
+                            ) { info ->
+                                val text = buildList {
+                                    add(info.copyLinkText.ifBlank { "推荐《${drama.title}》" })
+                                    if (info.subText.isNotBlank()) add(info.subText)
+                                    if (drama.author.isNotBlank()) add("作者 ${drama.author}")
+                                    if (info.shareUrl.isNotBlank()) add(info.shareUrl)
+                                }.joinToString("\n")
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, drama.title)
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                runCatching { ctx.startActivity(Intent.createChooser(send, "分享《${drama.title}》")) }
+                            }
+                        }
+                    },
                     onSelectRelated = { item ->
                         vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = false)
-                    },
-                )
-
-                Screen.DramaDouyin -> DramaDouyinScreen(
-                    drama = state.currentDrama,
-                    currentEpisode = state.currentEpisode,
-                    currentVideoSource = state.currentVideoSource,
-                    videoLoading = state.dramaVideoLoading,
-                    videoError = state.dramaVideoError,
-                    danmakuList = state.danmakuList,
-                    feed = state.dramaFeed,
-                    favorites = state.dramaFavorites,
-                    onToggleFavorite = { vm.toggleDramaFavorite(it) },
-                    subscriptions = state.dramaSubscriptions,
-                    onToggleSubscription = { vm.toggleDramaSubscription(it) },
-                    onBack = {
-                        if (state.currentDrama != null) {
-                            vm.closeDramaPlayer()
-                        }
-                        screen = Screen.Discover
-                    },
-                    onSelectDrama = { item ->
-                        vm.loadDramaDetail(item.seriesId, item.isMotionComic, autoPlayFirst = true)
-                    },
-                    onSelectEpisode = { ep ->
-                        vm.playDramaEpisode(ep)
-                    },
-                    onSendDanmaku = { text, offsetMs ->
-                        vm.sendDanmaku(text, offsetMs)
-                    },
-                    onSwitchToClassic = {
-                        screen = Screen.Drama
                     },
                 )
 
@@ -917,6 +940,28 @@ private fun App(
                     onToggleFavorite = { vm.toggleDramaFavorite(it) },
                     subscriptions = state.dramaSubscriptions,
                     onToggleSubscription = { vm.toggleDramaSubscription(it) },
+                    onShareDrama = { item ->
+                        vm.loadDramaShare(
+                            seriesId = item.seriesId,
+                            currentEpisodeId = state.currentEpisode
+                                ?.takeIf { state.currentDrama?.seriesId == item.seriesId }
+                                ?.episodeId.orEmpty(),
+                            firstEpisodeId = item.episodes.firstOrNull()?.episodeId.orEmpty(),
+                        ) { info ->
+                            val text = buildList {
+                                add(info.copyLinkText.ifBlank { "推荐《${item.title}》" })
+                                if (info.subText.isNotBlank()) add(info.subText)
+                                if (item.author.isNotBlank()) add("作者 ${item.author}")
+                                if (info.shareUrl.isNotBlank()) add(info.shareUrl)
+                            }.joinToString("\n")
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, item.title)
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            }
+                            runCatching { ctx.startActivity(Intent.createChooser(send, "分享《${item.title}》")) }
+                        }
+                    },
                     onLoadMore = { vm.loadMoreDrama() },
                     feedLoading = state.dramaFeedLoading,
                     feedError = state.dramaFeedError,
@@ -932,6 +977,7 @@ private fun App(
             error = state.searchError,
             history = state.searchHistory,
             hotWords = state.hot.map { it.word },
+            suggestions = state.dramaFeed.map { it.title }.filter { it.isNotBlank() },
             searchTabType = state.searchTabType,
             onSelectTabType = { tab, q ->
                 // setSearchTabType 内部已按需重搜；再调一次 search 会连发两个请求，
@@ -1519,7 +1565,7 @@ private fun App(
                     selectedIndex = when (screen) {
                         Screen.Shelf -> 0
                         Screen.Discover -> 1
-                        Screen.Drama, Screen.DramaDouyin, Screen.DramaSwipe -> 2
+                        Screen.Drama, Screen.DramaSwipe -> 2
                         Screen.ZLibrary -> 3
                         Screen.Tools -> 4
                         else -> 1

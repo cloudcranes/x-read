@@ -3,7 +3,6 @@ package com.alanmaster.xread.ui
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.Intent
 import android.os.Build
 import android.widget.VideoView
 import androidx.compose.animation.core.Animatable
@@ -68,6 +67,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import coil.compose.AsyncImage
 import com.alanmaster.xread.data.DramaPlaySource
 import com.alanmaster.xread.data.DramaSeries
+import com.alanmaster.xread.data.DramaSeriesGrouping
 import com.alanmaster.xread.data.DramaSubscription
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -89,6 +89,7 @@ fun DramaSwipeScreen(
     onToggleFavorite: (DramaSeries) -> Unit = {},
     subscriptions: List<DramaSubscription> = emptyList(),
     onToggleSubscription: (DramaSeries) -> Unit = {},
+    onShareDrama: (DramaSeries) -> Unit = {},
     drama: DramaSeries?,
     currentEpisodeId: String?,
     currentVideoSource: DramaPlaySource?,
@@ -228,7 +229,7 @@ fun DramaSwipeScreen(
             // 星标直接读收藏列表 以前只从 SharedPreferences 回填，
             // 换个页面收藏就丢了，也没有任何地方能列出收藏过什么。
             val isFavorited = favorites.any { it.seriesId == series.seriesId }
-            val isSubscribed = subscriptions.any { it.series.seriesId == series.seriesId }
+            val isSubscribed = DramaSeriesGrouping.isSubscribed(series, subscriptions)
 
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 AsyncImage(
@@ -323,7 +324,7 @@ fun DramaSwipeScreen(
                         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        // 只显示一句报错，用户什么都做不了 抖音流那边有「重试播放」，
+                        // 只显示一句报错，用户什么都做不了，其他播放页有「重试播放」，
                         // 这边缺一个，用户只能退回上一页再回来。
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -426,14 +427,7 @@ fun DramaSwipeScreen(
                     }
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconButton(onClick = {
-                            val text = "《${series.title}》${series.episodeCount} 集，来拾页一起看"
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, text)
-                            }
-                            hostContext.startActivity(Intent.createChooser(intent, "分享短剧"))
-                        }) {
+                        IconButton(onClick = { onShareDrama(series) }) {
                             Icon(
                                 Icons.Filled.Share,
                                 contentDescription = "分享",

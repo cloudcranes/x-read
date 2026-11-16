@@ -397,6 +397,12 @@ data class BookHotReview(
     val replyCount: Int = 0,
     val createdAt: Long = 0,
     val userLiked: Boolean = false,
+    /** 楼中楼回复；按需通过 `comments/{id}/replies` 加载。 */
+    val replies: List<CommentReply> = emptyList(),
+    val repliesLoaded: Boolean = false,
+    val repliesLoading: Boolean = false,
+    val repliesHasMore: Boolean = false,
+    val repliesCursor: String = "",
 )
 
 /**
@@ -499,9 +505,24 @@ data class DramaSubscription(
     val series: DramaSeries,
     val lastSeenEpisodeCount: Int = 0,
     val latestEpisodeCount: Int = 0,
+    /**
+     * 已经发过通知的集数。
+     *
+     * 追更通知要「同一次更新只提醒一次」：用户看过详情后 [lastSeenEpisodeCount]
+     * 会被抬到最新，而 feed 里的集数还会继续涨，两者都会盖住新集数。
+     * 所以单独记一个「通知水位」——比 [lastSeenEpisodeCount] 和已通知集数都大的
+     * 那一段，才是真正还没提醒过的新集。
+     */
+    val notifiedEpisodeCount: Int = 0,
 ) {
     val newEpisodeCount: Int get() = (latestEpisodeCount - lastSeenEpisodeCount).coerceAtLeast(0)
 }
+
+/** 一次待提醒的短剧更新：一共多了多少集。 */
+data class DramaUpdateNotice(
+    val series: DramaSeries,
+    val newEpisodes: Int,
+)
 
 /** 单集元数据 */
 data class DramaEpisode(
@@ -513,14 +534,49 @@ data class DramaEpisode(
     val durationSeconds: Int = 0,
 )
 
+/** 播放视频清晰度变体，来自 `videos/{id}?mode=stream` 的 `variants[]`。 */
+data class DramaVideoVariant(
+    val name: String = "",
+    val url: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
+)
+
 /** 播放视频源 */
 data class DramaPlaySource(
     val videoId: String,
     val videoUrl: String,
     val localFilePath: String = "",
     val durationMs: Long = 0L,
+    /** `mode=stream` 返回的内容解密 key；非 stream 路径为空。 */
+    val keyHex: String = "",
+    val variants: List<DramaVideoVariant> = emptyList(),
 ) {
     val isLocal: Boolean get() = localFilePath.isNotBlank()
+}
+
+/**
+ * 短剧播放进度（本地）。
+ *
+ * 只保存继续观看所需的最小快照：剧名、封面、当前集和位置。详情接口返回后
+ * 会用最新剧集信息覆盖，避免旧封面/旧集数在首页 rail 上长期滞留。
+ */
+data class DramaProgress(
+    val seriesId: String,
+    val seriesTitle: String = "",
+    val coverUrl: String = "",
+    val episodeId: String = "",
+    val episodeIndex: Int = 1,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val updatedAt: Long = 0L,
+) {
+    val fraction: Float
+        get() = if (durationMs > 0L) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+
+    /** 看到 95% 以上视为看完；继续观看应从下一集开始。 */
+    val isFinished: Boolean
+        get() = durationMs > 0L && positionMs >= durationMs * 95 / 100
 }
 
 /** 弹幕条目 */

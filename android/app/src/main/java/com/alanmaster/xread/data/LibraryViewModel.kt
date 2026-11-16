@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -246,6 +247,10 @@ data class UiState(
     val libraryTotal: Int = 0,
     val shelfMediaType: String = "all",
     val recentDramas: List<DramaSeries> = emptyList(),
+    /** 继续观看 rail，按最近播放时间倒序。 */
+    val dramaProgress: List<DramaProgress> = emptyList(),
+    /** 恢复播放时 seek 到该位置；0 表示从头开始。 */
+    val dramaResumePositionMs: Long = 0L,
     val dramaFavorites: List<DramaSeries> = emptyList(),
     /** 本地短剧订阅（上游没有订阅写接口）。 */
     val dramaSubscriptions: List<DramaSubscription> = emptyList(),
@@ -257,6 +262,14 @@ data class UiState(
     val dramaCommentsCursor: String = "",
     val dramaCommentsError: String = "",
     val dramaCommentSending: Boolean = false,
+    /** 当前打开的楼中楼父评论。 */
+    val dramaCommentReplyTarget: BookHotReview? = null,
+    val dramaCommentReplies: List<CommentReply> = emptyList(),
+    val dramaCommentRepliesLoading: Boolean = false,
+    val dramaCommentRepliesHasMore: Boolean = false,
+    val dramaCommentRepliesCursor: String = "",
+    val dramaCommentRepliesError: String = "",
+    val dramaCommentReplySending: Boolean = false,
     /** 当前短剧的相关推荐。 */
     val dramaRelated: List<DramaSeries> = emptyList(),
     val dramaRelatedLoading: Boolean = false,
@@ -1612,6 +1625,18 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             .onFailure { e -> update { it.copy(message = e.message ?: "分享文案加载失败") } }
     }
 
+    /** 取短剧分享文案；带上当前集与首集，分享卡片可直接定位到集数。 */
+    fun loadDramaShare(
+        seriesId: String,
+        currentEpisodeId: String = "",
+        firstEpisodeId: String = "",
+        onReady: (ShareInfo) -> Unit,
+    ) = viewModelScope.launch {
+        runCatching { api.dramaShare(seriesId, currentEpisodeId, firstEpisodeId) }
+            .onSuccess(onReady)
+            .onFailure { e -> update { it.copy(message = e.message ?: "分享文案加载失败") } }
+    }
+
     /** 整本导出 把离线章节拼成 TXT 放到外部目录。 */
     fun exportBookText(book: Book) = viewModelScope.launch {
         val file = withContext(Dispatchers.IO) { offline.exportBookText(book.bookId) }
@@ -2630,6 +2655,53 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
+    /** 恢复短剧继续观看进度。 */
+    fun loadDramaProgress() = viewModelScope.launch {
+        val progress = withContext(Dispatchers.IO) { offline.dramaProgress() }
+        update { it.copy(dramaProgress = progress) }
+    }
+
+    /**
+     * 记录播放进度。
+     *
+     * UI 只在暂停、切集、退出和每 5 秒调用一次，避免每帧写盘；这里再做一次
+     * 同剧合并，保证「继续观看」始终只有一条最新记录。
+     */
+    fun saveDramaProgress(episode: DramaEpisode, positionMs: Long, durationMs: Long) {
+        val drama = _state.value.currentDrama ?: return
+        if (positionMs <= 0L && durationMs <= 0L) return
+        val known = _state.value.dramaSubscriptions.firstOrNull { it.series.seriesId == drama.seriesId }?.series
+            ?: _state.value.dramaFavorites.firstOrNull { it.seriesId == drama.seriesId }
+            ?: _state.value.recentDramas.firstOrNull { it.seriesId == drama.seriesId }
+        // 订阅页只传 seriesId 打开播放器时，currentDrama.title 会退化成「短剧 <id>」，
+        // 从已知列表补回真实剧名，否则「继续观看」卡片看起来像调试信息。
+        val displayTitle = drama.title.takeIf { it.isNotBlank() && !it.startsWith("短剧 ${drama.seriesId}") }
+            ?: known?.title
+            ?: drama.title
+        val progress = DramaProgress(
+            seriesId = drama.seriesId,
+            seriesTitle = displayTitle,
+            coverUrl = drama.coverUrl.takeIf { it.isNotBlank() } ?: known?.coverUrl.orEmpty(),
+            episodeId = episode.episodeId,
+            episodeIndex = episode.episodeIndex,
+            positionMs = positionMs.coerceAtLeast(0L),
+            durationMs = durationMs.coerceAtLeast(0L),
+            updatedAt = System.currentTimeMillis(),
+        )
+        update { st ->
+            st.copy(
+                dramaProgress = (listOf(progress) + st.dramaProgress.filter { it.seriesId != drama.seriesId })
+                    .take(20),
+            )
+        }
+        viewModelScope.launch(Dispatchers.IO) { offline.saveDramaProgress(progress) }
+    }
+
+    fun clearDramaProgress() = viewModelScope.launch {
+        val left = withContext(Dispatchers.IO) { offline.clearDramaProgress() }
+        update { it.copy(dramaProgress = left) }
+    }
+
     /** 恢复短剧收藏 以前只写 SharedPreferences 的布尔值，界面上根本没有地方读回来。 */
     fun loadDramaFavorites() = viewModelScope.launch {
         val favorites = withContext(Dispatchers.IO) { offline.dramaFavorites() }
@@ -2652,12 +2724,20 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(dramaFavorites = updated, message = if (next) "已收藏《${series.title}》" else "已取消收藏") }
     }
 
-    /** 订阅/取消订阅一部短剧；订阅后书架「我的订阅」会出现，并标记后续更新集数。 */
+    /** 订阅/取消订阅一个短剧系列；同一标题基名的多季条目会一起进入书架。 */
     fun toggleDramaSubscription(series: DramaSeries) = viewModelScope.launch {
-        val current = _state.value.dramaSubscriptions.any { it.series.seriesId == series.seriesId }
+        val st = _state.value
+        val groupKey = DramaSeriesGrouping.groupKey(series)
+        val current = st.dramaSubscriptions.any { DramaSeriesGrouping.groupKey(it.series) == groupKey }
         val next = !current
-        val updated = withContext(Dispatchers.IO) { offline.setDramaSubscription(series, next) }
-        update { it.copy(dramaSubscriptions = updated, message = if (next) "已订阅《${series.title}》" else "已取消订阅") }
+        val siblings = (st.dramaFeed + st.dramaRelated + listOfNotNull(st.currentDrama))
+            .filter { DramaSeriesGrouping.groupKey(it) == groupKey && it.seriesId != series.seriesId }
+            .distinctBy { it.seriesId }
+        val updated = withContext(Dispatchers.IO) {
+            offline.setDramaSubscriptionGroup(series, siblings, next)
+        }
+        val label = DramaSeriesGrouping.displayTitle(series.title)
+        update { it.copy(dramaSubscriptions = updated, message = if (next) "已订阅《$label》" else "已取消订阅") }
     }
 
     fun setReaderPrefs(prefs: ReaderPrefs) = viewModelScope.launch {
@@ -2693,10 +2773,14 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         dramaPrefetchJob = null
         update { it.copy(
             currentDrama = null, currentEpisode = null, currentVideoSource = null,
+            dramaResumePositionMs = 0L,
             prefetchedEpisodeId = "", prefetchedVideoSource = null,
             danmakuList = emptyList(), dramaVideoError = "",
             dramaComments = emptyList(), dramaCommentTotal = 0, dramaCommentsHasMore = false,
             dramaCommentsCursor = "", dramaCommentsError = "",
+            dramaCommentReplyTarget = null, dramaCommentReplies = emptyList(),
+            dramaCommentRepliesLoading = false, dramaCommentRepliesHasMore = false,
+            dramaCommentRepliesCursor = "", dramaCommentRepliesError = "",
             dramaRelated = emptyList(),
         ) }
     }
@@ -2716,6 +2800,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         viewModelScope.launch {
             // 先读上次成功缓存 有缓存就直接出媒体墙，网络刷新在后台补/替换。
             val cached = withContext(Dispatchers.IO) { offline.dramaFeedCache() }
+            val hadFeed = _state.value.dramaFeed.isNotEmpty() || cached.isNotEmpty()
             update {
                 val hasFeed = it.dramaFeed.isNotEmpty() || cached.isNotEmpty()
                 it.copy(
@@ -2728,15 +2813,17 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 )
             }
             try {
-                // 先取首个频道让界面立刻可滑，再并发补齐其余频道。
-                val quick = api.dramaFeed(maxCells = 1)
-                if (quick.isNotEmpty()) {
-                    withContext(Dispatchers.IO) { offline.saveDramaFeed(quick) }
-                    update { cur ->
-                        val merged = (cur.dramaFeed + quick).distinctBy { it.seriesId }
-                        cur.copy(dramaFeed = merged, dramaFeedLoading = false, dramaOffset = 10)
+                // 无缓存时才先取首个频道保证首屏可滑；有缓存直接一次并发拉全量，避免重复请求首个频道。
+                if (!hadFeed) {
+                    val quick = api.dramaFeed(maxCells = 1)
+                    if (quick.isNotEmpty()) {
+                        withContext(Dispatchers.IO) { offline.saveDramaFeed(quick) }
+                        update { cur ->
+                            val merged = (cur.dramaFeed + quick).distinctBy { it.seriesId }
+                            cur.copy(dramaFeed = merged, dramaFeedLoading = false, dramaOffset = 10)
+                        }
+                        refreshDramaSubscriptionsFromFeed()
                     }
-                    refreshDramaSubscriptionsFromFeed()
                 }
                 val full = api.dramaFeed(maxCells = 10)
                 if (full.isNotEmpty()) {
@@ -2762,9 +2849,17 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         val subscriptions = withContext(Dispatchers.IO) {
             offline.refreshDramaSubscriptionEpisodes(_state.value.dramaFeed)
         }
-        if (subscriptions.isNotEmpty()) {
-            update { it.copy(dramaSubscriptions = subscriptions) }
+        if (subscriptions.isEmpty()) return
+        update { it.copy(dramaSubscriptions = subscriptions) }
+        if (!offline.newChapterNotifyEnabled()) return
+        // 通知水位之外的集数才算新集；发完立刻抬水位，同一次更新不会反复弹。
+        val notices = withContext(Dispatchers.IO) { offline.pendingDramaUpdates() }
+        if (notices.isEmpty()) return
+        DramaUpdateNotifier.notify(api.appContext, notices)
+        val marked = withContext(Dispatchers.IO) {
+            offline.markDramaUpdatesNotified(notices.map { it.series.seriesId })
         }
+        if (marked.isNotEmpty()) update { it.copy(dramaSubscriptions = marked) }
     }
 
     /** 短剧下滑续页 沿频道首页 offset 往后翻，按 seriesId 去重追加 */
@@ -2791,19 +2886,34 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
-    fun loadDramaDetail(seriesId: String, isMotionComic: Boolean = false, autoPlayFirst: Boolean = false) {
+    fun loadDramaDetail(
+        seriesId: String,
+        isMotionComic: Boolean = false,
+        autoPlayFirst: Boolean = false,
+        resumeEpisodeId: String = "",
+        resumePositionMs: Long = 0L,
+    ) {
         viewModelScope.launch {
             update {
                 it.copy(
                     dramaDetailLoading = true,
                     dramaComments = emptyList(), dramaCommentTotal = 0,
                     dramaCommentsHasMore = false, dramaCommentsCursor = "", dramaCommentsError = "",
+                    dramaCommentReplyTarget = null, dramaCommentReplies = emptyList(),
+                    dramaCommentRepliesLoading = false, dramaCommentRepliesHasMore = false,
+                    dramaCommentRepliesCursor = "", dramaCommentRepliesError = "",
                     dramaRelated = emptyList(),
                 )
             }
             try {
                 val parsed = api.dramaDetail(seriesId, isMotionComic)
-                val feedItem = _state.value.dramaFeed.firstOrNull { it.seriesId == parsed.seriesId }
+                val knownSeries = _state.value.dramaSubscriptions.firstOrNull { it.series.seriesId == seriesId }?.series
+                    ?: _state.value.dramaFavorites.firstOrNull { it.seriesId == seriesId }
+                    ?: _state.value.recentDramas.firstOrNull { it.seriesId == seriesId }
+                    ?: offline.dramaSubscriptions().firstOrNull { it.series.seriesId == seriesId }?.series
+                    ?: offline.dramaFavorites().firstOrNull { it.seriesId == seriesId }
+                    ?: offline.dramaRecent().firstOrNull { it.seriesId == seriesId }
+                val feedItem = _state.value.dramaFeed.firstOrNull { it.seriesId == parsed.seriesId } ?: knownSeries
                 val placeholder = "短剧 ${parsed.seriesId}"
                 val drama = if (feedItem == null) parsed else parsed.copy(
                     title = if (parsed.title == placeholder) feedItem.title else parsed.title,
@@ -2829,8 +2939,18 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     dramaSubscriptions = updatedSubscriptions,
                 ) }
                 loadDramaRelated(drama.seriesId)
-                if (autoPlayFirst && drama.episodes.isNotEmpty()) {
-                    playDramaEpisode(drama.episodes.first())
+                val resumeIndex = drama.episodes.indexOfFirst { it.episodeId == resumeEpisodeId }
+                val resumeEpisode = drama.episodes.getOrNull(resumeIndex)
+                val resumeFinished = resumeEpisode != null && resumeEpisode.durationSeconds > 0 &&
+                    resumePositionMs >= resumeEpisode.durationSeconds * 1000L * 95 / 100
+                when {
+                    resumeEpisode != null && resumeFinished -> {
+                        // 已看完 95% 的集从下一集开头继续，而不是把最后一帧再放一遍。
+                        val next = drama.episodes.getOrNull(resumeIndex + 1)
+                        playDramaEpisode(next ?: resumeEpisode, if (next != null) 0L else resumePositionMs)
+                    }
+                    resumeEpisode != null -> playDramaEpisode(resumeEpisode, resumePositionMs)
+                    autoPlayFirst && drama.episodes.isNotEmpty() -> playDramaEpisode(drama.episodes.first())
                 }
             } catch (e: Exception) {
                 update { it.copy(dramaDetailLoading = false, message = readableFailure(e.message.orEmpty())) }
@@ -2838,7 +2958,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
     }
 
-    fun playDramaEpisode(episode: DramaEpisode) {
+    fun playDramaEpisode(episode: DramaEpisode, startPositionMs: Long = 0L) {
         viewModelScope.launch {
             val cached = _state.value.prefetchedVideoSource
                 ?.takeIf { _state.value.prefetchedEpisodeId == episode.episodeId }
@@ -2847,6 +2967,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 dramaVideoLoading = cached == null,
                 dramaVideoError = "",
                 currentVideoSource = cached,
+                dramaResumePositionMs = startPositionMs.coerceAtLeast(0L),
                 prefetchedEpisodeId = "",
                 prefetchedVideoSource = null,
                 danmakuList = emptyList()
@@ -2889,6 +3010,11 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         update { it.copy(prefetchedEpisodeId = next.episodeId, prefetchedVideoSource = null) }
         dramaPrefetchJob = viewModelScope.launch {
             try {
+                // 下一集和再下一集并行预热：下一集占用内存槽位直接无缝起播，
+                // 再下一集只写磁盘缓存，切到它时命中本地文件。
+                val afterNextJob = drama.episodes.getOrNull(index + 2)?.let { afterNext ->
+                    async { runCatching { api.dramaEpisodePlay(afterNext.episodeId) } }
+                }
                 val source = api.dramaEpisodePlay(next.episodeId)
                 if (_state.value.currentDrama?.seriesId == drama.seriesId &&
                     _state.value.currentEpisode?.episodeId == episode.episodeId &&
@@ -2896,6 +3022,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 ) {
                     update { it.copy(prefetchedVideoSource = source) }
                 }
+                afterNextJob?.await()
             } catch (_: Exception) {
                 // 预取失败不打扰用户；真正切到该集时会重新请求并展示错误。
             }
@@ -2910,6 +3037,26 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 update { it.copy(danmakuList = list, danmakuLoading = false) }
             } catch (_: Exception) {
                 update { it.copy(danmakuLoading = false) }
+            }
+        }
+    }
+
+    /** 播放推进时按时间窗口追加弹幕，避免只显示切集时的首包。 */
+    fun loadMoreDanmaku(seriesId: String, videoId: String, offsetMs: Long, durationSeconds: Int = 0) {
+        if (offsetMs <= 0L) return
+        viewModelScope.launch {
+            try {
+                val list = api.dramaDanmaku(seriesId, videoId, offsetMs, durationSeconds)
+                if (list.isEmpty()) return@launch
+                update { state ->
+                    state.copy(
+                        danmakuList = (state.danmakuList + list)
+                            .distinctBy { it.id }
+                            .sortedBy { it.offsetMs },
+                    )
+                }
+            } catch (_: Exception) {
+                // 续拉失败不打断播放，下一窗口会继续尝试。
             }
         }
     }
@@ -2983,11 +3130,20 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
             try {
                 val cursor = if (reset) "" else _state.value.dramaCommentsCursor
                 val page = api.dramaComments(seriesId, cursor = cursor)
+                val hot = if (reset) {
+                    val videoId = _state.value.currentEpisode
+                        ?.takeIf { _state.value.currentDrama?.seriesId == seriesId }
+                        ?.episodeId.orEmpty()
+                    runCatching { api.dramaHotComments(seriesId, videoId = videoId) }.getOrNull()
+                } else null
+                val firstItems = if (reset && hot != null) {
+                    (hot.items + page.items).distinctBy { it.id }
+                } else page.items
                 update { cur ->
-                    val merged = if (reset) page.items else (cur.dramaComments + page.items).distinctBy { it.id }
+                    val merged = if (reset) firstItems else (cur.dramaComments + page.items).distinctBy { it.id }
                     cur.copy(
                         dramaComments = merged,
-                        dramaCommentTotal = page.total,
+                        dramaCommentTotal = if (reset) maxOf(page.total, merged.size) else page.total,
                         dramaCommentsHasMore = page.hasMore,
                         dramaCommentsCursor = page.cursor,
                         dramaCommentsLoading = false,
@@ -3005,6 +3161,95 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     fun loadMoreDramaComments(seriesId: String) = loadDramaComments(seriesId, reset = false)
+
+    /** 打开某条剧评的楼中楼，并加载第一页回复。 */
+    fun loadDramaCommentReplies(comment: BookHotReview, reset: Boolean = true) {
+        val series = _state.value.currentDrama ?: return
+        val snapshot = _state.value
+        if (!reset && (snapshot.dramaCommentRepliesLoading || !snapshot.dramaCommentRepliesHasMore)) return
+        viewModelScope.launch {
+            update {
+                it.copy(
+                    dramaCommentReplyTarget = comment,
+                    dramaCommentRepliesLoading = true,
+                    dramaCommentRepliesError = "",
+                    dramaCommentReplies = if (reset) emptyList() else it.dramaCommentReplies,
+                    dramaCommentRepliesCursor = if (reset) "" else it.dramaCommentRepliesCursor,
+                )
+            }
+            try {
+                val cursor = if (reset) "" else _state.value.dramaCommentRepliesCursor
+                val page = api.dramaCommentReplies(series.seriesId, comment.id, cursor = cursor)
+                update { cur ->
+                    val merged = if (reset) page.items else (cur.dramaCommentReplies + page.items).distinctBy { it.id }
+                    cur.copy(
+                        dramaCommentReplies = merged,
+                        dramaCommentRepliesHasMore = page.hasMore,
+                        dramaCommentRepliesCursor = page.cursor,
+                        dramaCommentRepliesLoading = false,
+                    )
+                }
+            } catch (e: Exception) {
+                update {
+                    it.copy(
+                        dramaCommentRepliesLoading = false,
+                        dramaCommentRepliesError = readableFailure(e.message.orEmpty()),
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadMoreDramaCommentReplies() {
+        val target = _state.value.dramaCommentReplyTarget ?: return
+        loadDramaCommentReplies(target, reset = false)
+    }
+
+    fun closeDramaCommentReplies() {
+        update {
+            it.copy(
+                dramaCommentReplyTarget = null,
+                dramaCommentReplies = emptyList(),
+                dramaCommentRepliesLoading = false,
+                dramaCommentRepliesHasMore = false,
+                dramaCommentRepliesCursor = "",
+                dramaCommentRepliesError = "",
+            )
+        }
+    }
+
+    /** 在楼中楼回复某条剧评，或回复某条子回复。 */
+    fun replyDramaComment(text: String, replyTo: CommentReply? = null) {
+        val series = _state.value.currentDrama ?: return
+        val target = _state.value.dramaCommentReplyTarget ?: return
+        if (text.isBlank() || _state.value.dramaCommentReplySending) return
+        update { it.copy(dramaCommentReplySending = true) }
+        viewModelScope.launch {
+            try {
+                val ok = api.replyDramaComment(
+                    seriesId = series.seriesId,
+                    commentId = target.id,
+                    text = text.trim(),
+                    replyToReplyId = replyTo?.id.orEmpty(),
+                    replyToUserId = replyTo?.user.orEmpty(),
+                )
+                if (!ok) throw ApiException("上游没有确认接收")
+                notify("回复已发送")
+                update { state ->
+                    state.copy(
+                        dramaComments = state.dramaComments.map {
+                            if (it.id == target.id) it.copy(replyCount = it.replyCount + 1) else it
+                        },
+                    )
+                }
+                loadDramaCommentReplies(target, reset = true)
+            } catch (e: Exception) {
+                notify(readableFailure(e.message.orEmpty()))
+            } finally {
+                update { it.copy(dramaCommentReplySending = false) }
+            }
+        }
+    }
 
     fun toggleDramaCommentDigg(comment: BookHotReview) {
         val series = _state.value.currentDrama ?: return

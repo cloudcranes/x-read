@@ -19,6 +19,9 @@ class ApiException(message: String, val transient: Boolean = false) : Exception(
 /** Native content repository: Kotlin -> JNI -> upstream. All user library data stays on phone. */
 class Api(context: Context) {
     private val app = context.applicationContext
+
+    /** 应用上下文；ViewModel 发短剧追更通知时用，避免再传一份 Context。 */
+    val appContext: Context get() = app
     // 必须与 ViewModel 共用同一实例 OfflineRepo 的锁是实例级，两个实例等于没有互斥。
     private val offline = OfflineRepo.of(app)
     private val library = LocalLibrary(File(app.filesDir, "library"))
@@ -116,7 +119,12 @@ class Api(context: Context) {
     }
 
     suspend fun removeFromShelf(source: String, bookId: String) = withContext(Dispatchers.IO) {
-        checkSource(source); checkId(bookId); library.remove(bookId)
+        checkId(bookId)
+        // zlibrary 是本地导入书源，没有上游接口；它的在架记录同样落在 LocalLibrary。
+        // 过去这里统一走 checkSource 只允许 fanqie，导致本地书点「移出书架」直接报
+        // 「书源不存在」，实际一条记录都没删掉。
+        if (source != ZLibraryImportMapper.SOURCE) checkSource(source)
+        library.remove(bookId)
     }
 
     /**
@@ -584,8 +592,23 @@ class Api(context: Context) {
             TimelineParser.parse(chapterId, payload)
         }
 
-    /** 短剧 / 漫剧推荐流 频道 tab 聚合 + 频道内 offset 分页，保证能一直下滑出新剧 */
-    suspend fun dramaFeed(cellId: String = "", maxCells: Int = 10, offset: Int = 0): List<DramaSeries> =
+    /**
+     * 短剧 / 漫剧推荐流 频道 tab 聚合 + 频道内 offset 分页，保证能一直下滑出新剧。
+     *
+     * 推荐 cell 路径把上游支持的可选参数都透传 offset、client_req_type、
+     * client_template、cell_name、selected_items、filter_ids；没有 cellId 时仍走
+     * channels + search 兜底。
+     */
+    suspend fun dramaFeed(
+        cellId: String = "",
+        maxCells: Int = 10,
+        offset: Int = 0,
+        filterIds: List<String> = emptyList(),
+        clientReqType: Int = 1,
+        clientTemplate: Int = 0,
+        cellName: String = "",
+        selectedItems: List<String> = emptyList(),
+    ): List<DramaSeries> =
         withContext(Dispatchers.IO) {
             val list = mutableListOf<DramaSeries>()
             val seen = mutableSetOf<String>()
@@ -595,8 +618,21 @@ class Api(context: Context) {
                 }
             }
             if (cellId.isNotEmpty()) {
+                val q = buildString {
+                    append("cell_id=").append(enc(cellId))
+                    append("&offset=").append(offset.coerceAtLeast(0))
+                    append("&client_req_type=").append(clientReqType.coerceAtLeast(0))
+                    if (clientTemplate > 0) append("&client_template=").append(clientTemplate)
+                    if (cellName.isNotBlank()) append("&cell_name=").append(enc(cellName))
+                    if (selectedItems.isNotEmpty()) {
+                        append("&selected_items=").append(enc(selectedItems.joinToString(",")))
+                    }
+                    if (filterIds.isNotEmpty()) {
+                        append("&filter_ids=").append(enc(filterIds.joinToString(",")))
+                    }
+                }
                 val payload = try {
-                    content("recommend/series-feed", "cell_id=${enc(cellId)}")
+                    content("recommend/series-feed", q)
                 } catch (_: Exception) { JSONObject() }
                 absorb(DramaParser.dramaFeed(payload))
             }
@@ -630,17 +666,26 @@ class Api(context: Context) {
             list
         }
 
-    /** 短剧 / 漫剧详情与选集 */
-    suspend fun dramaDetail(seriesId: String, isMotionComic: Boolean = false): DramaSeries = withContext(Dispatchers.IO) {
+    /** 短剧 / 漫剧详情与选集；漫剧分页参数一次性带满，避免只拿默认第一页。 */
+    suspend fun dramaDetail(
+        seriesId: String,
+        isMotionComic: Boolean = false,
+        offset: Int = 1,
+        count: Int = 80,
+        total: Int = 80,
+        pseriesType: Int = 5,
+    ): DramaSeries = withContext(Dispatchers.IO) {
         checkId(seriesId)
+        val mangaQuery = "offset=${offset.coerceAtLeast(1)}&count=${count.coerceIn(1, 100)}" +
+            "&total=${total.coerceAtLeast(1)}&pseries_type=${pseriesType.coerceAtLeast(1)}"
         val payload = try {
-            if (isMotionComic) content("manga/videos/$seriesId")
+            if (isMotionComic) content("manga/videos/$seriesId", mangaQuery)
             else content("series/$seriesId")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             try {
-                if (isMotionComic) content("series/$seriesId") else content("manga/videos/$seriesId")
+                if (isMotionComic) content("series/$seriesId") else content("manga/videos/$seriesId", mangaQuery)
             } catch (_: Exception) {
                 throw e
             }
@@ -648,19 +693,43 @@ class Api(context: Context) {
         DramaParser.dramaSeries(seriesId, payload)
     }
 
-    /** 短剧单集视频播放源获取与本地解密路径解析 */
-    suspend fun dramaEpisodePlay(videoId: String): DramaPlaySource = withContext(Dispatchers.IO) {
+    /**
+     * 短剧单集视频播放源获取与本地解密路径解析。
+     *
+     * `stream=true` 时透传 `mode=stream`，同时解析 `key_hex` 与 `variants[]`，
+     * 非 stream 保持原来的本地下载 + 解密路径行为。
+     */
+    suspend fun dramaEpisodePlay(
+        videoId: String,
+        stream: Boolean = false,
+    ): DramaPlaySource = withContext(Dispatchers.IO) {
         checkId(videoId)
-        val payload = content("videos/$videoId")
-        val rawUrl = payload.optString("video_url")
-        val localPath = if (rawUrl.startsWith("/src/")) {
+        val payload = content("videos/$videoId", if (stream) "mode=stream" else "")
+        val rawUrl = payload.optString("video_url").ifBlank { payload.optString("url") }
+        val localPath = if (!stream && rawUrl.startsWith("/src/")) {
             NativeCore.localFile(app, rawUrl)
         } else ""
+        val variants = payload.optJSONArray("variants")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                val item = arr.optJSONObject(i) ?: return@mapNotNull null
+                val url = item.optString("video_url").ifBlank { item.optString("url") }
+                if (url.isBlank()) null else DramaVideoVariant(
+                    name = item.optString("name").ifBlank {
+                        item.optString("quality").ifBlank { item.optString("definition") }
+                    },
+                    url = url,
+                    width = item.optInt("width", 0),
+                    height = item.optInt("height", 0),
+                )
+            }
+        }.orEmpty()
         DramaPlaySource(
             videoId = videoId,
             videoUrl = rawUrl,
             localFilePath = localPath,
             durationMs = payload.optLong("duration_ms", 0L),
+            keyHex = payload.optString("key_hex"),
+            variants = variants,
         )
     }
 
@@ -675,6 +744,7 @@ class Api(context: Context) {
         videoId: String,
         offsetMs: Long = 0L,
         durationSeconds: Int = 0,
+        cursor: String = "",
     ): List<DanmakuItem> = withContext(Dispatchers.IO) {
         checkId(seriesId); checkId(videoId)
         // 上游只在时长不短于 180 秒时给整窗；给太大反而落到空窗。
@@ -683,6 +753,7 @@ class Api(context: Context) {
             append("series_id=").append(enc(seriesId))
             append("&start_offset_time=").append(offsetMs)
             if (duration > 0) append("&playlet_item_duration=").append(duration)
+            if (cursor.isNotBlank()) append("&cursor=").append(enc(cursor))
         }
         var items: List<DanmakuItem> = emptyList()
         loop@ for (attempt in 0 until 3) {
@@ -751,17 +822,46 @@ class Api(context: Context) {
         SocialParser.bookHotReviews(content("series/$seriesId/comments", q))
     }
 
-    /** 短剧剧评回复列表。 */
+    /**
+     * 短剧热评 `series/{id}/hot-comments`，支持按当前视频过滤并混入指定评论。
+     * 响应结构与普通剧评一致，复用 `SocialParser.bookHotReviews`。
+     */
+    suspend fun dramaHotComments(
+        seriesId: String,
+        videoId: String = "",
+        count: Int = 20,
+        serverChannel: Int = 17,
+        insertCommentIds: List<String> = emptyList(),
+    ): BookHotReviewPage = withContext(Dispatchers.IO) {
+        checkId(seriesId)
+        val q = buildString {
+            if (videoId.isNotBlank()) append("vid=").append(enc(videoId)).append("&")
+            append("count=").append(count.coerceIn(1, 50))
+            append("&server_channel=").append(serverChannel.coerceAtLeast(1))
+            if (insertCommentIds.isNotEmpty()) {
+                append("&insert_comment_ids=").append(enc(insertCommentIds.joinToString(",")))
+            }
+        }
+        SocialParser.bookHotReviews(content("series/$seriesId/hot-comments", q))
+    }
+
+    /** 短剧剧评回复列表，支持热评定点回复（ref_reply_id / insert_reply_ids）。 */
     suspend fun dramaCommentReplies(
         seriesId: String,
         commentId: String,
         cursor: String = "",
         count: Int = 20,
+        refReplyId: String = "",
+        insertReplyIds: List<String> = emptyList(),
     ): CommentReplyPage = withContext(Dispatchers.IO) {
         checkId(seriesId); checkId(commentId)
         val q = buildString {
             append("count=").append(count.coerceIn(1, 50))
             if (cursor.isNotBlank()) append("&cursor=").append(enc(cursor))
+            if (refReplyId.isNotBlank()) append("&ref_reply_id=").append(enc(refReplyId))
+            if (insertReplyIds.isNotEmpty()) {
+                append("&insert_reply_ids=").append(enc(insertReplyIds.joinToString(",")))
+            }
         }
         SocialParser.commentReplies(content("series/$seriesId/comments/$commentId/replies", q))
     }
@@ -800,11 +900,13 @@ class Api(context: Context) {
             resp.optJSONObject("data") != null
     }
 
-    /** 回复某条短剧剧评。 */
+    /** 回复某条短剧剧评；支持回复某条子回复。 */
     suspend fun replyDramaComment(
         seriesId: String,
         commentId: String,
         text: String,
+        replyToReplyId: String = "",
+        replyToUserId: String = "",
     ): Boolean = withContext(Dispatchers.IO) {
         val trimmed = text.trim()
         require(trimmed.isNotEmpty()) { "回复内容不能为空" }
@@ -813,6 +915,8 @@ class Api(context: Context) {
             append("text=").append(enc(trimmed))
             append("&series_id=").append(enc(seriesId))
             append("&reply_to_comment_id=").append(enc(commentId))
+            if (replyToReplyId.isNotBlank()) append("&reply_to_reply_id=").append(enc(replyToReplyId))
+            if (replyToUserId.isNotBlank()) append("&reply_to_user_id=").append(enc(replyToUserId))
         }
         val resp = NativeCore.request(app, "/api/v1/comments/$commentId/reply", q, "POST", "")
         val code = resp.optInt("code", -1)
@@ -828,10 +932,39 @@ class Api(context: Context) {
         DramaParser.dramaFeed(content("series/$seriesId/related"))
     }
 
-    /** 短剧服务端分享信息。 */
-    suspend fun dramaShare(seriesId: String): ShareInfo = withContext(Dispatchers.IO) {
+    /**
+     * 短剧服务端分享信息。
+     * 可选参数带当前集、首集、分享入口与视频类型，服务端分享卡片能直接定位剧集。
+     */
+    suspend fun dramaShare(
+        seriesId: String,
+        currentEpisodeId: String = "",
+        firstEpisodeId: String = "",
+        shareTimestamp: Long = 0L,
+        entrance: String = "",
+        videoType: Int = 0,
+    ): ShareInfo = withContext(Dispatchers.IO) {
         checkId(seriesId)
-        ContentParser.shareInfo(content("series/$seriesId/share"))
+        val q = buildString {
+            if (currentEpisodeId.isNotBlank()) append("current_chapter_id=").append(enc(currentEpisodeId))
+            if (firstEpisodeId.isNotBlank()) {
+                if (isNotEmpty()) append("&")
+                append("first_chapter_id=").append(enc(firstEpisodeId))
+            }
+            if (shareTimestamp > 0) {
+                if (isNotEmpty()) append("&")
+                append("share_timestamp=").append(shareTimestamp)
+            }
+            if (entrance.isNotBlank()) {
+                if (isNotEmpty()) append("&")
+                append("entrance=").append(enc(entrance))
+            }
+            if (videoType > 0) {
+                if (isNotEmpty()) append("&")
+                append("video_type=").append(videoType)
+            }
+        }
+        ContentParser.shareInfo(content("series/$seriesId/share", q))
     }
 
     suspend fun saveProgress(source: String, bookId: String, chapterId: String, offset: Int) = withContext(Dispatchers.IO) {

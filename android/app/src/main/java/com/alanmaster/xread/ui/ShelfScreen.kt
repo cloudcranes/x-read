@@ -86,7 +86,9 @@ import coil.compose.AsyncImage
 import com.alanmaster.xread.data.Book
 import com.alanmaster.xread.data.BookStatus
 import com.alanmaster.xread.data.DramaSeries
+import com.alanmaster.xread.data.DramaSeriesGrouping
 import com.alanmaster.xread.data.DramaSubscription
+import com.alanmaster.xread.data.DramaSubscriptionGroup
 import com.alanmaster.xread.data.ShelfGrouping
 import com.alanmaster.xread.data.ShelfItem
 
@@ -170,6 +172,11 @@ fun ShelfScreen(
     var selectedIds by remember { mutableStateOf(emptySet<String>()) }
     /** 长按菜单锚在哪一本上；null 表示没有菜单展开。 */
     var menuFor by remember { mutableStateOf<String?>(null) }
+    /** 多季短剧系列展开的选集面板。 */
+    var subscriptionGroup by remember { mutableStateOf<DramaSubscriptionGroup?>(null) }
+    val subscriptionGroups = remember(dramaSubscriptions) {
+        DramaSeriesGrouping.group(dramaSubscriptions)
+    }
     val haptic = rememberHaptic()
     val selectedBooks = remember(selectedIds, shelf) {
         shelf.mapNotNull { it.book.takeIf { b -> b.bookId in selectedIds } }
@@ -277,17 +284,17 @@ fun ShelfScreen(
                 if (shelfMediaType == "drama") {
                     /* -------------------- 短剧 订阅 + 收藏 + 追剧记录 -------------------- */
                     item {
-                        val updateCount = dramaSubscriptions.count { it.newEpisodeCount > 0 }
+                        val updateCount = subscriptionGroups.count { it.newEpisodeCount > 0 }
                         ShelfSectionTitle(
                             "我的订阅",
                             when {
-                                dramaSubscriptions.isEmpty() -> "还没有订阅"
-                                updateCount > 0 -> "${dramaSubscriptions.size} 部 $updateCount 部有更新"
-                                else -> "${dramaSubscriptions.size} 部"
+                                subscriptionGroups.isEmpty() -> "还没有订阅"
+                                updateCount > 0 -> "${subscriptionGroups.size} 个系列 $updateCount 个有更新"
+                                else -> "${subscriptionGroups.size} 个系列"
                             },
                         )
                     }
-                    if (dramaSubscriptions.isEmpty()) {
+                    if (subscriptionGroups.isEmpty()) {
                         item {
                             ShelfEmpty(
                                 onDiscover = onDiscoverDrama ?: onDiscover,
@@ -297,18 +304,19 @@ fun ShelfScreen(
                             )
                         }
                     } else {
-                        items(dramaSubscriptions, key = { "drama-sub-${it.series.seriesId}" }) { sub ->
+                        items(subscriptionGroups, key = { "drama-sub-${it.title}" }) { group ->
                             RecentDramaCard(
-                                drama = sub.series,
-                                onClick = { onOpenSubscription(sub.series) },
-                                onToggleSubscription = { onToggleSubscriptionDrama(sub.series) },
-                                subtitle = if (sub.newEpisodeCount > 0) {
-                                    "更新 ${sub.newEpisodeCount} 集 共 ${sub.series.episodeCount} 集"
-                                } else if (sub.series.episodeCount > 0) {
-                                    "全 ${sub.series.episodeCount} 集"
-                                } else {
-                                    "连载中"
+                                drama = group.primary.series,
+                                titleOverride = group.title,
+                                onClick = {
+                                    if (group.subscriptions.size > 1) {
+                                        subscriptionGroup = group
+                                    } else {
+                                        onOpenSubscription(group.primary.series)
+                                    }
                                 },
+                                onToggleSubscription = { onToggleSubscriptionDrama(group.primary.series) },
+                                subtitle = subscriptionGroupSubtitle(group),
                             )
                         }
                     }
@@ -461,6 +469,37 @@ fun ShelfScreen(
                         },
                         onRemove = { menuFor = null; onBatchRemove(listOf(actionItem.book)) },
                     )
+                }
+            }
+            subscriptionGroup?.let { group ->
+                ModalBottomSheet(
+                    onDismissRequest = { subscriptionGroup = null },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(bottom = Space.lg)) {
+                        Text(
+                            text = group.title,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.md),
+                        )
+                        group.subscriptions.forEach { sub ->
+                            RecentDramaCard(
+                                drama = sub.series,
+                                onClick = {
+                                    subscriptionGroup = null
+                                    onOpenSubscription(sub.series)
+                                },
+                                subtitle = when {
+                                    sub.newEpisodeCount > 0 -> "更新 ${sub.newEpisodeCount} 集 共 ${sub.series.episodeCount} 集"
+                                    sub.series.episodeCount > 0 -> "全 ${sub.series.episodeCount} 集"
+                                    else -> "连载中"
+                                },
+                            )
+                        }
+                    }
                 }
             }
             if (selecting) {
@@ -864,6 +903,18 @@ private fun ShelfSectionTitle(title: String, hint: String) {
     }
 }
 
+private fun subscriptionGroupSubtitle(group: DramaSubscriptionGroup): String {
+    val update = group.newEpisodeCount
+    val total = group.totalEpisodeCount
+    return when {
+        group.subscriptions.size > 1 && update > 0 -> "${group.subscriptions.size} 部 更新 $update 集 共 $total 集"
+        group.subscriptions.size > 1 -> "${group.subscriptions.size} 部 共 $total 集"
+        update > 0 -> "更新 $update 集 共 $total 集"
+        total > 0 -> "全 $total 集"
+        else -> "连载中"
+    }
+}
+
 @Composable
 private fun RecentDramaCard(
     drama: DramaSeries,
@@ -871,6 +922,7 @@ private fun RecentDramaCard(
     onToggleFavorite: (() -> Unit)? = null,
     onToggleSubscription: (() -> Unit)? = null,
     subtitle: String? = null,
+    titleOverride: String? = null,
 ) {
     Row(
         modifier = Modifier
@@ -889,7 +941,7 @@ private fun RecentDramaCard(
             if (drama.coverUrl.isNotEmpty()) {
                 AsyncImage(
                     model = drama.coverUrl,
-                    contentDescription = drama.title,
+                    contentDescription = titleOverride ?: drama.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -908,7 +960,7 @@ private fun RecentDramaCard(
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = drama.title,
+                    text = titleOverride ?: drama.title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -934,7 +986,7 @@ private fun RecentDramaCard(
             Text(
                 text = subtitle ?: if (drama.episodeCount > 0) "全 ${drama.episodeCount} 集" else "连载中",
                 fontSize = 12.sp,
-                color = if (subtitle?.startsWith("更新") == true) {
+                color = if (subtitle?.contains("更新") == true) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -956,7 +1008,7 @@ private fun RecentDramaCard(
         if (onToggleSubscription != null) {
             IconButton(onClick = onToggleSubscription, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    if (subtitle?.startsWith("更新") == true) {
+                    if (subtitle?.contains("更新") == true) {
                         Icons.Filled.NotificationsActive
                     } else {
                         Icons.Filled.Notifications

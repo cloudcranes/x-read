@@ -31,6 +31,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     private val dramaFavFile = File(root, "drama-favorites.json")
     private val dramaSubFile = File(root, "drama-subscriptions.json")
     private val dramaFeedFile = File(root, "drama-feed.json")
+    private val dramaProgressFile = File(root, "drama-progress.json")
     /** 书架整理结果（分组、入架时间、更新基线）在 library/shelf.json，备份要一并带上。 */
     private val shelfFile = File(root.parentFile ?: root, "library/shelf.json")
 
@@ -1154,6 +1155,70 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
     }.getOrDefault(emptyList())
 
     /**
+     * 最近播放进度，按更新时间倒序。
+     *
+     * 不把整部 [DramaSeries] 写进来，避免详情页的大段剧集列表把 rail 文件撑大；
+     * 继续观看只需要封面、标题、集数与位置。
+     */
+    fun dramaProgress(): List<DramaProgress> = runCatching {
+        val arr = loadObject(dramaProgressFile).optJSONArray("items") ?: return emptyList()
+        buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val seriesId = o.str("series_id")
+                if (seriesId.isEmpty()) continue
+                add(
+                    DramaProgress(
+                        seriesId = seriesId,
+                        seriesTitle = o.str("title"),
+                        coverUrl = o.str("cover_url"),
+                        episodeId = o.str("episode_id"),
+                        episodeIndex = o.long("episode_index", 1L).toInt(),
+                        positionMs = o.long("position_ms"),
+                        durationMs = o.long("duration_ms"),
+                        updatedAt = o.long("updated_at"),
+                    ),
+                )
+            }
+        }.sortedByDescending { it.updatedAt }.take(MAX_DRAMA_PROGRESS)
+    }.getOrDefault(emptyList())
+
+    /**
+     * 写入一部剧的播放进度并返回最新列表。
+     *
+     * 同一部剧只保留一条；位置为 0 且没有时长的初始化写入也会保留，
+     * 这样用户点开就退出也能在「继续观看」里看到第一集。
+     */
+    fun saveDramaProgress(progress: DramaProgress): List<DramaProgress> = runCatching {
+        if (progress.seriesId.isEmpty()) return dramaProgress()
+        val now = if (progress.updatedAt > 0L) progress.updatedAt else System.currentTimeMillis()
+        val merged = (listOf(progress.copy(updatedAt = now)) +
+            dramaProgress().filter { it.seriesId != progress.seriesId })
+            .take(MAX_DRAMA_PROGRESS)
+        val arr = JSONArray()
+        merged.forEach { p ->
+            arr.put(
+                JSONObject()
+                    .put("series_id", p.seriesId)
+                    .put("title", p.seriesTitle)
+                    .put("cover_url", p.coverUrl)
+                    .put("episode_id", p.episodeId)
+                    .put("episode_index", p.episodeIndex)
+                    .put("position_ms", p.positionMs)
+                    .put("duration_ms", p.durationMs)
+                    .put("updated_at", p.updatedAt),
+            )
+        }
+        write(dramaProgressFile, JSONObject().put("items", arr).toString())
+        merged
+    }.getOrDefault(emptyList())
+
+    fun clearDramaProgress(): List<DramaProgress> = runCatching {
+        write(dramaProgressFile, JSONObject().put("items", JSONArray()).toString())
+        emptyList<DramaProgress>()
+    }.getOrDefault(emptyList())
+
+    /**
      * 短剧媒体墙缓存 上次成功拉到的 feed。
      *
      * 冷启动先渲染这份数据，网络刷新在后台完成，避免一进短剧页先看几秒转圈。
@@ -1288,14 +1353,15 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                     episodeCount = o.long("episode_count").toInt(),
                     contentType = o.long("content_type", 1L).toInt(),
                 )
+                val storedLatest = o.long("latest_episode_count").toInt()
                 add(
                     DramaSubscription(
                         series = series,
                         lastSeenEpisodeCount = o.long("last_seen_episode_count").toInt(),
-                        latestEpisodeCount = maxOf(
-                            o.long("latest_episode_count").toInt(),
-                            series.episodeCount,
-                        ),
+                        // 读回落盘快照而不是跟 episode_count 取 max，否则刷新前后永远相等，
+                        // 「这周多了几集」就再也算不出来。老数据没有该字段时才退回集数。
+                        latestEpisodeCount = if (storedLatest > 0) storedLatest else series.episodeCount,
+                        notifiedEpisodeCount = o.long("notified_episode_count").toInt(),
                     ),
                 )
             }
@@ -1304,6 +1370,45 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
 
     fun isDramaSubscribed(seriesId: String): Boolean =
         seriesId.isNotEmpty() && dramaSubscriptions().any { it.series.seriesId == seriesId }
+
+    fun isDramaSubscribed(series: DramaSeries): Boolean =
+        series.seriesId.isNotEmpty() && DramaSeriesGrouping.isSubscribed(series, dramaSubscriptions())
+
+    /**
+     * 按系列订阅或取消订阅。同一标题基名的多季条目会一起写入，书架只显示一张系列卡。
+     * 取消订阅时按系列键清除整组，不会留下某一季的孤条。
+     */
+    fun setDramaSubscriptionGroup(
+        series: DramaSeries,
+        siblings: List<DramaSeries>,
+        subscribed: Boolean,
+    ): List<DramaSubscription> = runCatching {
+        if (series.seriesId.isEmpty()) return dramaSubscriptions()
+        val current = dramaSubscriptions()
+        val groupKey = DramaSeriesGrouping.groupKey(series)
+        val rest = current.filter { DramaSeriesGrouping.groupKey(it.series) != groupKey }
+        val merged = if (subscribed) {
+            val candidates = (siblings + series)
+                .filter { it.seriesId.isNotEmpty() }
+                .distinctBy { it.seriesId }
+            val entries = candidates.map { candidate ->
+                val existing = current.firstOrNull { it.series.seriesId == candidate.seriesId }
+                DramaSubscription(
+                    series = candidate,
+                    // 新订阅的每一季都以当前集数为起点，只有订阅之后新增的集才提示更新。
+                    lastSeenEpisodeCount = existing?.lastSeenEpisodeCount ?: candidate.episodeCount,
+                    latestEpisodeCount = existing?.latestEpisodeCount ?: candidate.episodeCount,
+                    // 订阅这一刻已有的集不算「新集」，水位跟起点一起抬到当前集数。
+                    notifiedEpisodeCount = existing?.notifiedEpisodeCount ?: candidate.episodeCount,
+                )
+            }
+            (entries + rest).distinctBy { it.series.seriesId }.take(MAX_DRAMA_SUBSCRIPTIONS)
+        } else {
+            rest
+        }
+        writeDramaSubscriptions(merged)
+        merged
+    }.getOrDefault(emptyList())
 
     /** 订阅/取消订阅，返回订阅后的完整列表（新的在前）。 */
     fun setDramaSubscription(series: DramaSeries, subscribed: Boolean): List<DramaSubscription> = runCatching {
@@ -1315,7 +1420,8 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                 series = series,
                 // 新订阅以当前集数作为起点 只有从这一刻之后新增的集才算「更新」。
                 lastSeenEpisodeCount = existing?.lastSeenEpisodeCount ?: series.episodeCount,
-                latestEpisodeCount = maxOf(series.episodeCount, existing?.latestEpisodeCount ?: 0),
+                latestEpisodeCount = existing?.latestEpisodeCount ?: series.episodeCount,
+                notifiedEpisodeCount = existing?.notifiedEpisodeCount ?: series.episodeCount,
             )
             (listOf(entry) + rest).take(MAX_DRAMA_SUBSCRIPTIONS)
         } else {
@@ -1325,7 +1431,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         merged
     }.getOrDefault(emptyList())
 
-    /** feed 刷新后同步订阅剧的集数；返回更新后的订阅列表。 */
+    /** feed 刷新后同步订阅剧的集数，并把同系列新出现的季补进订阅组。 */
     fun refreshDramaSubscriptionEpisodes(feed: List<DramaSeries>): List<DramaSubscription> = runCatching {
         val byId = feed.associateBy { it.seriesId }
         val current = dramaSubscriptions()
@@ -1333,16 +1439,36 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         var changed = false
         val merged = current.map { sub ->
             val latest = byId[sub.series.seriesId] ?: return@map sub
-            val count = maxOf(sub.latestEpisodeCount, latest.episodeCount, sub.series.episodeCount)
-            if (count == sub.latestEpisodeCount && latest.title == sub.series.title) {
+            // 只采信这一轮 feed 里真的带回来的集数，不再与旧值取 max —— 否则
+            // 「新集」在第一次刷新时就被抹平，永远追不到更新。
+            val count = maxOf(latest.episodeCount, sub.series.episodeCount)
+            if (count == sub.latestEpisodeCount && latest.title == sub.series.title &&
+                latest.coverUrl == sub.series.coverUrl
+            ) {
                 sub
             } else {
                 changed = true
                 sub.copy(series = latest, latestEpisodeCount = count)
             }
         }
-        if (changed) writeDramaSubscriptions(merged)
-        merged
+        val groupKeys = current.mapTo(mutableSetOf()) { DramaSeriesGrouping.groupKey(it.series) }
+        val existingIds = current.mapTo(mutableSetOf()) { it.series.seriesId }
+        val additions = feed.filter { candidate ->
+            candidate.seriesId.isNotEmpty() &&
+                candidate.seriesId !in existingIds &&
+                DramaSeriesGrouping.groupKey(candidate) in groupKeys
+        }.map { candidate ->
+            DramaSubscription(
+                series = candidate,
+                lastSeenEpisodeCount = candidate.episodeCount,
+                latestEpisodeCount = candidate.episodeCount,
+                notifiedEpisodeCount = candidate.episodeCount,
+            )
+        }
+        if (additions.isNotEmpty()) changed = true
+        val result = (merged + additions).distinctBy { it.series.seriesId }.take(MAX_DRAMA_SUBSCRIPTIONS)
+        if (changed) writeDramaSubscriptions(result)
+        result
     }.getOrDefault(emptyList())
 
     /** 用户打开详情页时记录已看到的最新集数，清掉更新提示。 */
@@ -1357,7 +1483,35 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                 series = series,
                 lastSeenEpisodeCount = maxOf(it[index].lastSeenEpisodeCount, count),
                 latestEpisodeCount = count,
+                // 用户已经看到这里了，没必要再推一次同样的更新。
+                notifiedEpisodeCount = maxOf(it[index].notifiedEpisodeCount, count),
             )
+        }
+        writeDramaSubscriptions(updated)
+        updated
+    }.getOrDefault(emptyList())
+
+    /**
+     * 这一轮刷新里真正还没提醒过的新集。
+     *
+     * 判定用 [DramaSubscription.notifiedEpisodeCount] 这个「通知水位」：
+     * 只有超过水位、同时也超过用户已看集数的那一段才算新集。已经发过通知的
+     * 会立刻把水位抬上去，所以同一次更新不会每天重复弹。
+     */
+    fun pendingDramaUpdates(): List<DramaUpdateNotice> = dramaSubscriptions()
+        .mapNotNull { sub ->
+            val fresh = sub.latestEpisodeCount - maxOf(sub.lastSeenEpisodeCount, sub.notifiedEpisodeCount)
+            if (fresh > 0) DramaUpdateNotice(sub.series, fresh) else null
+        }
+
+    /** 发过通知后把水位抬到当前最新集数，返回更新后的订阅列表。 */
+    fun markDramaUpdatesNotified(seriesIds: Collection<String>): List<DramaSubscription> = runCatching {
+        if (seriesIds.isEmpty()) return dramaSubscriptions()
+        val ids = seriesIds.toSet()
+        val current = dramaSubscriptions()
+        val updated = current.map { sub ->
+            if (sub.series.seriesId !in ids) sub
+            else sub.copy(notifiedEpisodeCount = maxOf(sub.notifiedEpisodeCount, sub.latestEpisodeCount))
         }
         writeDramaSubscriptions(updated)
         updated
@@ -1376,7 +1530,8 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
                     .put("episode_count", sub.series.episodeCount)
                     .put("content_type", sub.series.contentType)
                     .put("last_seen_episode_count", sub.lastSeenEpisodeCount)
-                    .put("latest_episode_count", sub.latestEpisodeCount),
+                    .put("latest_episode_count", sub.latestEpisodeCount)
+                    .put("notified_episode_count", sub.notifiedEpisodeCount),
             )
         }
         write(dramaSubFile, JSONObject().put("items", arr).toString())
@@ -1427,6 +1582,7 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         all.put("dramaRecent", loadObject(dramaRecentFile))
         all.put("dramaFavorites", loadObject(dramaFavFile))
         all.put("dramaSubscriptions", loadObject(dramaSubFile))
+        all.put("dramaProgress", loadObject(dramaProgressFile))
         all.toString()
     }.getOrNull()
 
@@ -1552,6 +1708,29 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
             }
             if (!ok) failed++
         }
+        // 播放进度按 updated_at 取较新的一条，避免换机恢复时旧进度覆盖本机新进度。
+        all.optJSONObject("dramaProgress")?.optJSONArray("items")?.let { remote ->
+            val ok = mutate(dramaProgressFile) { mine ->
+                val items = mine.optJSONArray("items") ?: JSONArray().also { mine.put("items", it) }
+                for (i in 0 until remote.length()) {
+                    val o = remote.optJSONObject(i) ?: continue
+                    val id = o.optString("series_id")
+                    if (id.isEmpty()) continue
+                    var replaced = false
+                    for (j in 0 until items.length()) {
+                        val local = items.optJSONObject(j) ?: continue
+                        if (local.optString("series_id") != id) continue
+                        if (o.optLong("updated_at") > local.optLong("updated_at")) {
+                            items.put(j, JSONObject(o.toString()))
+                        }
+                        replaced = true
+                        break
+                    }
+                    if (!replaced) items.put(JSONObject(o.toString()))
+                }
+            }
+            if (!ok) failed++
+        }
         all.optJSONArray("replaceRules")?.let { r ->
             val list = buildList {
                 for (i in 0 until r.length()) {
@@ -1586,6 +1765,9 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         /** 追剧记录最多保留多少部。 */
         private const val MAX_DRAMA_RECENT = 20
         private const val MAX_DRAMA_FEED = 60
+
+        /** 继续观看最多保存多少部，避免首页 rail 无限增长。 */
+        private const val MAX_DRAMA_PROGRESS = 20
 
         /** 收藏列表上限 再多也没人翻得到底。 */
         private const val MAX_DRAMA_FAVORITES = 100

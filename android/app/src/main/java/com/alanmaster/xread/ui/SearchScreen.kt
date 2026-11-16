@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -92,6 +93,7 @@ fun SearchScreen(
     history: List<String> = emptyList(),
     /** 「大家在搜」的热词；只在搜索框获得焦点时露出。 */
     hotWords: List<String> = emptyList(),
+    suggestions: List<String> = emptyList(),
     searchTabType: Int = 3,
     onSelectTabType: (Int, String) -> Unit = { _, _ -> },
     /** 搜索结果是否已经到底；true 时不再请求下一页。 */
@@ -130,6 +132,10 @@ fun SearchScreen(
     }
 
     val placeholder = if (searchTabType == 11) "搜索短剧名、演员" else "书名、作者、主角"
+    val localSuggestions = remember(query, suggestions) {
+        if (query.isBlank()) emptyList()
+        else suggestions.filter { it.contains(query.trim(), ignoreCase = true) }.distinct().take(6)
+    }
 
     Scaffold(
         topBar = {
@@ -160,6 +166,30 @@ fun SearchScreen(
                 onFocusChange = { fieldFocused = it },
                 modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.sm),
             )
+
+            if (fieldFocused && query.isNotBlank() && localSuggestions.isNotEmpty()) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Space.gutter)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                ) {
+                    localSuggestions.forEach { suggestion ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { query = suggestion; onSearch(suggestion) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                        ) {
+                            Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(suggestion, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
 
             val searchTabs = listOf(
                 "综合" to 1,
@@ -471,6 +501,7 @@ internal fun CompactSearchField(
                 keyboardActions = KeyboardActions(onSearch = { onImeSearch?.invoke() }),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .fillMaxHeight()
                     .onFocusChanged {
                         focused = it.isFocused
                         onFocusChange(it.isFocused)

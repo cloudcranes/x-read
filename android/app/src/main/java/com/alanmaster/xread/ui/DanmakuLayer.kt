@@ -38,7 +38,8 @@ internal fun DanmakuFlowLayer(
     topInset: Dp = 16.dp,
     laneGap: Dp = 26.dp,
     maxItems: Int = Int.MAX_VALUE,
-    fontSize: TextUnit = 12.sp,
+    fontSize: TextUnit = 16.sp,
+    textAlpha: Float = 1f,
     travelFactor: Float = 1.3f,
 ) {
     val activeDanmaku by remember(items, windowMs, leadMs, maxItems) {
@@ -61,7 +62,7 @@ internal fun DanmakuFlowLayer(
             Text(
                 text = item.text,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color.White,
+                    color = Color.White.copy(alpha = textAlpha),
                     fontWeight = FontWeight.Medium,
                     fontSize = fontSize,
                 ),
@@ -76,7 +77,7 @@ internal fun DanmakuFlowLayer(
                             .coerceIn(0f, 1f)
                         translationX = widthPx * (1f - progress * travelFactor)
                     }
-                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                    .background(Color.Black.copy(alpha = 0.4f * textAlpha), RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }

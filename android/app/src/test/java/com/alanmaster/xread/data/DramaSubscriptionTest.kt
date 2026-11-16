@@ -52,6 +52,87 @@ class DramaSubscriptionTest {
         assertEquals(14, seen.single().lastSeenEpisodeCount)
     }
 
+    @Test fun pendingUpdatesIgnoreAlreadySeenAndNotified() {
+        val r = repo()
+        r.setDramaSubscription(series("a", episodes = 10), true)
+        // 订阅那一刻没有任何「新集」。
+        assertTrue(r.pendingDramaUpdates().isEmpty())
+
+        r.refreshDramaSubscriptionEpisodes(listOf(series("a", episodes = 14)))
+        val pending = r.pendingDramaUpdates()
+        assertEquals(1, pending.size)
+        assertEquals(4, pending.single().newEpisodes)
+
+        // 发过通知后水位抬到 14，再问一次就不该重复提醒。
+        val marked = r.markDramaUpdatesNotified(listOf("a"))
+        assertEquals(14, marked.single().notifiedEpisodeCount)
+        assertTrue(r.pendingDramaUpdates().isEmpty())
+
+        // 再涨 3 集，只提醒这 3 集。
+        r.refreshDramaSubscriptionEpisodes(listOf(series("a", episodes = 17)))
+        assertEquals(3, r.pendingDramaUpdates().single().newEpisodes)
+    }
+
+    @Test fun seenSeriesDoesNotProduceNotice() {
+        val r = repo()
+        r.setDramaSubscription(series("a", episodes = 10), true)
+        r.refreshDramaSubscriptionEpisodes(listOf(series("a", episodes = 20)))
+        assertEquals(10, r.pendingDramaUpdates().single().newEpisodes)
+
+        // 打开详情页 = 用户已经看到这些，不该再推。
+        r.markDramaSubscriptionSeen(series("a", episodes = 20))
+        assertTrue(r.pendingDramaUpdates().isEmpty())
+    }
+
+    @Test fun notifiedWatermarkSurvivesRoundTrip() {
+        val dir = temp.newFolder("offline-wm")
+        val export = temp.newFolder("export-wm")
+        val first = OfflineRepo(dir, export)
+        first.setDramaSubscription(series("a", episodes = 10), true)
+        first.refreshDramaSubscriptionEpisodes(listOf(series("a", episodes = 12)))
+        first.markDramaUpdatesNotified(listOf("a"))
+
+        // 换一个实例重新读盘：水位必须还在，否则每次冷启动都会重复弹同一条通知。
+        val second = OfflineRepo(dir, export)
+        assertEquals(12, second.dramaSubscriptions().single().notifiedEpisodeCount)
+        assertTrue(second.pendingDramaUpdates().isEmpty())
+    }
+
+    @Test fun seasonSuffixIsRemovedForGrouping() {
+        assertEquals("问鼎仙途踏碎仙凡", DramaSeriesGrouping.displayTitle("问鼎仙途踏碎仙凡第三季"))
+        assertEquals("问鼎仙途踏碎仙凡", DramaSeriesGrouping.displayTitle("问鼎仙途踏碎仙凡"))
+        assertEquals(
+            DramaSeriesGrouping.groupKey("问鼎仙途踏碎仙凡"),
+            DramaSeriesGrouping.groupKey("问鼎仙途踏碎仙凡第二季"),
+        )
+    }
+
+    @Test fun subscribingOneSeasonAddsWholeGroupAndCancelRemovesIt() {
+        val r = repo()
+        val second = series("s2", "问鼎仙途踏碎仙凡第二季", 900)
+        val third = series("s3", "问鼎仙途踏碎仙凡第三季", 1000)
+        val first = series("s1", "问鼎仙途踏碎仙凡", 800)
+        val stored = r.setDramaSubscriptionGroup(third, listOf(first, second), true)
+        assertEquals(3, stored.size)
+        assertEquals(1, DramaSeriesGrouping.group(stored).size)
+        assertTrue(r.isDramaSubscribed(second))
+
+        val removed = r.setDramaSubscriptionGroup(second, listOf(first, third), false)
+        assertTrue(removed.isEmpty())
+        assertFalse(r.isDramaSubscribed(third))
+    }
+
+    @Test fun refreshAddsNewSeasonToExistingGroup() {
+        val r = repo()
+        val first = series("s1", "问鼎仙途踏碎仙凡", 800)
+        r.setDramaSubscriptionGroup(first, emptyList(), true)
+        val second = series("s2", "问鼎仙途踏碎仙凡第二季", 900)
+        val refreshed = r.refreshDramaSubscriptionEpisodes(listOf(first, second))
+        assertEquals(2, refreshed.size)
+        assertEquals(1, DramaSeriesGrouping.group(refreshed).size)
+        assertEquals(0, DramaSeriesGrouping.group(refreshed).single().newEpisodeCount)
+    }
+
     @Test fun backupCarriesSubscriptions() {
         val files = temp.newFolder("files")
         val export = temp.newFolder("export2")

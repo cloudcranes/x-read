@@ -1,8 +1,12 @@
 package com.alanmaster.xread.ui
 
 import android.app.Activity
+import android.app.SearchManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -918,7 +922,37 @@ fun ReaderScreen(
             AlertDialog(
                 onDismissRequest = { markTarget = null },
                 title = { Text("第 ${index + 1} 段", color = palette.title) },
-                text = { Text(text.take(80), fontSize = 13.sp, color = palette.text) },
+                text = {
+                    Column {
+                        Text(text.take(120), fontSize = 13.sp, color = palette.text)
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                            TextButton(onClick = {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                cm?.setPrimaryClip(ClipData.newPlainText("段落", text))
+                                markTarget = null
+                            }) { Text("复制", color = palette.accent) }
+                            TextButton(onClick = {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_WEB_SEARCH)
+                                        .putExtra(SearchManager.QUERY, text.take(60))
+                                )
+                                markTarget = null
+                            }) { Text("搜索", color = palette.accent) }
+                            TextButton(onClick = {
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, text)
+                                        },
+                                        "分享段落",
+                                    )
+                                )
+                                markTarget = null
+                            }) { Text("分享", color = palette.accent) }
+                        }
+                    }
+                },
                 confirmButton = {
                     TextButton(onClick = {
                         onToggleMark(chapterId, index, text, Mark.KIND_HIGHLIGHT)
