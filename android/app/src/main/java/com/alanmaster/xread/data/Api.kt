@@ -704,6 +704,17 @@ class Api(context: Context) {
         stream: Boolean = false,
     ): DramaPlaySource = withContext(Dispatchers.IO) {
         checkId(videoId)
+        // 上游播放地址解析接口偶尔整体返回 HTTP 200 + 空 body（风控窗口），
+        // 已下载解密的本地缓存仍应可播，不能因为拿不到新地址就整集报错。
+        if (!stream) {
+            localDramaVideoFile(videoId)?.let { file ->
+                return@withContext DramaPlaySource(
+                    videoId = videoId,
+                    videoUrl = file.absolutePath,
+                    localFilePath = file.absolutePath,
+                )
+            }
+        }
         val payload = content("videos/$videoId", if (stream) "mode=stream" else "")
         val rawUrl = payload.optString("video_url").ifBlank { payload.optString("url") }
         val localPath = if (!stream && rawUrl.startsWith("/src/")) {
@@ -731,6 +742,23 @@ class Api(context: Context) {
             keyHex = payload.optString("key_hex"),
             variants = variants,
         )
+    }
+
+    /**
+     * 本地已解密可播的短剧文件。
+     *
+     * 先看原生核心下载目录 `files/content-core/src/{videoId}.mp4`
+     * （下载时已解密，可直接交给播放器），再看播放器清洗副本
+     * `cache/drama-play/{videoId}.mp4-{size}-{mtime}.mp4`。
+     */
+    private fun localDramaVideoFile(videoId: String): File? {
+        val coreFile = File(File(app.filesDir, "content-core"), "src/$videoId.mp4")
+        if (coreFile.isFile && coreFile.length() > 0L) return coreFile
+        val cleaned = File(app.cacheDir, "drama-play").listFiles { f ->
+            f.isFile && f.length() > 0L &&
+                f.name.startsWith("$videoId.mp4-") && f.name.endsWith(".mp4")
+        }
+        return cleaned?.maxByOrNull { it.lastModified() }
     }
 
     /**

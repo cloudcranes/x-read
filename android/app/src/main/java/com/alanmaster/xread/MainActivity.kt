@@ -81,6 +81,13 @@ import com.alanmaster.xread.ui.XReadTheme
 import com.alanmaster.xread.ui.ZLibraryPage
 import org.json.JSONObject
 
+/** 底栏入口的 label，既当显示文字也当下标键，避免项数变化时点击错位。 */
+private const val NAV_SHELF = "书架"
+private const val NAV_DISCOVER = "发现"
+private const val NAV_DRAMA = "短剧"
+private const val NAV_ZLIBRARY = "Z-Library"
+private const val NAV_TOOLS = "我的"
+
 /** 底栏五个入口。图标与文字在这里定死，选中态只影响展开与配色。 */
 private val mainNavItems = listOf(
     FloatingNavItem(Icons.Filled.LocalLibrary, "书架"),
@@ -423,6 +430,15 @@ private fun App(
         else com.alanmaster.xread.data.UpdateScheduler.cancel(hostContext)
     }
 
+    // 短剧入口在设置里被关掉时，正停在短剧页的人要有一个去处：
+    // 播放页退回发现页，别把一个已经没有入口的页面留在返回栈里。
+    androidx.compose.runtime.LaunchedEffect(state.dramaEnabled) {
+        if (!state.dramaEnabled) {
+            if (screen is Screen.Drama || screen is Screen.DramaSwipe) screen = Screen.Discover
+            if (state.shelfMediaType == "drama") vm.setShelfMediaType("all")
+        }
+    }
+
     // 热更新 进界面先读一次偏好，再过节流自动查一次（一天最多一次）。
     // 检查/下载都是 IO，状态由 updater 自己的 StateFlow 推送，不占主线程。
     val updater = remember { com.alanmaster.xread.data.AppUpdater(hostContext) }
@@ -686,6 +702,7 @@ private fun App(
                     builtinGroups = ShelfGrouping.summarize(state.shelfAll),
                     totalCount = state.shelfAll.size,
                     shelfMediaType = state.shelfMediaType,
+                    dramaEnabled = state.dramaEnabled,
                     onSelectMediaType = { vm.setShelfMediaType(it) },
                     recentDramas = state.recentDramas,
                     dramaFavorites = state.dramaFavorites,
@@ -776,6 +793,7 @@ private fun App(
                         vm.loadAudioFeed()
                         screen = Screen.AudioFeed
                     },
+                    dramaEnabled = state.dramaEnabled,
                     onDrama = {
                         vm.loadDramaFeed()
                         screen = Screen.Drama
@@ -972,6 +990,7 @@ private fun App(
             initialQuery = query,
             results = state.results,
             dramaResults = state.dramaResults,
+            dramaEnabled = state.dramaEnabled,
             loading = state.loading,
             searched = state.searched,
             error = state.searchError,
@@ -1560,35 +1579,44 @@ private fun App(
 
             // 悬浮底栏 叠在内容之上而不是占一行高度，页面背景一直铺到屏幕下缘。
             if (isMainTab) {
+                // 短剧入口按设置里的开关决定在不在。下标不能硬编码：关掉之后「我的」是第 4 项，
+                // 所以这里一律按 label 找位置，改项数不会让点击落到隔壁。
+                val navItems = if (state.dramaEnabled) {
+                    mainNavItems
+                } else {
+                    mainNavItems.filterNot { it.label == NAV_DRAMA }
+                }
+                val navLabels = navItems.map { it.label }
+                val selectedLabel = when (screen) {
+                    Screen.Shelf -> NAV_SHELF
+                    Screen.Discover -> NAV_DISCOVER
+                    Screen.Drama, Screen.DramaSwipe -> NAV_DRAMA
+                    Screen.ZLibrary -> NAV_ZLIBRARY
+                    Screen.Tools -> NAV_TOOLS
+                    else -> NAV_DISCOVER
+                }
                 FloatingNavBar(
-                    items = mainNavItems,
-                    selectedIndex = when (screen) {
-                        Screen.Shelf -> 0
-                        Screen.Discover -> 1
-                        Screen.Drama, Screen.DramaSwipe -> 2
-                        Screen.ZLibrary -> 3
-                        Screen.Tools -> 4
-                        else -> 1
-                    },
+                    items = navItems,
+                    selectedIndex = navLabels.indexOf(selectedLabel).coerceAtLeast(0),
                     onSelect = { index ->
-                        when (index) {
-                            0 -> screen = Screen.Shelf
-                            1 -> {
+                        when (navLabels.getOrNull(index)) {
+                            NAV_SHELF -> screen = Screen.Shelf
+                            NAV_DISCOVER -> {
                                 if (state.hot.isEmpty() || state.feedRanked.isEmpty()) {
                                     vm.loadHot()
                                     vm.loadFeed()
                                 }
                                 screen = Screen.Discover
                             }
-                            2 -> {
+                            NAV_DRAMA -> {
                                 vm.loadDramaFeed()
                                 screen = Screen.Drama
                             }
-                            3 -> {
+                            NAV_ZLIBRARY -> {
                                 vm.loadZLibrarySession()
                                 screen = Screen.ZLibrary
                             }
-                            else -> {
+                            NAV_TOOLS -> {
                                 vm.flushStats(force = true)
                                 statsSnapshot = offline.stats()
                                 rulesSnapshot = vm.rules()
@@ -1673,6 +1701,8 @@ private fun App(
             onHotUpdate = { updater.setHotUpdate(it) },
             onUpdateSource = { source, token -> updater.saveSource(source, token) },
             onUpdateMirror = { updater.setMirror(it) },
+            dramaEnabled = state.dramaEnabled,
+            onDramaEnabled = { vm.setDramaEnabled(it) },
         )
     }
     // 阅读时长按「前台停留」结算 进后台立即结算并暂停计时，

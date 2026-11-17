@@ -113,6 +113,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import coil.request.ImageRequest
 import coil.imageLoader
 import androidx.compose.ui.platform.LocalContext
+import java.io.File
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -1371,8 +1372,19 @@ private fun DramaPlayerScreen(
                             verticalArrangement = Arrangement.spacedBy(Space.sm),
                         ) {
                             Text(error, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                            TextButton(onClick = { episode?.let(onSelectEpisode) }) {
-                                Text("重试", color = MaterialTheme.colorScheme.primary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                                TextButton(onClick = { episode?.let(onSelectEpisode) }) {
+                                    Text("重试", color = MaterialTheme.colorScheme.primary)
+                                }
+                                val nextEpisode = episode?.let { current ->
+                                    val index = drama.episodes.indexOfFirst { it.episodeId == current.episodeId }
+                                    drama.episodes.getOrNull(index + 1)
+                                }
+                                if (nextEpisode != null) {
+                                    TextButton(onClick = { onSelectEpisode(nextEpisode) }) {
+                                        Text("下一集", color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
                             }
                         }
                     }
@@ -2513,6 +2525,16 @@ private fun EpisodePickerSheet(
     onSelect: (DramaEpisode) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // 上游播放地址解析被风控时只有已下载的集能播，选集面板标出这些集，
+    // 用户不用一集集点过去碰运气。
+    val context = LocalContext.current
+    val cachedEpisodeIds = remember(drama.seriesId) {
+        File(File(context.filesDir, "content-core"), "src")
+            .listFiles { f -> f.isFile && f.length() > 0L && f.name.endsWith(".mp4") }
+            ?.map { it.name.removeSuffix(".mp4") }
+            ?.toSet()
+            .orEmpty()
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         var query by remember { mutableStateOf("") }
         var rangeStart by remember(drama.seriesId) { mutableIntStateOf(0) }
@@ -2636,6 +2658,15 @@ private fun EpisodePickerSheet(
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                                 )
+                                if (ep.episodeId in cachedEpisodeIds) {
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(3.dp)
+                                            .size(5.dp)
+                                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                    )
+                                }
                             }
                         }
                     }

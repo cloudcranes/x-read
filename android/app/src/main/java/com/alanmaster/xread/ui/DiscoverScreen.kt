@@ -93,6 +93,8 @@ fun DiscoverScreen(
     onRank: () -> Unit,
     onCategory: () -> Unit,
     onAudio: () -> Unit = {},
+    /** 短剧入口总开关；关着时整块「短剧剧场」卡片不渲染。 */
+    dramaEnabled: Boolean = false,
     onDrama: () -> Unit = {},
     onBoard: (Int) -> Unit,
     onMore: () -> Unit,
@@ -113,7 +115,7 @@ fun DiscoverScreen(
         .take(20)
 
     Scaffold(
-        topBar = { DiscoverHeader(onRefresh = onRefresh) },
+        topBar = { DiscoverHeader(onRefresh = onRefresh, dramaEnabled = dramaEnabled) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -170,7 +172,9 @@ fun DiscoverScreen(
             }
 
             /* -------------------- 短剧剧场入口 -------------------- */
-            item { DramaTheatreEntry(onClick = onDrama) }
+            if (dramaEnabled) {
+                item { DramaTheatreEntry(onClick = onDrama) }
+            }
 
             /* -------------------- 01 飙升与完本 -------------------- */
             if (stripBooks.isNotEmpty()) {
@@ -284,7 +288,7 @@ fun DiscoverScreen(
 /* --------------------------- 页头 --------------------------- */
 
 @Composable
-private fun DiscoverHeader(onRefresh: () -> Unit) {
+private fun DiscoverHeader(onRefresh: () -> Unit, dramaEnabled: Boolean = false) {
     Surface(color = MaterialTheme.colorScheme.background) {
         Row(
             Modifier
@@ -303,7 +307,7 @@ private fun DiscoverHeader(onRefresh: () -> Unit) {
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "拾页精选 小说与短剧",
+                    text = if (dramaEnabled) "拾页精选 小说与短剧" else "拾页精选 小说",
                     fontSize = 11.sp,
                     lineHeight = 15.sp,
                     color = ink3,

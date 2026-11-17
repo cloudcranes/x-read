@@ -95,6 +95,8 @@ fun SearchScreen(
     hotWords: List<String> = emptyList(),
     suggestions: List<String> = emptyList(),
     searchTabType: Int = 3,
+    /** 短剧入口总开关；关着时不出「短剧」tab，占位文案也不提短剧。 */
+    dramaEnabled: Boolean = false,
     onSelectTabType: (Int, String) -> Unit = { _, _ -> },
     /** 搜索结果是否已经到底；true 时不再请求下一页。 */
     exhausted: Boolean = true,
@@ -131,7 +133,8 @@ fun SearchScreen(
         onLibrarySearch(query)
     }
 
-    val placeholder = if (searchTabType == 11) "搜索短剧名、演员" else "书名、作者、主角"
+    val placeholder =
+        if (dramaEnabled && searchTabType == 11) "搜索短剧名、演员" else "书名、作者、主角"
     val localSuggestions = remember(query, suggestions) {
         if (query.isBlank()) emptyList()
         else suggestions.filter { it.contains(query.trim(), ignoreCase = true) }.distinct().take(6)
@@ -191,11 +194,12 @@ fun SearchScreen(
                 }
             }
 
-            val searchTabs = listOf(
-                "综合" to 1,
-                "小说" to 3,
-                "短剧" to 11,
-            )
+            val searchTabs = buildList {
+                add("综合" to 1)
+                add("小说" to 3)
+                // 短剧接口常年风控，开关关着时连 tab 都不出现，避免搜出一片空。
+                if (dramaEnabled) add("短剧" to 11)
+            }
             LazyRow(
                 contentPadding = PaddingValues(horizontal = Space.gutter, vertical = Space.xs),
                 horizontalArrangement = Arrangement.spacedBy(Space.sm),
@@ -233,7 +237,7 @@ fun SearchScreen(
                 )
                 loading -> Loading()
                 error.isNotEmpty() -> SearchErrorState(error) { onSearch(query) }
-                searchTabType == 11 && dramaResults.isNotEmpty() -> {
+                dramaEnabled && searchTabType == 11 && dramaResults.isNotEmpty() -> {
                     SectionHeader("短剧结果", "${dramaResults.size} 部", index = "DRAMA")
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),

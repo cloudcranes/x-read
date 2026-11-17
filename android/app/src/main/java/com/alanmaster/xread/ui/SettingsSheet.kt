@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -74,6 +75,9 @@ fun SettingsSheet(
     onHotUpdate: (Boolean) -> Unit = {},
     onUpdateSource: (String, String) -> Unit = { _, _ -> },
     onUpdateMirror: (String) -> Unit = {},
+    /** 短剧入口开关值；默认收起。 */
+    dramaEnabled: Boolean = false,
+    onDramaEnabled: (Boolean) -> Unit = {},
 ) {
     val local = rememberLocalStorage()
 
@@ -186,9 +190,53 @@ fun SettingsSheet(
                             }
                         }
 
+                        /* ---------------- 内容入口 ---------------- */
+                        item {
+                            SettingsSection(index = "04", title = "内容入口") {
+                                Text(
+                                    text = "上游短剧播放地址接口常年风控，短剧入口默认收起。" +
+                                            "已缓存的剧集仍然能播，但新的播放地址经常取不到。",
+                                    fontSize = 12.sp,
+                                    lineHeight = 19.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = Space.sm),
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = Space.md),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "显示短剧入口",
+                                            fontSize = 14.sp,
+                                            lineHeight = 20.sp,
+                                        )
+                                        Text(
+                                            text = "底栏、发现页、搜索与书架的类型筛选里都露出短剧；" +
+                                                    "关掉时这几个入口一起消失，已存的数据不会删除。",
+                                            fontSize = 11.sp,
+                                            lineHeight = 16.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(top = Space.xxs),
+                                        )
+                                    }
+                                    Switch(
+                                        checked = dramaEnabled,
+                                        onCheckedChange = onDramaEnabled,
+                                        modifier = Modifier
+                                            .padding(start = Space.md)
+                                            .semantics { contentDescription = "显示短剧入口" },
+                                    )
+                                }
+                                DividerLine()
+                            }
+                        }
+
                         /* ---------------- 关于 ---------------- */
                         item {
-                            SettingsSection(index = "04", title = "关于") {
+                            SettingsSection(index = "05", title = "关于") {
                                 SettingsRow("版本", "拾页 ${BuildConfig.VERSION_NAME}")
                                 Text(
                                     text = "单文件安装即可使用，不采集、不上传任何阅读数据。" +

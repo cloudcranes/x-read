@@ -107,6 +107,8 @@ fun ShelfScreen(
     builtinGroups: List<ShelfGrouping.Group> = emptyList(),
     totalCount: Int = 0,
     shelfMediaType: String = "all",
+    /** 短剧入口总开关；关着时「短剧」这个板块 chip 不出现。 */
+    dramaEnabled: Boolean = false,
     onSelectMediaType: (String) -> Unit = {},
     /** 短剧收藏与追剧记录 都落在 OfflineRepo，进程重启后仍在。 */
     recentDramas: List<DramaSeries> = emptyList(),
@@ -253,6 +255,7 @@ fun ShelfScreen(
                     } else {
                         ShelfMediaTabs(
                             selected = shelfMediaType,
+                            showDrama = dramaEnabled,
                             onSelect = onSelectMediaType,
                         )
                         ShelfToolbar(
@@ -864,8 +867,17 @@ private fun ShelfHeader(
 /* --------------------------- 短剧书架 --------------------------- */
 
 @Composable
-private fun ShelfMediaTabs(selected: String, onSelect: (String) -> Unit) {
-    val tabs = listOf("all" to "全部", "novel" to "小说", "drama" to "短剧")
+private fun ShelfMediaTabs(
+    selected: String,
+    showDrama: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    val tabs = buildList {
+        add("all" to "全部")
+        add("novel" to "小说")
+        // 短剧入口收起时连 chip 一起收 否则点进去只有空状态页。
+        if (showDrama) add("drama" to "短剧")
+    }
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()

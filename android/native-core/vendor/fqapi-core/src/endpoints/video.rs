@@ -67,6 +67,29 @@ impl VideoSourceResolution {
 // video.go
 // ---------------------------------------------------------------------------
 
+/// Returns the `/src/{name}` path for an already downloaded (and decrypted)
+/// episode file, if one exists. The upstream play-address endpoints occasionally
+/// answer `HTTP 200` with an empty body (path-level risk control); a cached
+/// episode must stay playable in that window instead of failing the whole
+/// `/videos/{id}` request before `download_and_save` ever gets to its cache check.
+fn cached_video_path(ctx: &Ctx, video_id: &str) -> Option<String> {
+    let src_dir = if ctx.src_dir.is_empty() {
+        std::path::PathBuf::from("src")
+    } else {
+        std::path::PathBuf::from(&ctx.src_dir)
+    };
+    for ext in [".mp4", ".m4s", ".ts"] {
+        let name = format!("{video_id}{ext}");
+        let path = src_dir.join(&name);
+        if let Ok(meta) = std::fs::metadata(&path) {
+            if meta.len() > 0 {
+                return Some(format!("/src/{name}"));
+            }
+        }
+    }
+    None
+}
+
 fn handle_video<'a>(ctx: &'a Ctx, params: &'a Params) -> BoxFuture<'a, ApiResult<Value>> {
     Box::pin(async move {
         let video_id = default_val(&params.get_str("video_id"), &params.get_str("item_ids"));
@@ -75,6 +98,27 @@ fn handle_video<'a>(ctx: &'a Ctx, params: &'a Params) -> BoxFuture<'a, ApiResult
         }
 
         let stream_mode = params.get_str("mode") == "stream";
+
+        // 本地已下载的集优先：上游播放地址解析接口出现 200 + 空 body 的风控窗口时，
+        // 已缓存的集不应该跟着整集报错（缓存里是下载时已解密的 mp4）。
+        if !stream_mode {
+            if let Some(local_path) = cached_video_path(ctx, &video_id) {
+                log::info!("video {video_id}: served from local cache: {local_path}");
+                let main_url = local_path.clone();
+                return Ok(json!({
+                    "video_url": local_path,
+                    "video_id": video_id,
+                    "video_info": {
+                        "data": {
+                            "video_list": {
+                                "video_1": { "main_url": main_url },
+                            },
+                        },
+                    },
+                }));
+            }
+        }
+
         // 短剧 stream 仍以 shortplay 模型选流，但清晰度列表要合并两条接口：
         // 顶档（1080p）只出现在 phoenix 模型的 `fallback_api` 列表里，而两条
         // 接口的编码分布并不相同——shortplay 各档是 h265，phoenix 的低档是解不

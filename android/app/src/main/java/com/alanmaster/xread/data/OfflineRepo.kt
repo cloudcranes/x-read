@@ -630,6 +630,23 @@ class OfflineRepo internal constructor(private val root: File, val exportDir: Fi
         s.put("newChapterNotify", enabled)
     }
 
+    /* ---------- 短剧入口 ---------- */
+
+    /**
+     * 短剧入口总开关，默认**关闭**。
+     *
+     * 上游播放地址解析接口（multi_video_model / video_model）经常整路径返回空包，
+     * 打开入口只会让读者点进一集一集的黑屏。默认收起，想用的人在设置里自己打开；
+     * 打开后书架/搜索/发现页的短剧入口一起回来，数据层不受影响。
+     */
+    fun dramaEnabled(): Boolean = runCatching {
+        loadObject(settingsFile).optBoolean("dramaEnabled", false)
+    }.getOrDefault(false)
+
+    fun saveDramaEnabled(enabled: Boolean) = mutate(settingsFile) { s ->
+        s.put("dramaEnabled", enabled)
+    }
+
     /* ---------- 热更新 ---------- */
 
     /**

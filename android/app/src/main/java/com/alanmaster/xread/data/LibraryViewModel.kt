@@ -96,6 +96,13 @@ data class UiState(
     val downloadPolicy: DownloadPolicy = DownloadPolicy(),
     /** 每天检查一次新章并发通知。 */
     val newChapterNotify: Boolean = false,
+    /**
+     * 短剧入口是否露出，默认关闭。
+     *
+     * 上游播放地址解析接口常年风控（整路径 200 + 空包），入口露着等于让人一集一集
+     * 撞黑屏；收起来之后底栏、发现页、搜索 tab、书架媒体类型都不出现短剧。
+     */
+    val dramaEnabled: Boolean = false,
     /** 每日阅读目标；连续天数不存状态，由 [GoalMath] 现算。 */
     val readingGoal: ReadingGoal = ReadingGoal(),
     /** 每日阅读提醒（本地闹钟，不是新章提醒）。 */
@@ -695,21 +702,25 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     private fun zlibClient(): ZLibraryClient = ZLibraryClient(session = _state.value.zlibSession)
 
     fun setSearchTabType(tabType: Int, currentQuery: String = "") {
-        update { it.copy(searchTabType = tabType) }
+        // 短剧入口收起时 tab 11 不该被选中（历史状态、深链接都可能带进来）。
+        val next = if (tabType == 11 && !_state.value.dramaEnabled) 3 else tabType
+        update { it.copy(searchTabType = next) }
         if (currentQuery.isNotBlank()) {
-            search(currentQuery, tabType)
+            search(currentQuery, next)
         }
     }
 
     fun search(query: String, tabType: Int = _state.value.searchTabType) = viewModelScope.launch {
         if (query.isBlank()) return@launch
-        update { it.copy(loading = true, searchError = "", searchTabType = tabType) }
+        // 收起短剧后即使被直接调用 tab 11，也走普通书籍搜索，不请求短剧接口。
+        val tab = if (tabType == 11 && !_state.value.dramaEnabled) 3 else tabType
+        update { it.copy(loading = true, searchError = "", searchTabType = tab) }
         // 先记历史再发请求 搜不到也是用户真实搜过的词
         val history = withContext(Dispatchers.IO) { offline.pushSearch(query) }
         update { it.copy(searchHistory = history) }
         // 上游 tab_type=11 是短剧、2 是听书。听书走通用分页路径，
         // 只有短剧的结构（video_data）要单独解析。
-        if (tabType == 11) {
+        if (tab == 11) {
             runCatching { api.searchDrama(query) }
                 .onSuccess { r ->
                     update {
@@ -725,7 +736,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                     }
                 }
         } else {
-            runCatching { api.searchPage(query, tabType, offset = 0) }
+            runCatching { api.searchPage(query, tab, offset = 0) }
                 .onSuccess { page ->
                     update {
                         it.copy(loading = false, results = page.books, dramaResults = emptyList(), searched = true, searchError = "",
@@ -2306,11 +2317,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     fun setShelfMediaType(type: String) {
         require(type in setOf("all", "novel", "manga", "drama")) { "未知板块" }
+        // 短剧入口收起时书架不该停在 drama 板块，静默退回全部，别把设置里的开关变成崩溃点。
+        val next = if (type == "drama" && !_state.value.dramaEnabled) "all" else type
         update {
             it.copy(
-                shelfMediaType = type,
+                shelfMediaType = next,
                 shelf = ShelfSort.apply(
-                    it.shelfAll, it.shelfSort, it.shelfGroupFilter, type, it.shelfStatusFilter
+                    it.shelfAll, it.shelfSort, it.shelfGroupFilter, next, it.shelfStatusFilter
                 )
             )
         }
@@ -2588,6 +2601,30 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         withContext(Dispatchers.IO) { offline.saveNewChapterNotify(enabled) }
     }
 
+    /**
+     * 短剧入口开关。关掉时顺手把已经打开着的短剧页收起来——
+     * 否则用户从设置里关掉，返回键还会落在一个已经「不存在」的页面上。
+     */
+    fun setDramaEnabled(enabled: Boolean) = viewModelScope.launch {
+        update {
+            it.copy(
+                dramaEnabled = enabled,
+                // 关掉入口时把短剧侧状态清干净 避免下次打开看到一堆过期剧集。
+                currentDrama = if (enabled) it.currentDrama else null,
+                currentEpisode = if (enabled) it.currentEpisode else null,
+                currentVideoSource = if (enabled) it.currentVideoSource else null,
+                dramaVideoError = if (enabled) it.dramaVideoError else "",
+                dramaVideoLoading = if (enabled) it.dramaVideoLoading else false,
+                // 媒体墙与搜索结果也清掉 否则搜索联想里还会冒出短剧片名。
+                dramaFeed = if (enabled) it.dramaFeed else emptyList(),
+                dramaResults = if (enabled) it.dramaResults else emptyList(),
+            )
+        }
+        withContext(Dispatchers.IO) { offline.saveDramaEnabled(enabled) }
+        // 打开时立刻把媒体墙补上 否则底栏点了「短剧」要等第一次刷新才有内容。
+        if (enabled) loadDramaFeed()
+    }
+
     fun checkOnboarding() = viewModelScope.launch {
         val needed = withContext(Dispatchers.IO) { offline.needsOnboarding() }
         if (needed) update { it.copy(showOnboarding = true) }
@@ -2620,11 +2657,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     fun loadDownloadPolicy() = viewModelScope.launch {
         val p = withContext(Dispatchers.IO) { offline.downloadPolicy() }
         val notify = withContext(Dispatchers.IO) { offline.newChapterNotifyEnabled() }
+        // 短剧入口默认收起，跟着这条启动链一起读，省一条 LaunchedEffect。
+        val drama = withContext(Dispatchers.IO) { offline.dramaEnabled() }
         downloader.policy = p
         // 预取器也要拿到落盘的档位 只同步 downloader 的话，重启后预取会按缺省 3 章跑，
         // 用户在设置里选的「关」或「后 10 章」等于没生效。
         prefetcher.policy = p
-        update { it.copy(downloadPolicy = p, newChapterNotify = notify) }
+        update { it.copy(downloadPolicy = p, newChapterNotify = notify, dramaEnabled = drama) }
     }
 
     fun setDownloadPolicy(p: DownloadPolicy) = viewModelScope.launch {
@@ -2787,6 +2826,8 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
 
     /** 启动时只把上次缓存放进状态，避免后台网络预取流量；进入短剧页时再刷新。 */
     fun loadCachedDramaFeed() {
+        // 入口收起时连缓存都不读：这些片名会被拿去当搜索建议，搜出来点不进。
+        if (!_state.value.dramaEnabled) return
         viewModelScope.launch {
             val cached = withContext(Dispatchers.IO) { offline.dramaFeedCache() }
             if (cached.isNotEmpty()) {
@@ -2797,6 +2838,8 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     }
 
     fun loadDramaFeed() {
+        // 短剧入口收起时不去打上游：媒体墙没有入口可进，请求只是白白撞风控。
+        if (!_state.value.dramaEnabled) return
         viewModelScope.launch {
             // 先读上次成功缓存 有缓存就直接出媒体墙，网络刷新在后台补/替换。
             val cached = withContext(Dispatchers.IO) { offline.dramaFeedCache() }
@@ -2851,6 +2894,8 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         }
         if (subscriptions.isEmpty()) return
         update { it.copy(dramaSubscriptions = subscriptions) }
+        // 入口收起时不弹短剧追更通知 否则点了只会跳进一个不存在的页面。
+        if (!_state.value.dramaEnabled) return
         if (!offline.newChapterNotifyEnabled()) return
         // 通知水位之外的集数才算新集；发完立刻抬水位，同一次更新不会反复弹。
         val notices = withContext(Dispatchers.IO) { offline.pendingDramaUpdates() }
@@ -2865,6 +2910,7 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
     /** 短剧下滑续页 沿频道首页 offset 往后翻，按 seriesId 去重追加 */
     fun loadMoreDrama() {
         val st = _state.value
+        if (!st.dramaEnabled) return
         if (st.dramaMoreLoading || st.dramaExhausted || st.dramaFeedLoading) return
         viewModelScope.launch {
             update { it.copy(dramaMoreLoading = true) }
@@ -2893,6 +2939,8 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
         resumeEpisodeId: String = "",
         resumePositionMs: Long = 0L,
     ) {
+        // 入口收起时不打开详情 返回栈里不该出现一个没有入口的页面。
+        if (!_state.value.dramaEnabled) return
         viewModelScope.launch {
             update {
                 it.copy(
@@ -2983,7 +3031,13 @@ class LibraryViewModel(private val api: Api, val offline: OfflineRepo) : ViewMod
                 loadDanmaku(episode.seriesId, episode.episodeId, durationSeconds = episode.durationSeconds)
                 prefetchNextDramaEpisode(episode)
             } catch (e: Exception) {
-                update { it.copy(dramaVideoLoading = false, dramaVideoError = readableFailure(e.message.orEmpty())) }
+                val raw = e.message.orEmpty()
+                // 上游播放地址解析被风控时两个来源都回空 body，重试也拿不到；
+                // 给出可操作的提示，而不是一整段重复的技术错误。
+                val friendly = if (raw.contains("视频接口返回空响应")) {
+                    "该集播放地址暂不可用，可跳到下一集或稍后重试"
+                } else readableFailure(raw)
+                update { it.copy(dramaVideoLoading = false, dramaVideoError = friendly) }
             }
         }
     }
